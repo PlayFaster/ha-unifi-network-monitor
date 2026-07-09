@@ -1,0 +1,86 @@
+[tool.ruff]
+extend = ".validate/pyproject_common.toml"
+
+[tool.ruff.lint.per-file-ignores]
+# Pytest files rely on assert statements and other custom styling (aligned with HA Core)
+"tests/**" = [
+    "F821", "F841", "S101", "S105", "S106", "S107",
+    "PT003", "PT006", "PT018", "PT022", "PT023", "PT024", "PT025", "PT026",
+    "RUF012"
+]
+"tests/*" = [
+    "F821", "F841", "S101", "S105", "S106", "S107",
+    "PT003", "PT006", "PT018", "PT022", "PT023", "PT024", "PT025", "PT026",
+    "RUF012"
+]
+"tests/**/*.py" = [
+    "F821", "F841", "S101", "S105", "S106", "S107",
+    "PT003", "PT006", "PT018", "PT022", "PT023", "PT024", "PT025", "PT026",
+    "RUF012"
+]
+
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+norecursedirs = [".git", "testing_config"]
+markers = [
+    "asyncio: mark test as an asyncio test",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning:homeassistant.components.http.*",
+    "ignore::pytest.PytestUnraisableExceptionWarning",
+]
+
+[tool.mypy]
+python_version = "3.14"
+platform = "linux"
+# Project-specific: resolve custom_components and ha_core paths in the devcontainer
+mypy_path = "/ha_core"
+explicit_package_bases = true
+show_error_codes = true
+# Aligned with HA: targeted error-code suppression rather than ignore_missing_imports = true
+disable_error_code = ["annotation-unchecked", "import-not-found", "import-untyped"]
+enable_error_code = ["deprecated", "ignore-without-code", "redundant-self", "truthy-iterable"]
+# Misc / warnings
+warn_unused_configs = true
+warn_incomplete_stub = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+warn_return_any = true
+# Strictness — aligned with HA global mypy.ini
+local_partial_types = true
+strict_bytes = true
+strict_equality = true
+no_implicit_optional = true
+check_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_subclassing_any = true
+disallow_untyped_calls = true
+disallow_untyped_decorators = true
+disallow_untyped_defs = true
+
+# homeassistant.* modules: silence HA-internal errors and follow imports silently
+# (project-specific: avoids walking all of HA source on every check).
+# no_implicit_reexport matches HA's own [mypy-homeassistant.*] policy exactly.
+[[tool.mypy.overrides]]
+module = ["homeassistant.*"]
+ignore_errors = true
+follow_imports = "silent"
+no_implicit_reexport = true
+
+[tool.coverage.run]
+source = ["custom_components"]
+
+[tool.coverage.report]
+exclude_lines = [
+  "pragma: no cover",
+  "if TYPE_CHECKING:",
+  "@overload",
+]
+
+[tool.codespell]
+skip = ".git,.venv,.ruff_cache,.pytest_cache"
+ignore-words-list = "hass"

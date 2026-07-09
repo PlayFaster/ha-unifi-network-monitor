@@ -1,0 +1,198 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": true,
+  "description": "Validation for Home Assistant integration manifest.json files.",
+  "properties": {
+    "after_dependencies": {
+      "description": "Soft dependencies that should load first if present.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "bluetooth": {
+      "description": "Bluetooth discovery matchers.",
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "codeowners": {
+      "description": "GitHub usernames of the maintainers.",
+      "items": {
+        "pattern": "^@.+$",
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "config_flow": {
+      "description": "Whether the integration uses a UI-based configuration flow.",
+      "type": "boolean"
+    },
+    "dependencies": {
+      "description": "Other integrations that must be loaded first.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "dhcp": {
+      "description": "DHCP discovery matchers.",
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "disabled": {
+      "description": "If set, the integration is disabled with this reason string.",
+      "type": "string"
+    },
+    "documentation": {
+      "description": "URL to the integration's documentation.",
+      "format": "uri",
+      "type": "string"
+    },
+    "domain": {
+      "description": "Unique identifier for the integration (lowercase, no spaces).",
+      "pattern": "^[a-z0-9_]+$",
+      "type": "string"
+    },
+    "homekit": {
+      "description": "HomeKit discovery matchers.",
+      "properties": {
+        "models": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "integration_type": {
+      "description": "Purpose of the integration.",
+      "enum": [
+        "device",
+        "entity",
+        "hardware",
+        "helper",
+        "hub",
+        "service",
+        "system",
+        "virtual"
+      ],
+      "type": "string"
+    },
+    "iot_class": {
+      "description": "Communication type.",
+      "enum": [
+        "assumed_state",
+        "calculated",
+        "cloud_polling",
+        "cloud_push",
+        "local_polling",
+        "local_push"
+      ],
+      "type": "string"
+    },
+    "iot_standards": {
+      "description": "IoT standards used by a virtual integration.",
+      "items": {
+        "enum": ["homekit", "zigbee", "zwave"],
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "issue_tracker": {
+      "description": "URL where users can report issues.",
+      "format": "uri",
+      "type": "string"
+    },
+    "loggers": {
+      "description": "Logger namespaces used by the integration's dependencies.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "mqtt": {
+      "description": "MQTT discovery topics.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "name": {
+      "description": "Human-readable name of the integration.",
+      "type": "string"
+    },
+    "preview_features": {
+      "description": "Feature flags for preview/beta functionality.",
+      "type": "object"
+    },
+    "quality_scale": {
+      "description": "Integration code quality rating.",
+      "enum": [
+        "bronze",
+        "custom",
+        "gold",
+        "internal",
+        "legacy",
+        "no_score",
+        "platinum",
+        "silver"
+      ],
+      "type": "string"
+    },
+    "requirements": {
+      "description": "Python PyPI dependencies.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "single_config_entry": {
+      "description": "Whether the integration allows only one config entry.",
+      "type": "boolean"
+    },
+    "ssdp": {
+      "description": "SSDP/UPnP discovery matchers.",
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "supported_by": {
+      "description": "For virtual integrations: the domain of the implementing integration.",
+      "type": "string"
+    },
+    "usb": {
+      "description": "USB device discovery matchers.",
+      "items": {
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "version": {
+      "description": "Version of the integration (must follow Semantic Versioning).",
+      "type": "string"
+    },
+    "zeroconf": {
+      "description": "Zeroconf/mDNS service discovery types.",
+      "items": {
+        "oneOf": [{ "type": "string" }, { "type": "object" }]
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "codeowners",
+    "documentation",
+    "domain",
+    "issue_tracker",
+    "name",
+    "version"
+  ],
+  "title": "Home Assistant Integration Manifest",
+  "type": "object"
+}

@@ -1,0 +1,31 @@
+name: Validate
+
+"on":
+  push:
+    branches:
+      - main
+      - dev
+  pull_request:
+    branches:
+      - main
+  schedule:
+    - cron: "0 0 * * *" # Daily at midnight
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    # Branch @main — update SHA after pushing .github changes v2.0.6
+    uses: PlayFaster/.github/.github/workflows/validate.yaml@e604ffdf9041f085834e635faecd428c78fe8d6a
+    with:
+      category: integration
+      component_name: unifi_network_monitor
+      ## CHANGEME
+      gist_id: 6d1d30e996dd53f04d2c2fc6b6cddece
+    secrets:
+      GIST_SECRET: ${{ secrets.GIST_SECRET }}

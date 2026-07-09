@@ -1,0 +1,309 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up UniFi Network Monitor",
+        "description": "Connect to your UDM Pro. API key (preferred) or username/password required.",
+        "data": {
+          "host": "Host / IP Address",
+          "api_key": "API Key (preferred)",
+          "username": "Username",
+          "password": "Password",
+          "site": "Site ID",
+          "unifi_device_mode": "UniFi device (Access Point & Switch) sensors"
+        },
+        "data_description": {
+          "host": "IP address or hostname of the UDM Pro (e.g. 192.168.1.1)",
+          "api_key": "Local API key from UniFi Network Settings → Control Plane → API Keys",
+          "username": "Username only required if not using an API key",
+          "password": "Password only required if not using an API key",
+          "site": "UniFi site ID — leave as 'default' unless you have multiple sites",
+          "unifi_device_mode": "How much per-device detail to add for your APs and switches. Leave off if the native UniFi integration already covers them."
+        },
+        "sections": {
+          "sensor_groups": {
+            "name": "Sensor groups — enable or disable",
+            "data": {
+              "enable_speedtest": "Speedtest monitoring"
+            },
+            "data_description": {
+              "enable_speedtest": "WAN speedtest sensors and manual run buttons."
+            }
+          }
+        }
+      },
+      "reauth_confirm": {
+        "title": "Re-authenticate UniFi Network Monitor",
+        "description": "Credentials for {host} were rejected. Update your API key or password.",
+        "data": {
+          "host": "Host / IP Address",
+          "api_key": "API Key (preferred)",
+          "username": "Username",
+          "password": "Password",
+          "site": "Site ID"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure UniFi Network Monitor",
+        "description": "Update settings for {host}. Unchecking a sensor group hides its sensors and reduces polling. Existing entities are not deleted automatically — use the ‘Clean Up Unused Entities’ button or the unifi_network_monitor.cleanup_unused_entities action to remove them.",
+        "data": {
+          "host": "Host / IP Address",
+          "api_key": "API Key (preferred)",
+          "username": "Username",
+          "password": "Password",
+          "site": "Site ID",
+          "unifi_device_mode": "UniFi device (Access Point & Switch) sensors"
+        },
+        "data_description": {
+          "api_key": "Leave blank to keep the current API key, or enter a new one to change it.",
+          "password": "Leave blank to keep the current password, or enter a new one to change it.",
+          "unifi_device_mode": "How much per-device detail to add for your APs and switches."
+        },
+        "sections": {
+          "sensor_groups": {
+            "name": "Sensor groups — enable or disable",
+            "data": {
+              "enable_speedtest": "Speedtest monitoring",
+              "enable_wan_usage": "WAN data-usage statistics",
+              "enable_security_monitoring": "Security monitoring"
+            },
+            "data_description": {
+              "enable_speedtest": "WAN speedtest sensors and manual run buttons.",
+              "enable_wan_usage": "Daily and monthly WAN data-usage sensors.",
+              "enable_security_monitoring": "Rogue-AP, VPN and firewall sensors."
+            }
+          }
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect — check host and network connectivity.",
+      "invalid_auth": "Authentication failed — check API key or username/password.",
+      "auth_required": "Provide an API key or both username and password.",
+      "unknown": "Unexpected error. Check logs for details."
+    },
+    "abort": {
+      "already_configured": "This device is already configured.",
+      "reauth_successful": "Re-authentication was successful."
+    }
+  },
+  "entity": {
+    "sensor": {
+      "gateway_cpu": { "name": "CPU utilization" },
+      "gateway_ram": { "name": "Memory utilization" },
+      "gateway_cpu_temp": { "name": "CPU temperature" },
+      "gateway_board_temp": { "name": "Board Temperature" },
+      "gateway_uptime": { "name": "Uptime" },
+      "gateway_wan1_local_ip": { "name": "WAN1 Local IP Address" },
+      "gateway_wan1_public_ip": { "name": "WAN1 Public IP Address" },
+      "gateway_wan2_local_ip": { "name": "WAN2 Local IP Address" },
+      "gateway_wan2_public_ip": { "name": "WAN2 Public IP Address" },
+      "gateway_storage_used": { "name": "Storage Used" },
+      "gateway_storage_size": { "name": "Storage Total" },
+      "gateway_scan_interval": { "name": "Polling Interval" },
+      "gateway_last_updated": { "name": "Last Updated" },
+      "gateway_storage_used_pct": { "name": "Storage Utilization" },
+      "gateway_wan_mode": { "name": "Multi-WAN Mode" },
+      "gateway_wan1_weight": { "name": "WAN1 Load Balance" },
+      "gateway_wan2_weight": { "name": "WAN2 Load Balance" },
+      "gateway_ips_mode": { "name": "Threat Management Mode" },
+      "gateway_wan1_sfp_vendor": { "name": "WAN1 SFP Vendor" },
+      "gateway_wan1_sfp_part": { "name": "WAN1 SFP Part Number" },
+      "gateway_wan1_sfp_serial": { "name": "WAN1 SFP Serial Number" },
+      "gateway_wan2_sfp_vendor": { "name": "WAN2 SFP Vendor" },
+      "gateway_wan2_sfp_part": { "name": "WAN2 SFP Part Number" },
+      "gateway_wan2_sfp_serial": { "name": "WAN2 SFP Serial Number" },
+      "gateway_wan1_today_rx": { "name": "WAN1 Today Download" },
+      "gateway_wan1_today_tx": { "name": "WAN1 Today Upload" },
+      "gateway_wan1_today_total": { "name": "WAN1 Today Total" },
+      "gateway_wan2_today_rx": { "name": "WAN2 Today Download" },
+      "gateway_wan2_today_tx": { "name": "WAN2 Today Upload" },
+      "gateway_wan2_today_total": { "name": "WAN2 Today Total" },
+      "gateway_wan1_month_rx": { "name": "WAN1 Month Download" },
+      "gateway_wan1_month_tx": { "name": "WAN1 Month Upload" },
+      "gateway_wan1_month_total": { "name": "WAN1 Month Total" },
+      "gateway_wan2_month_rx": { "name": "WAN2 Month Download" },
+      "gateway_wan2_month_tx": { "name": "WAN2 Month Upload" },
+      "gateway_wan2_month_total": { "name": "WAN2 Month Total" },
+      "gateway_month_total": { "name": "Month Total" },
+      "gateway_rogue_ap_count": { "name": "Rogue Access Points" },
+      "gateway_strongest_rogue_ssid": { "name": "Strongest Rogue SSID" },
+      "gateway_strongest_rogue_rssi": { "name": "Strongest Rogue RSSI" },
+      "gateway_guest_user_count": { "name": "Guest Users" },
+      "gateway_last_backup": { "name": "Last Backup" },
+      "gateway_configured_vlans": { "name": "Configured VLANs" },
+      "gateway_application_version": { "name": "Application Version" },
+      "gateway_wan1_speedtest_download": { "name": "WAN1 Download" },
+      "gateway_wan1_speedtest_upload": { "name": "WAN1 Upload" },
+      "gateway_wan1_speedtest_ping": { "name": "WAN1 Ping" },
+      "gateway_wan1_speedtest_lastrun": { "name": "WAN1 Last Run" },
+      "gateway_wan2_speedtest_download": { "name": "WAN2 Download" },
+      "gateway_wan2_speedtest_upload": { "name": "WAN2 Upload" },
+      "gateway_wan2_speedtest_ping": { "name": "WAN2 Ping" },
+      "gateway_wan2_speedtest_lastrun": { "name": "WAN2 Last Run" },
+      "gateway_wifi_networks_total": { "name": "WiFi Networks Total" },
+      "gateway_wifi_networks_active": { "name": "WiFi Networks Active" },
+      "gateway_vlans_total": { "name": "VLANs Total" },
+      "gateway_vlans_active": { "name": "VLANs Active" },
+      "gateway_vpn_connections_total": { "name": "VPN Connections Total" },
+      "gateway_vpn_connections_active": { "name": "VPN Connections Active" },
+      "gateway_rules_configured": { "name": "Rules Configured" },
+      "gateway_rules_active": { "name": "Rules Active" },
+      "gateway_rules_disabled": { "name": "Rules Disabled" },
+      "gateway_wan1_interface_name": { "name": "WAN1 Name" },
+      "gateway_wan2_interface_name": { "name": "WAN2 Name" },
+      "health_wan_isp_name": { "name": "ISP Name" },
+      "health_wan_isp_org": { "name": "ISP Organisation" },
+      "health_wan_gw_version": { "name": "UniFi OS Version" },
+      "health_wan_num_sta": { "name": "Total Devices" },
+      "health_wan1_availability": { "name": "WAN1 Availability" },
+      "health_wan1_latency_avg": { "name": "WAN1 Latency" },
+      "health_wan1_boot_time": { "name": "WAN1 Last Restart" },
+      "health_wan1_uptime": { "name": "WAN1 Uptime Duration" },
+      "health_wan1_time_period": { "name": "WAN1 Monitoring Period" },
+      "health_wan2_availability": { "name": "WAN2 Availability" },
+      "health_wan2_latency_avg": { "name": "WAN2 Latency" },
+      "health_wan2_boot_time": { "name": "WAN2 Last Restart" },
+      "health_wan2_uptime": { "name": "WAN2 Uptime Duration" },
+      "health_wan2_time_period": { "name": "WAN2 Monitoring Period" },
+      "health_www_latency": { "name": "Internet Latency" },
+      "health_www_drops": { "name": "Internet Drops" },
+      "health_www_boot_time": { "name": "Internet Online Since" },
+      "health_www_speedtest_status": { "name": "Last Run Status" },
+      "health_www_uptime": { "name": "Internet Uptime Duration" },
+      "health_wlan_num_user": { "name": "WiFi Devices" },
+      "health_wlan_num_guest": { "name": "WiFi Guests" },
+      "health_wlan_num_iot": { "name": "WiFi IoT Devices" },
+      "health_wlan_num_ap": { "name": "Access Points" },
+      "health_lan_num_user": { "name": "Wired Devices" },
+      "health_lan_num_iot": { "name": "LAN IoT Devices" },
+      "health_lan_num_sw": { "name": "Switches" },
+      "health_lan_num_adopted": { "name": "Adopted Devices" },
+      "health_vpn_status": { "name": "VPN Status" },
+      "device_clients": { "name": "Clients" },
+      "device_guests": { "name": "Guests" },
+      "device_clients_wifi0": { "name": "2.4 GHz Clients" },
+      "device_clients_wifi1": { "name": "5 GHz Clients" },
+      "device_score": { "name": "Satisfaction Score" },
+      "device_score_wifi0": { "name": "2.4 GHz Score" },
+      "device_score_wifi1": { "name": "5 GHz Score" },
+      "device_cpu": { "name": "CPU utilization" },
+      "device_ram": { "name": "Memory utilization" },
+      "device_uptime": { "name": "Uptime" },
+      "device_ports_used": { "name": "Clients" },
+      "device_model": { "name": "Model" }
+    },
+    "binary_sensor": {
+      "gateway_internet": { "name": "Internet Connected" },
+      "gateway_update_available": { "name": "Update Available" },
+      "gateway_wan1_active": { "name": "WAN1 Active Uplink" },
+      "gateway_wan2_active": { "name": "WAN2 Active Uplink" },
+      "gateway_wan1_up": { "name": "WAN1 Link Connected" },
+      "gateway_wan2_up": { "name": "WAN2 Link Connected" },
+      "gateway_ad_blocking": { "name": "Ad Blocking" },
+      "gateway_honeypot": { "name": "Honeypot" },
+      "health_speedtest_pass": { "name": "Last Run Problem" },
+      "health_all_ok": { "name": "Network Problem" },
+      "health_wan_ok": { "name": "WAN OK" },
+      "health_www_ok": { "name": "Internet OK" },
+      "health_wlan_ok": { "name": "WiFi OK" },
+      "health_lan_ok": { "name": "LAN OK" },
+      "gateway_wifi_ssid_status": { "name": "WiFi Status" },
+      "gateway_vpn_tunnel_status": { "name": "VPN Tunnel Status" },
+      "gateway_rogue_proximity_alert": { "name": "Rogue AP Proximity Alert" }
+    },
+    "button": {
+      "gateway_refresh": { "name": "Refresh Now" },
+      "gateway_wan1_speedtest": { "name": "WAN1 Run" },
+      "gateway_wan2_speedtest": { "name": "WAN2 Run" },
+      "cleanup_unused_entities": { "name": "Clean Up Unused Entities" }
+    },
+    "number": {
+      "gateway_scan_interval": { "name": "Polling Interval" },
+      "wan1_load_balance_weight": { "name": "WAN1 Load Balance Weight" },
+      "gateway_rogue_proximity_threshold": {
+        "name": "Rogue Proximity Threshold"
+      }
+    },
+    "switch": {
+      "pause_polling": { "name": "Pause Polling" }
+    }
+  },
+  "exceptions": {
+    "speedtest_failed": {
+      "message": "Failed to trigger speedtest: {error}"
+    },
+    "wan_config_not_loaded": {
+      "message": "WAN configuration is not loaded yet; try again in a moment."
+    }
+  },
+  "issues": {
+    "site_resolution_failed": {
+      "title": "UniFi site could not be resolved",
+      "description": "UniFi Network Monitor could not resolve the controller's site ID via the UniFi v3 API, so the VPN tunnel, firewall rule, and WAN interface-name sensors are unavailable. Check that your API key has full site permissions, then reload the integration."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "UniFi Network Monitor settings",
+        "description": "Unchecking a sensor group hides its sensors and reduces polling. Existing entities are not deleted automatically — use the ‘Clean Up Unused Entities’ button or the unifi_network_monitor.cleanup_unused_entities action to remove them.",
+        "data": {
+          "host": "Host / IP Address",
+          "api_key": "API Key (preferred)",
+          "username": "Username",
+          "password": "Password",
+          "site": "Site ID",
+          "unifi_device_mode": "UniFi device (Access Point & Switch) sensors"
+        },
+        "data_description": {
+          "api_key": "Leave blank to keep the current API key, or enter a new one to change it.",
+          "password": "Leave blank to keep the current password, or enter a new one to change it.",
+          "unifi_device_mode": "How much per-device detail to add for your APs and switches."
+        },
+        "sections": {
+          "sensor_groups": {
+            "name": "Sensor groups — enable or disable",
+            "data": {
+              "enable_speedtest": "Speedtest monitoring",
+              "enable_wan_usage": "WAN data-usage statistics",
+              "enable_security_monitoring": "Security monitoring"
+            },
+            "data_description": {
+              "enable_speedtest": "WAN speedtest sensors and manual run buttons.",
+              "enable_wan_usage": "Daily and monthly WAN data-usage sensors.",
+              "enable_security_monitoring": "Rogue-AP, VPN and firewall sensors."
+            }
+          }
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect — check host and network connectivity.",
+      "invalid_auth": "Authentication failed — check API key or username/password.",
+      "auth_required": "Provide an API key or both username and password.",
+      "unknown": "Unexpected error. Check logs for details."
+    }
+  },
+  "selector": {
+    "unifi_device_mode": {
+      "options": {
+        "none": "Don't add UniFi device sensors (recommended)",
+        "satisfaction_only": "Add AP Satisfaction Score only",
+        "all": "Add all device sensors (duplicates disabled)"
+      }
+    }
+  },
+  "services": {
+    "cleanup_unused_entities": {
+      "name": "Clean up unused entities",
+      "description": "Removes entities the current options no longer provide — per-UniFi-device sensors excluded by the device mode, and gateway sensors for any feature toggled off — and detaches any device left with no Monitor entities.",
+      "fields": {
+        "dry_run": {
+          "name": "Dry run",
+          "description": "When on (default), only reports what would be removed without changing anything."
+        }
+      }
+    }
+  }
+}

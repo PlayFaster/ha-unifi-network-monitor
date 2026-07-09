@@ -1,0 +1,7 @@
+cleanup_unused_entities:
+  fields:
+    dry_run:
+      default: true
+      required: false
+      selector:
+        boolean:

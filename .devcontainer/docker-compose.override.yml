@@ -1,0 +1,6 @@
+---
+version: "3.8"
+services:
+  homeassistant:
+    volumes:
+      - ../custom_components/unifi_network_monitor:/config/custom_components/unifi_network_monitor:ro
