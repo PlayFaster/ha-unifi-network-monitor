@@ -2,7 +2,11 @@
 
 [![HACS Integration](https://img.shields.io/badge/HACS-Integration-orange.svg)](https://hacs.xyz/) [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5?logo=homeassistant&logoColor=white)](https://hacs.xyz/docs/faq/custom_repositories) [![Latest Release](https://img.shields.io/github/v/release/PlayFaster/ha-unifi-network-monitor?label=Release&logo=github)](https://github.com/PlayFaster/ha-unifi-network-monitor/releases) [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0) [![Validate](https://github.com/PlayFaster/ha-unifi-network-monitor/actions/workflows/validate.yaml/badge.svg)](https://github.com/PlayFaster/ha-unifi-network-monitor/actions/workflows/validate.yaml) ![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/PlayFaster/PLACEHOLDER_GIST_ID/raw/coverage.json) [![Last Commit](https://img.shields.io/github/last-commit/PlayFaster/ha-unifi-network-monitor?label=Last%20commit)](https://github.com/PlayFaster/ha-unifi-network-monitor/commits/main)
 
-A Home Assistant integration for **Ubiquiti UniFi networks** anchored by a UDM Pro (or similar UniFi OS gateway) — providing gateway health, WAN & internet metrics, speedtests, rogue-AP detection, and per-device diagnostics that the official UniFi integration does not expose.
+A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via your UniFI Gateway (e.g. UDM Pro or similar) — providing gateway health, WAN & internet metrics, speedtests, rogue-AP detection, and per-device diagnostics that the official UniFi integration does not expose.
+
+This is designed to run in conjunction with the official Home Assistant [UniFi Network Integration](https://www.home-assistant.io/integrations/unifi/), but does not require it. The focus is on providing information that the core integration does not, such as: Internet Data usage, Speedtest data, WAN latency and IP address, Rogue Access Point insights and summary stats. It works in single or dual WAN mode. In dual WAN mode, it provides per WAN (WAN1, WAN2) info for INternet Data usage; Speedtest results; latency; IP addresses and load-balancing status, and if set weight, plus the ability to change load balancing weight.
+
+This integration does not provide any client tracking (i.e. device trackers) beyond summary counts, as that is handled by the core Integration.
 
 > [!NOTE]
 >
@@ -11,6 +15,7 @@ A Home Assistant integration for **Ubiquiti UniFi networks** anchored by a UDM P
 > - **If you run a UniFi network on a UDM Pro** (or similar UniFi OS gateway) and want infrastructure-level monitoring — gateway health, WAN/internet quality, data usage, speedtests, and network security signals — directly in Home Assistant, then **yes**.
 > - It is designed to run **alongside** the official Home Assistant UniFi integration (which focuses on client/device tracking). Where both cover the same physical device, entities **merge onto one device card** — no duplicate device entries.
 > - **This integration is for you if** you want:
+>   - **Gateway & WAN diagnostics** — CPU, memory, temperatures, storage, uptime, dual-WAN status, latency, and daily/monthly data usage.
 >   - **Gateway & WAN diagnostics** — CPU, memory, temperatures, storage, uptime, dual-WAN status, latency, and daily/monthly data usage.
 >   - **Speedtest tracking** — per-WAN download/upload/ping history, plus one-click manual runs.
 >   - **Network security signals** — rogue access-point detection with a configurable proximity alert.
@@ -170,15 +175,49 @@ That's **17** numeric sensors (14 base + 3 per-AP). If you want long-term histor
 
 ## 📸 Screenshots
 
-<!-- PLACEHOLDER: capture and add screenshots under .github/images/ and reference them here (see ZTE README for layout). Suggested shots: integration overview, gateway device, status/security device, speedtest, setup dialog. -->
-
 ### Integration Overview
 
-`PLACEHOLDER (.github/images/unifi_integration_screen.png)`
+![Main Integration Screen](.github/images/unifi_mon_integration_screen.png)
 
-### Setup
+---
 
-`PLACEHOLDER (.github/images/unifi_setup_info.png)`
+### Setup / Recofig plus Gateway
+
+| Setup and Reconfigure Screen | Gateway Diagnostic Info |
+| :-: | :-: |
+| ![Setup Reconfigure](.github/images/unifi_mon_setup_reconfig.png) | ![Gateway](.github/images/unifi_mon_gateway_dev_plus_dis.png) |
+
+---
+
+### Internet Info
+
+| Internet Data Use | Internet Diagnostic Info |
+| :-: | :-: |
+| ![Internet Data Use](.github/images/unifi_mon_internet_dev_data_use_sensors.png) | ![Internet Device Diagnostics](.github/images/unifi_mon_internet_dev_diag.png) |
+
+---
+
+### Speedtest and System Info
+
+| Speedtest Info | System Info |
+| :-: | :-: |
+| ![Speedtest](.github/images/unifi_mon_speedtest_dev_all.png) | ![System](.github/images/unifi_mon_system_all.png) |
+
+---
+
+### Status Info
+
+| Status Sensors | Status Config and Diagnostic Info |
+| :-: | :-: |
+| ![Status Sensors](.github/images/unifi_mon_status_dev_sensors.png) | ![Status Configuration Diagnostics](.github/images/unifi_mon_status_dev_diag_config.png) |
+
+---
+
+### Clean Up Action (service)
+
+![Cleanup Action](.github/images/unifi_mon_cleanup_action.png)
+
+---
 
 ## 💡 Example Automations
 
