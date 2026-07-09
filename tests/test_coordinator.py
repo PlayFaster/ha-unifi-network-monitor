@@ -1091,6 +1091,43 @@ async def test_coordinator_site_issue_created_and_cleared(
     assert reg.async_get_issue(DOMAIN, "site_resolution_failed") is None
 
 
+async def test_coordinator_site_issue_suppressed_without_api_key(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """Under username/password auth the v3 failure is expected — no repair issue.
+
+    The integration API endpoints are API-key only, so a 'failed' site_uuid is
+    normal without a key and must not raise a repair issue. A stale issue from a
+    previous API-key session must also be cleared.
+    """
+    from homeassistant.helpers import issue_registry as ir
+
+    from custom_components.unifi_network_monitor.const import DOMAIN
+
+    mock_config_entry.add_to_hass(hass)
+    api = MagicMock()
+    api.api_key = None  # username/password mode
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+    reg = ir.async_get(hass)
+
+    # Failed resolution under u/p must NOT create an issue.
+    coordinator.site_uuid = "failed"
+    coordinator._sync_site_issue()
+    assert reg.async_get_issue(DOMAIN, "site_resolution_failed") is None
+
+    # A stale issue left over from a prior API-key session is cleared.
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        "site_resolution_failed",
+        is_fixable=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="site_resolution_failed",
+    )
+    coordinator._sync_site_issue()
+    assert reg.async_get_issue(DOMAIN, "site_resolution_failed") is None
+
+
 async def test_coordinator_set_wan_weights_no_id(
     hass: Any, mock_config_entry: Any
 ) -> None:

@@ -7,6 +7,8 @@ This document is split into two logical parts:
 - **Part I: Base Gateway & Network Entities**: The default virtual devices (comprising 116 entities across the Gateway, Internet, Speedtest, Status, and System sub-devices) present in standard gateway-monitoring mode.
 - **Part II: Dynamic UniFi Devices (APs & Switches)**: Dynamic sensor entities generated for each physical UniFi Access Point and Switch monitored by the integration (~20 devices, adding ~160 entities when enabled).
 
+> **🔑 API-key-only sensors:** rows marked **_API-key only_** in the Notes column are served by the UniFi Integration (v3) API, which cannot be reached with username/password auth. Under username/password these seven sensors (Rules Active/Configured/Disabled, VPN Connections Active/Total, WAN1/WAN2 Name) are permanently `unknown`. Use an API key to enable them.
+
 ---
 
 ## Part I: Base Gateway & Network Entities
@@ -71,7 +73,7 @@ _Group: `internet`_
 | WAN1 Month Download | `wan1_month_rx` | Sensor | GB | — |  |
 | WAN1 Month Total | `wan1_month_total` | Sensor | GB | — |  |
 | WAN1 Month Upload | `wan1_month_tx` | Sensor | GB | — |  |
-| WAN1 Name | `wan1_interface_name` | Sensor | — | Diagnostic |  |
+| WAN1 Name | `wan1_interface_name` | Sensor | — | Diagnostic | **_API-key only_** (v3 API; `unknown` under username/password). |
 | WAN1 Public IP Address | `wan1_public_ip` | Sensor | — | Diagnostic |  |
 | WAN1 Today Download | `wan1_today_rx` | Sensor | GB | — | No LTS (no state_class). |
 | WAN1 Today Total | `wan1_today_total` | Sensor | GB | — | No LTS (no state_class). |
@@ -86,7 +88,7 @@ _Group: `internet`_
 | WAN2 Month Download | `wan2_month_rx` | Sensor | GB | — |  |
 | WAN2 Month Total | `wan2_month_total` | Sensor | GB | — |  |
 | WAN2 Month Upload | `wan2_month_tx` | Sensor | GB | — |  |
-| WAN2 Name | `wan2_interface_name` | Sensor | — | Diagnostic |  |
+| WAN2 Name | `wan2_interface_name` | Sensor | — | Diagnostic | **_API-key only_** (v3 API; `unknown` under username/password). |
 | WAN2 Public IP Address | `wan2_public_ip` | Sensor | — | Diagnostic |  |
 | WAN2 Today Download | `wan2_today_rx` | Sensor | GB | — | No LTS (no state_class). |
 | WAN2 Today Total | `wan2_today_total` | Sensor | GB | — | No LTS (no state_class). |
@@ -137,17 +139,17 @@ _Group: `status`_
 | Rogue AP Proximity Alert | `rogue_proximity_alert` | Binary Sensor | — | Diagnostic |  |
 | Rogue Access Points | `rogue_ap_count` | Sensor | — | — |  |
 | Rogue Proximity Threshold | `rogue_proximity_rssi_threshold` | Number | dBm | Config |  |
-| Rules Active | `rules_active` | Sensor | — | — |  |
-| Rules Configured | `rules_configured` | Sensor | — | Diagnostic |  |
-| Rules Disabled | `rules_disabled` | Sensor | — | — |  |
+| Rules Active | `rules_active` | Sensor | — | — | **_API-key only_** (v3 API; `unknown` under username/password). |
+| Rules Configured | `rules_configured` | Sensor | — | Diagnostic | **_API-key only_** (v3 API; `unknown` under username/password). |
+| Rules Disabled | `rules_disabled` | Sensor | — | — | **_API-key only_** (v3 API; `unknown` under username/password). |
 | Strongest Rogue RSSI | `strongest_rogue_rssi` | Sensor | dBm | — |  |
 | Strongest Rogue SSID | `strongest_rogue_ssid` | Sensor | — | — | `rogue_aps` attribute carries the full rogue-AP list. |
 | Switches | `health_lan_num_sw` | Sensor | — | Diagnostic | **Disabled by default.** |
 | Total Devices | `health_wan_num_sta` | Sensor | — | — |  |
 | VLANs Active | `vlans_active` | Sensor | — | — |  |
 | VLANs Total | `vlans_total` | Sensor | — | Diagnostic |  |
-| VPN Connections Active | `vpn_connections_active` | Sensor | — | — |  |
-| VPN Connections Total | `vpn_connections_total` | Sensor | — | Diagnostic |  |
+| VPN Connections Active | `vpn_connections_active` | Sensor | — | — | **_API-key only_** (v3 API; `unknown` under username/password). |
+| VPN Connections Total | `vpn_connections_total` | Sensor | — | Diagnostic | **_API-key only_** (v3 API; `unknown` under username/password). |
 | VPN Status | `health_vpn_status` | Sensor | — | Diagnostic | **Disabled by default.** Data may not be available in all configurations. |
 | WAN OK | `health_wan_ok` | Binary Sensor | — | Diagnostic | **Disabled by default.** |
 | WiFi Devices | `health_wlan_num_user` | Sensor | — | — |  |

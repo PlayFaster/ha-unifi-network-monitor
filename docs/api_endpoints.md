@@ -116,7 +116,8 @@ These endpoints are called during regular polling cycles or user actions.
 ### Official API v3 Endpoints (API Key / Integration v1 paths)
 
 - **Used**: Yes (for supplementary configuration telemetry)
-- **Purpose**: Modern official endpoints introduced for structured config querying using API keys or credentials.
+- **Purpose**: Modern official endpoints introduced for structured config querying.
+- **⚠️ Auth mode — API key only**: unlike the classic `/proxy/network/api/s/{site}/…` endpoints (which work under either auth mode), these Integration (v1) endpoints are **only reachable with an API key**. Under username/password (cookie) auth `get_sites()` fails, `coordinator.site_uuid` latches to `"failed"`, and the seven sensors these endpoints feed (Rules Active/Configured/Disabled, VPN Connections Active/Total, WAN1/WAN2 Name) are permanently `unknown`. This is expected, not a bug — see `DEVELOPMENT.md` §5 "Gotcha — auth mode gates the v3 (integration) endpoints".
 - **Endpoints Used**:
   - `GET /proxy/network/integration/v1/sites`: Resolves the human-readable site ID (e.g. `default`) to its target `site_uuid`.
   - `GET /proxy/network/integration/v1/sites/{site_uuid}/wans`: Fetches WAN physical interface metadata, including custom interface aliases (e.g. `WAN1_ISP1`).

@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Set up UniFi Network Monitor",
-        "description": "Connect to your UDM Pro. API key (preferred) or username/password required.",
+        "description": "Connect to your UDM Pro. API key strongly recommended — username/password works but leaves firewall, VPN, and WAN-name unavailable.",
         "data": {
           "host": "Host / IP Address",
           "api_key": "API Key (preferred)",
@@ -34,7 +34,7 @@
       },
       "reauth_confirm": {
         "title": "Re-authenticate UniFi Network Monitor",
-        "description": "Credentials for {host} were rejected. Update your API key or password.",
+        "description": "Credentials for {host} were rejected. Update your API key or password. API key strongly recommended — username/password works but leaves firewall, VPN, and WAN-name unavailable.",
         "data": {
           "host": "Host / IP Address",
           "api_key": "API Key (preferred)",
@@ -45,7 +45,7 @@
       },
       "reconfigure": {
         "title": "Reconfigure UniFi Network Monitor",
-        "description": "Update settings for {host}. Unchecking a sensor group hides its sensors and reduces polling. Existing entities are not deleted automatically — use the ‘Clean Up Unused Entities’ button or the unifi_network_monitor.cleanup_unused_entities action to remove them.",
+        "description": "Update settings for {host}. API key strongly recommended — username/password works but leaves firewall, VPN, and WAN-name unavailable. Unchecking a sensor group hides its sensors and reduces polling. Existing entities are not deleted automatically — use the ‘Clean Up Unused Entities’ button or the unifi_network_monitor.cleanup_unused_entities action to remove them.",
         "data": {
           "host": "Host / IP Address",
           "api_key": "API Key (preferred)",
@@ -244,7 +244,7 @@
   "issues": {
     "site_resolution_failed": {
       "title": "UniFi site could not be resolved",
-      "description": "UniFi Network Monitor could not resolve the controller's site ID via the UniFi v3 API, so the VPN tunnel, firewall rule, and WAN interface-name sensors are unavailable. Check that your API key has full site permissions, then reload the integration."
+      "description": "UniFi Network Monitor could not resolve the controller's site ID via the UniFi v3 API, so the VPN tunnel, firewall rule, and WAN interface-name sensors are unavailable. Check that your API key exists and has full site permissions, then reload the integration."
     }
   },
   "options": {

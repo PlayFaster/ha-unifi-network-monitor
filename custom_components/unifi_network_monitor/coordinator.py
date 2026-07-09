@@ -507,8 +507,12 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         usually an API key lacking full site permissions — which silently
         disables the VPN, firewall, and WAN-interface-name sensors. Surface it
         in the Repairs panel so the user can act; clear it once resolved.
+
+        The v3 (integration) endpoints are only reachable with an API key, so
+        under username/password auth this failure is *expected* and not
+        actionable — suppress the repair issue entirely in that mode.
         """
-        if self.site_uuid == "failed":
+        if self.site_uuid == "failed" and self.api.api_key:
             ir.async_create_issue(
                 self.hass,
                 DOMAIN,

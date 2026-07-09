@@ -300,6 +300,10 @@ Setup is handled entirely via the UI. Provide connection details for your gatewa
 - **Username / Password** — Alternative to the API key; the same credentials you use for the controller web UI.
 - **Site ID** — UniFi site (default `default`; change only if you run multiple sites).
 
+> [!IMPORTANT]
+>
+> **An API key is strongly preferred.** The UniFi Integration (v3) API endpoints are only reachable with an API key. If you authenticate with **username / password**, seven sensors covering **firewall rules, VPN connections, and WAN interface names** will be permanently unavailable (`unknown`). This is a UniFi API limitation, not a fault in the integration. The affected sensors are: **Rules Active**, **Rules Configured**, **Rules Disabled**, **VPN Connections Active**, **VPN Connections Total**, **WAN1 Name**, and **WAN2 Name**. Everything else works normally under either auth mode. See [FAQ](#-why-are-my-firewall-vpn-or-wan-name-sensors-unknown).
+
 At setup you also choose:
 
 - **UniFi device (Access Point & Switch) sensors** — `Don't add` (default), `AP Satisfaction Score only`, or `Add all` (duplicates disabled).
@@ -414,7 +418,15 @@ Dynamic pause/interval controls coexist with Home Assistant's standard **System 
 
 #### 🔑 **Should I use an API key or username/password?**
 
-- **API key is preferred** — it's stateless (`X-API-Key` header) and avoids session juggling. Username/password uses a cookie session and re-authenticates automatically on expiry.
+- **API key is strongly preferred** — it's stateless (`X-API-Key` header), avoids session juggling, **and it's the only auth mode that can reach the UniFi Integration (v3) API**. Username/password uses a cookie session and re-authenticates automatically on expiry, but cannot access the v3 endpoints — see the next entry.
+
+#### ❔ **Why are my firewall, VPN, or WAN-name sensors "unknown"?**
+
+- Because you're authenticating with **username / password**. The seven sensors below are served exclusively by the UniFi Integration (v3) API, which is **API-key only**:
+  - **Rules Active**, **Rules Configured**, **Rules Disabled** (firewall)
+  - **VPN Connections Active**, **VPN Connections Total**
+  - **WAN1 Name**, **WAN2 Name**
+- This is a fundamental limitation of the UniFi API, not a bug. **Switch to an API key** (UniFi Network Settings → Control Plane → API Keys) and reload the integration to enable them. No repair issue is raised in username/password mode because the state is expected.
 
 ### 📊 Entities & Values
 
@@ -440,6 +452,7 @@ Dynamic pause/interval controls coexist with Home Assistant's standard **System 
 
 ## ❗ Known Limitations /❔ What's Missing?
 
+- **Auth mode gates the v3 sensors**: the UniFi Integration (v3) API is API-key only. Under **username / password** auth, the seven firewall-rule, VPN-connection, and WAN-name sensors are permanently unavailable. Use an API key to enable them. See [FAQ](#-why-are-my-firewall-vpn-or-wan-name-sensors-unknown).
 - **Firmware/endpoint variance**: available data depends on your UniFi OS / Network application version; some v3 configuration sensors require newer controllers.
 - **Tested hardware**: developed and tested on the **UDM Pro** only; other UniFi OS gateways are expected-compatible but unverified.
 - **Client tracking is out of scope**: this integration monitors infrastructure. For per-client device tracking, use the **official Home Assistant UniFi integration** alongside it.
