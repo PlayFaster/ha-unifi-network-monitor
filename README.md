@@ -299,12 +299,16 @@ triggers:
     entity_id: binary_sensor.unifi_network_status_rogue_ap_proximity_alert
     to: "on"
     for: "00:02:00"
+    note: |
+      Triggers if a rogue AP remains at or above the proximity threshold for 2 continuous minutes.
 actions:
   - action: notify.mobile_app_your_phone
     data:
       title: "Rogue AP detected nearby"
-      message: >
+      message: |
         Strongest rogue: {{ states('sensor.unifi_network_status_strongest_rogue_ssid') }} at {{ states('sensor.unifi_network_status_strongest_rogue_rssi') }} dBm.
+    note: |
+      Sends a phone notification containing the SSID and RSSI signal level of the closest rogue AP.
 ```
 
 ### 🌐 Internet / WAN Down Alert
@@ -316,11 +320,15 @@ triggers:
     entity_id: binary_sensor.unifi_network_internet_internet_connected
     to: "off"
     for: "00:01:00"
+    note: |
+      Triggers if the internet connection is lost for at least 1 continuous minute to filter out transient drops.
 actions:
   - action: notify.mobile_app_your_phone
     data:
       title: "Internet connection lost"
       message: "The UniFi gateway reports the internet is down."
+    note: |
+      Sends a push notification alerting that the internet is offline.
 ```
 
 ### 🚨 Monthly Data-Usage Alert
@@ -333,11 +341,15 @@ triggers:
   - trigger: numeric_state
     entity_id: sensor.unifi_network_internet_wan1_month_total
     above: 500 # GB
+    note: |
+      Triggers when total WAN1 monthly data consumption exceeds 500 GB.
 actions:
   - action: notify.mobile_app_your_phone
     data:
       title: "UniFi Data Alert"
       message: "WAN1 monthly usage has exceeded 500 GB."
+    note: |
+      Sends a warning notification to help you avoid monthly ISP data cap surcharges.
 ```
 
 ### 🔁 Auto-Resume Polling
@@ -350,10 +362,14 @@ triggers:
     entity_id: switch.unifi_network_system_pause_polling
     to: "on"
     for: "01:00:00"
+    note: |
+      Triggers if the system pause polling switch has been turned on for exactly 1 hour.
 actions:
   - action: switch.turn_off
     target:
       entity_id: switch.unifi_network_system_pause_polling
+    note: |
+      Automatically resumes integration polling to restore dashboard telemetry updates.
 ```
 
 ### 💾 Backup Stale Alert
@@ -435,6 +451,64 @@ actions:
       title: "Guest Network Active"
       message: "There are currently {{ states('sensor.unifi_network_gateway_guest_users') }} active guest(s) on your Wi-Fi."
     note: Sends a push notification indicating active guest count.
+```
+
+### 🎛️ Optimize WAN Weight on High Latency
+
+Shifts traffic load balance weight away from WAN2 if its average latency exceeds 150ms for consecutive poll periods.
+
+```yaml
+alias: "UniFi: Optimize WAN Weight on High Latency"
+description: >-
+  Shifts traffic load balance weight away from WAN2 if its average latency
+  exceeds 150ms for consecutive poll periods.
+triggers:
+  - trigger: numeric_state
+    entity_id: sensor.unifi_network_internet_wan2_latency_avg
+    above: 150
+    for:
+      seconds: |
+        {{ [120, (states('sensor.unifi_network_system_polling_interval') | int(180)) + 5] | max }}
+    note: |
+      Triggers when WAN2 latency averages above 150ms. Checks across consecutive polls
+      (minimum 2 minutes) to ensure it is a sustained performance drop rather than a spike.
+actions:
+  - action: number.set_value
+    target:
+      entity_id: number.unifi_network_system_wan1_load_balance_weight
+    data:
+      value: 90
+    note: |
+      Sets WAN1 load balance weight to 90% (leaving only 10% for WAN2) to divert traffic
+      away from the struggling connection.
+```
+
+### ⏱️ Trigger Diagnostic Speedtest
+
+Automatically runs a WAN1 speedtest if internet latency spikes, helping to diagnose bandwidth degradation dynamically without scheduling constant speedtests.
+
+```yaml
+alias: "UniFi: Trigger Diagnostic Speedtest"
+description: >-
+  Automatically runs a WAN1 speedtest if internet latency spikes, helping to
+  diagnose bandwidth degradation.
+triggers:
+  - trigger: numeric_state
+    entity_id: sensor.unifi_network_internet_latency
+    above: 100
+    for:
+      seconds: |
+        {{ [120, (states('sensor.unifi_network_system_polling_interval') | int(180)) + 5] | max }}
+    note: |
+      Triggers when internet latency goes above 100ms. Dynamic delay ensures we wait for
+      consecutive polls to confirm the network degradation is sustained before running.
+actions:
+  - action: button.press
+    target:
+      entity_id: button.unifi_network_speedtest_run_wan1_speedtest
+    note: |
+      Presses the Speedtest run button for WAN1 to capture current download/upload speeds
+      while the network is struggling.
 ```
 
 ## 📥 Installation
