@@ -1996,6 +1996,16 @@ async def test_rogue_ap_age_calculation(hass: Any, mock_config_entry: Any) -> No
             "bssid": "cc:dd:ee:ff:00:11",
             "last_seen": int(last_seen_20m),
         },
+        {
+            "essid": "Rogue-Fallback-30m",
+            "bssid": "11:22:33:44:55:66",
+            "age": 1800,
+        },
+        {
+            "essid": "Rogue-Fallback-4h",
+            "bssid": "22:33:44:55:66:77",
+            "age": 14400,
+        },
     ]
 
     api.get_devices = AsyncMock(return_value=devices_raw)
@@ -2020,3 +2030,7 @@ async def test_rogue_ap_age_calculation(hass: Any, mock_config_entry: Any) -> No
     assert rogues[1]["age"] == "17h"
     assert rogues[2]["essid"] == "Rogue-20m"
     assert rogues[2]["age"] == "20m"
+    assert rogues[3]["essid"] == "Rogue-Fallback-30m"
+    assert rogues[3]["age"] == "30m"
+    assert rogues[4]["essid"] == "Rogue-Fallback-4h"
+    assert rogues[4]["age"] == "4h"

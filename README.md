@@ -14,7 +14,7 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
 > **Is this the right integration for you?**
 >
 > - **If you run a UniFi Network on a UDM Gateway** and want infrastructure-level monitoring — data usage, WAN/internet quality, speedtests, and network security info — directly in Home Assistant, then **yes**.
-> - It is designed to run **alongside** the official Home Assistant UniFi Network integration  Where both cover the same physical device, entities **merge onto one device card** — no duplicate device entries.
+> - It is designed to run **alongside** the official Home Assistant UniFi Network integration Where both cover the same physical device, entities **merge onto one device card** — no duplicate device entries.
 > - **This integration is for you if** you want:
 >   - **Internet Data usage** — Daily and monthly download, upload and totals, per WAN if in dual WAN mode.
 >   - **Speedtest tracking** — per-WAN download/upload/ping history, plus one-click manual runs.
@@ -74,7 +74,7 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
 - **WAN/dual-WAN & Internet Quality**: Monitor WAN1/WAN2 up/active status, latency, uptime, and the active routing interface; drive failover automations and dashboards.
 - **Speedtest History**: Keep a per-WAN record of speedtests run directly from the gateway - download/upload/ping. Trigger on-demand tests from HA.
 - **Network Security Awareness**: Detect nearby **rogue access points** and raise a **Proximity Alert** when an unknown AP is close (strong signal) — useful for spotting rogue/evil-twin APs or resetting smart home devices.
-- **Load Balancing Status**: In multi-WAN mode, shows if operating in failover or load-balancing mode. If using  load-balancing, shows the weighted percentages and allows changing them. Useful if one of your ISPs has variable performance.
+- **Load Balancing Status**: In multi-WAN mode, shows if operating in failover or load-balancing mode. If using load-balancing, shows the weighted percentages and allows changing them. Useful if one of your ISPs has variable performance.
 - **Augment the Official Integration**: Runs well alongside the official HA UniF Network integration to provide additional information. Also works without the official integration present and, optionally, can provide additional info on UniFi devices like Access Points and Switches.
 
 ## ✅ Features
@@ -199,7 +199,7 @@ The exceptions — **17** numeric sensors (14 base + 3 per-AP) that currently ha
 
 ---
 
-### Setup / Recofig plus Gateway
+### Setup / Reconfig plus Gateway
 
 | Setup and Reconfigure Screen | Gateway Diagnostic Info |
 | :-: | :-: |
