@@ -365,7 +365,7 @@ alias: "UniFi: Backup Stale Alert"
 description: "Triggers if the latest UniFi controller backup is older than 10 days."
 triggers:
   - trigger: template
-    value_template: >-
+    value_template: |
       {{ (as_timestamp(now()) - as_timestamp(states('sensor.unifi_network_gateway_last_backup'))) > (10 * 86400) }}
     note: |
       Checks if current time minus last backup time is greater than 10 days (864,000 seconds).
@@ -394,7 +394,7 @@ triggers:
       - sensor.unifi_network_internet_wan2_latency_avg
     above: 100
     for:
-      seconds: >-
+      seconds: |
         {{ [120, (states('sensor.unifi_network_system_polling_interval') | int(180)) + 5] | max }}
     note: |
       Triggers when latency exceeds 100ms. The duration matches your custom poll interval
@@ -404,7 +404,7 @@ actions:
   - action: notify.mobile_app_your_phone
     data:
       title: "High Latency Detected"
-      message: >-
+      message: |
         Latency alert triggered! Current Internet Latency: {{ states('sensor.unifi_network_internet_latency') }} ms.
     note: "Alerts you which interface is experiencing high latency."
 ```
@@ -423,7 +423,7 @@ triggers:
     entity_id: sensor.unifi_network_gateway_guest_users
     above: 0
     for:
-      seconds: >-
+      seconds: |
         {{ [120, (states('sensor.unifi_network_system_polling_interval') | int(180)) + 5] | max }}
     note: |
       Triggers when guest user count goes above 0. Evaluates the duration dynamically using
