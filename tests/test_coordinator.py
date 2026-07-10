@@ -717,7 +717,7 @@ async def test_coordinator_parses_wan_and_security_configs(
                 "signal": -89,
                 "oui": "Example Vendor",
                 "ap_mac": "11:22:33:44:55:66",
-                "age": 120,
+                "age": 432000,
             }
         ]
     )
@@ -1970,6 +1970,8 @@ async def test_rogue_ap_age_calculation(hass: Any, mock_config_entry: Any) -> No
     last_seen_2h = current_ts - (2.5 * 3600)
     # 2. Test seen 17.8 hours ago -> 17h
     last_seen_17h = current_ts - (17.8 * 3600)
+    # 3. Test seen 20 minutes ago -> 20m
+    last_seen_20m = current_ts - (20 * 60)
 
     devices_raw = [
         {
@@ -1988,6 +1990,11 @@ async def test_rogue_ap_age_calculation(hass: Any, mock_config_entry: Any) -> No
             "essid": "Rogue-17h",
             "bssid": "66:77:88:99:aa:bb",
             "last_seen": int(last_seen_17h),
+        },
+        {
+            "essid": "Rogue-20m",
+            "bssid": "cc:dd:ee:ff:00:11",
+            "last_seen": int(last_seen_20m),
         },
     ]
 
@@ -2011,3 +2018,5 @@ async def test_rogue_ap_age_calculation(hass: Any, mock_config_entry: Any) -> No
     assert rogues[0]["age"] == "2h"
     assert rogues[1]["essid"] == "Rogue-17h"
     assert rogues[1]["age"] == "17h"
+    assert rogues[2]["essid"] == "Rogue-20m"
+    assert rogues[2]["age"] == "20m"

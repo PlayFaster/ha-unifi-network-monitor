@@ -910,12 +910,20 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         last_seen = _safe_int(r.get("last_seen"))
                         if last_seen is not None:
                             true_age_secs = max(0, current_ts - last_seen)
-                            age_hours = true_age_secs // 3600
-                            age_str = f"{age_hours}h"
+                            if true_age_secs < 3600:
+                                age_str = f"{true_age_secs // 60}m"
+                            else:
+                                age_str = f"{true_age_secs // 3600}h"
                         else:
                             # Fallback to API static age if last_seen is absent
                             api_age = _safe_int(r.get("age"))
-                            age_str = f"{api_age}h" if api_age is not None else None
+                            if api_age is not None:
+                                if api_age < 3600:
+                                    age_str = f"{api_age // 60}m"
+                                else:
+                                    age_str = f"{api_age // 3600}h"
+                            else:
+                                age_str = None
 
                         rogue_aps_list.append(
                             {

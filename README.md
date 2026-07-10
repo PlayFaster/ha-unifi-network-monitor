@@ -92,7 +92,7 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
 
 ### 🛡️ Network Security & Health
 
-- **Rogue AP Detection**: Count of rogue access points ( unknown APs), as detected by UniFi APs on the network, the **Strongest Rogue SSID** and **Strongest Rogue RSSI**, with the full rogue-AP list as an attribute.
+- **Rogue AP Detection**: Count of rogue access points ( unknown APs), as detected by UniFi APs on the network, the **Strongest Rogue SSID** and **Strongest Rogue RSSI**, with the full rogue-AP list as an attribute. This lists Rogue APs detected within the last hour.
 - **Proximity Alert**: A `PROBLEM` binary sensor that fires when the strongest rogue signal is at or above a user-set **Rogue Proximity Threshold** (dBm).
 - **Subsystem Health**: Aggregated **Network Problem** indicator plus per-subsystem OK sensors (WAN, Internet/WWW, WiFi/WLAN, LAN).
 - **WiFi, VLAN, VPN & Firewall**: Per-SSID broadcast status, per-VPN-tunnel status, VLAN and firewall-rule counts.
@@ -165,7 +165,7 @@ Home Assistant records Long Term Statistics for a numeric sensor **only when it 
 
 **Almost every numeric sensor here is in LTS** — CPU/memory/temperatures, signal/RSSI, latency, availability, all counts (devices, clients, VLANs, VPNs, firewall rules, WiFi networks, rogue APs), **monthly** data usage, and speedtest download/upload.
 
-The exceptions — numeric sensors that currently have **no `state_class`** and are therefore **excluded from LTS**:
+The exceptions — **17** numeric sensors (14 base + 3 per-AP) that currently have **no `state_class`** and are therefore **excluded from LTS**:
 
 | Sub-Device | Sensor | Entity ID (this install) | Unit |
 | :-- | :-- | :-- | :-- |
@@ -176,7 +176,20 @@ The exceptions — numeric sensors that currently have **no `state_class`** and 
 | ⚡ Speedtest | WAN1 / WAN2 Monitoring Period (2) | `sensor.unifi_network_speedtest_wan{1,2}_monitoring_period` | h |
 | 📶 Access Point | Satisfaction Score / 2.4 GHz / 5 GHz (3) | `sensor.<ap>_satisfaction_score` (+ per-band) | % |
 
-That's **17** numeric sensors (14 base + 3 per-AP). If you want long-term history of any of these — the **daily** usage totals, **Ping**, or the **AP Satisfaction Score** are the natural candidates — give them a `state_class` in `sensor.py` (`measurement`, or `total_increasing` for the daily totals). The full per-sensor breakdown lives in [`docs/all_sensors.md`](docs/all_sensors.md).
+> [!TIP]
+>
+> **Want to add a sensor to Long Term Statistics?**
+>
+> Add a `state_class` override via [Manual Customization](https://www.home-assistant.io/integrations/homeassistant/#manual-customization) in your `configuration.yaml`. For example, to track Download Rate in LTS:
+>
+> ```yaml
+> homeassistant:
+>   customize:
+>     sensor.unifi_network_speedtest_wan1_ping:
+>       state_class: measurement
+> ```
+>
+> Restart Home Assistant after saving. The sensor will begin accumulating LTS from that point forward.
 
 ## 📸 Screenshots
 
@@ -340,7 +353,7 @@ actions:
 Setup is handled entirely via the UI. Provide connection details for your gateway's UniFi Network API:
 
 - **Host** — Gateway IP address or hostname (e.g. `192.168.1.1`). Any `http://` / `https://` prefix and trailing slashes are stripped automatically.
-- **API Key** _(preferred)_ — Local API key from **UniFi Network Settings → Control Plane → API Keys** (UniFi OS 3.x+). Sent as `X-API-Key`.
+- **API Key** _(preferred)_ — Local API key from **UniFi Network → Integrations → Create New API Key** (UniFi OS 5.x+).
 - **Username / Password** — Alternative to the API key; the same credentials you use for the controller web UI.
 - **Site ID** — UniFi site (default `default`; change only if you run multiple sites).
 
@@ -378,8 +391,8 @@ Open **Settings > Devices & Services > UniFi Network Monitor > Configure** (gear
 Several settings are exposed as control entities so you can drive them from dashboards or automations:
 
 - **Pause Polling** (`switch`, System) — halt polling temporarily.
-- **Polling Interval** (`number`, System) — scan interval in seconds (default `180`).
-- **WAN1 Load Balance Weight** (`number`, System) — WAN1 share of a weighted dual-WAN setup; WAN2 is `100 − WAN1`.
+- **Polling Interval** (`number`, System) — scan interval in seconds (default `180` seconds, range `10`to `3600`).
+- **WAN1 Load Balance Weight** (`number`, System) — WAN1 share of a weighted dual-WAN setup; WAN2 gets set as is `100 − WAN1`.
 - **Rogue Proximity Threshold** (`number`, Status) — dBm at or above which a rogue AP triggers the Proximity Alert (default `-60`; kept negative to match how RSSI is measured). Shown only when Security monitoring is on.
 - **Refresh Now** (`button`, System) — immediate data fetch.
 - **Clean Up Unused Entities** (`button`, System) — remove orphaned entities (see [Actions](#-actions-services)).
