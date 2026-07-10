@@ -403,9 +403,9 @@ description: "Triggers if the latest UniFi controller backup is older than 10 da
 triggers:
   - trigger: template
     value_template: |
-      {{ (as_timestamp(now()) - as_timestamp(states('sensor.unifi_network_gateway_last_backup'))) > (10 * 86400) }}
+      {{ has_value('sensor.unifi_network_gateway_last_backup') and (as_timestamp(now()) - as_timestamp(states('sensor.unifi_network_gateway_last_backup'), 0)) > (10 * 86400) }}
     note: |
-      Checks if current time minus last backup time is greater than 10 days (864,000 seconds).
+      Checks if the last backup entity is populated and is older than 10 days (864,000 seconds).
 actions:
   - action: notify.mobile_app_your_phone
     data:
@@ -426,9 +426,9 @@ description: |
 triggers:
   - trigger: numeric_state
     entity_id:
-      - sensor.unifi_network_internet_latency
-      - sensor.unifi_network_internet_wan1_latency_avg
-      - sensor.unifi_network_internet_wan2_latency_avg
+      - sensor.unifi_network_internet_internet_latency
+      - sensor.unifi_network_internet_wan1_latency
+      - sensor.unifi_network_internet_wan2_latency
     above: 100
     for:
       seconds: |
@@ -442,7 +442,7 @@ actions:
     data:
       title: "High Latency Detected"
       message: |
-        Latency alert triggered! Current Internet Latency: {{ states('sensor.unifi_network_internet_latency') }} ms.
+        Latency alert triggered! Current Internet Latency: {{ states('sensor.unifi_network_internet_internet_latency') }} ms.
     note: "Alerts you which interface is experiencing high latency."
 ```
 
@@ -557,7 +557,7 @@ description: |
   two polling periods (or 2 minutes, whichever is longer).
 triggers:
   - trigger: numeric_state
-    entity_id: sensor.unifi_network_gateway_guest_users
+    entity_id: sensor.unifi_network_status_guest_users
     above: 0
     for:
       seconds: |
@@ -570,7 +570,7 @@ actions:
   - action: notify.mobile_app_your_phone
     data:
       title: "Guest Network Active"
-      message: "There are currently {{ states('sensor.unifi_network_gateway_guest_users') }} active guest(s) on your Wi-Fi."
+      message: "There are currently {{ states('sensor.unifi_network_status_guest_users') }} active guest(s) on your Wi-Fi."
     note: Sends a push notification indicating active guest count.
 ```
 
@@ -584,7 +584,7 @@ description: |
   Shifts traffic load balance weight away from WAN2 if its average latency exceeds 150ms for consecutive poll periods.
 triggers:
   - trigger: numeric_state
-    entity_id: sensor.unifi_network_internet_wan2_latency_avg
+    entity_id: sensor.unifi_network_internet_wan2_latency
     above: 150
     for:
       seconds: |
@@ -614,7 +614,7 @@ description: |
   average latency spikes above 100ms.
 triggers:
   - trigger: numeric_state
-    entity_id: sensor.unifi_network_internet_wan1_latency_avg
+    entity_id: sensor.unifi_network_internet_wan1_latency
     above: 100
     for:
       seconds: |
@@ -624,7 +624,7 @@ triggers:
       Triggers when WAN1 latency exceeds 100ms. Dynamic delay ensures we wait for
       consecutive polls to confirm the latency spike is sustained.
   - trigger: numeric_state
-    entity_id: sensor.unifi_network_internet_wan2_latency_avg
+    entity_id: sensor.unifi_network_internet_wan2_latency
     above: 100
     for:
       seconds: |
