@@ -327,9 +327,12 @@ class UnifiNetworkAPI:
         resp = await self._post(path, payload)
         return self._extract(resp)
 
-    async def get_rogueaps(self) -> list[dict[str, Any]]:
-        """Fetch rogue access points statistics."""
-        resp = await self._get(f"/proxy/network/api/s/{self.site}/stat/rogueap")
+    async def get_rogueaps(self, within_hours: int = 1) -> list[dict[str, Any]]:
+        """Fetch rogue access points statistics within a specific number of hours."""
+        payload = {"within": within_hours}
+        resp = await self._post(
+            f"/proxy/network/api/s/{self.site}/stat/rogueap", payload
+        )
         return self._extract(resp)
 
     async def get_guests(self) -> list[dict[str, Any]]:

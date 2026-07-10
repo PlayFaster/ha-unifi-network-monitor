@@ -2,24 +2,26 @@
 
 [![HACS Integration](https://img.shields.io/badge/HACS-Integration-orange.svg)](https://hacs.xyz/) [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5?logo=homeassistant&logoColor=white)](https://hacs.xyz/docs/faq/custom_repositories) [![Latest Release](https://img.shields.io/github/v/release/PlayFaster/ha-unifi-network-monitor?label=Release&logo=github)](https://github.com/PlayFaster/ha-unifi-network-monitor/releases) [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0) [![Validate](https://github.com/PlayFaster/ha-unifi-network-monitor/actions/workflows/validate.yaml/badge.svg)](https://github.com/PlayFaster/ha-unifi-network-monitor/actions/workflows/validate.yaml) ![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/PlayFaster/PLACEHOLDER_GIST_ID/raw/coverage.json) [![Last Commit](https://img.shields.io/github/last-commit/PlayFaster/ha-unifi-network-monitor?label=Last%20commit)](https://github.com/PlayFaster/ha-unifi-network-monitor/commits/main)
 
-A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via your UniFI Gateway (e.g. UDM Pro or similar) — providing gateway health, WAN & internet metrics, speedtests, rogue-AP detection, and per-device diagnostics that the official UniFi integration does not expose.
+A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via your UniFI Gateway (e.g. UDM Pro or similar), designed to run in conjunction with and be complmentary to, the official Home Assistant [UniFi Network Integration](https://www.home-assistant.io/integrations/unifi/), but it does not require it.
 
-This is designed to run in conjunction with the official Home Assistant [UniFi Network Integration](https://www.home-assistant.io/integrations/unifi/), but does not require it. The focus is on providing information that the core integration does not, such as: Internet Data usage, Speedtest data, WAN latency and IP address, Rogue Access Point insights and summary stats. It works in single or dual WAN mode. In dual WAN mode, it provides per WAN (WAN1, WAN2) info for INternet Data usage; Speedtest results; latency; IP addresses and load-balancing status, and if set weight, plus the ability to change load balancing weight.
-
-This integration does not provide any client tracking (i.e. device trackers) beyond summary counts, as that is handled by the core Integration.
+- The focus is on providing information that the core integration does not, such as: Internet data usage, Speedtest data, WAN latency and IP address, Rogue Access Point insights and summary stats.
+- It works in single or dual WAN mode. In dual WAN mode, it provides per WAN (WAN1, WAN2) info for Internet data usage; Speedtest results; latency; IP addresses and load-balancing status, and if set, balance-weight, plus the ability to change load balancing weight.
+  - In single WAN mode, the WAN2 sensors will be unknown.
+- This integration does not provide any client tracking (i.e. device trackers) beyond summary counts, as that is handled by the core Integration.
 
 > [!NOTE]
 >
 > **Is this the right integration for you?**
 >
-> - **If you run a UniFi network on a UDM Pro** (or similar UniFi OS gateway) and want infrastructure-level monitoring — gateway health, WAN/internet quality, data usage, speedtests, and network security signals — directly in Home Assistant, then **yes**.
-> - It is designed to run **alongside** the official Home Assistant UniFi integration (which focuses on client/device tracking). Where both cover the same physical device, entities **merge onto one device card** — no duplicate device entries.
+> - **If you run a UniFi Network on a UDM Gateway** and want infrastructure-level monitoring — data usage, WAN/internet quality, speedtests, and network security info — directly in Home Assistant, then **yes**.
+> - It is designed to run **alongside** the official Home Assistant UniFi Network integration  Where both cover the same physical device, entities **merge onto one device card** — no duplicate device entries.
 > - **This integration is for you if** you want:
->   - **Gateway & WAN diagnostics** — CPU, memory, temperatures, storage, uptime, dual-WAN status, latency, and daily/monthly data usage.
->   - **Gateway & WAN diagnostics** — CPU, memory, temperatures, storage, uptime, dual-WAN status, latency, and daily/monthly data usage.
+>   - **Internet Data usage** — Daily and monthly download, upload and totals, per WAN if in dual WAN mode.
 >   - **Speedtest tracking** — per-WAN download/upload/ping history, plus one-click manual runs.
->   - **Network security signals** — rogue access-point detection with a configurable proximity alert.
->   - **Scoped, low-noise setup** — choose which sensor groups to create; disabled groups also skip their API polls.
+>   - **Load Balancing** - Status, weights and weight setting
+>   - **WAN Stats** - Per WAN latency, status, assigned name, internal and external IP address and uptime.
+>   - **Rogue AP Info** — rogue access-point detection with a configurable proximity alert.
+>   - **Gateway diagnostics** — OS and Application version, last backup, and storage use.
 >
 > This project is developed and tested on the **UDM Pro** but is expected to work with other UniFi OS gateways.
 
@@ -49,9 +51,9 @@ This integration does not provide any client tracking (i.e. device trackers) bey
 **📟 Gateway Hardware:**
 
 - **Fully Tested**:
-  - **UDM Pro** — tested on **UniFi OS `5.1.19.33549`** with **Network application `10.4.57`**.
-- **Expected Compatible**: Other UniFi OS gateways the integration recognises as the gateway device — `UDM`, `UDM-SE`, `UDM Pro SE`, `UDM (base)`, `UNVR`, `UNVR Pro`, `UCG-Ultra`, `UCG-Max`. These are untested.
-- **Access Points & Switches**: Adopted UniFi APs and switches are discovered automatically for per-device sensors (optional — see [Configuration](#-configuration)).
+  - **UDM Pro** — tested on **UniFi OS `5.1.19`** with **Network application `10.4`**.
+- **Expected Compatible**: Other UniFi OS gateways running the Network application, which should include the UDM range, and possibly others. These are untested.
+- **Access Points & Switches**: Adopted UniFi APs and switches **optionally** are discovered automatically for per-device sensors (see [Configuration](#-configuration)).
 - **Not Supported**: Non-UniFi hardware; setups without a UniFi OS gateway.
 
 **🌐 Network:**
@@ -68,26 +70,20 @@ This integration does not provide any client tracking (i.e. device trackers) bey
 
 ## 🎯 Use Cases
 
-- **Infrastructure Health Monitoring**: Track gateway CPU, memory, temperatures, storage, and uptime — get alerted before a struggling gateway becomes an outage.
-- **Dual-WAN & Internet Quality**: Monitor WAN1/WAN2 up/active status, latency, and the active routing interface; drive failover automations and dashboards.
-- **Data-Cap Management**: Watch daily and monthly WAN usage and get notified as you approach an ISP data limit.
-- **Speedtest History**: Keep a per-WAN record of download/upload/ping and trigger on-demand tests from HA.
-- **Network Security Awareness**: Detect nearby **rogue access points** and raise a **Proximity Alert** when an unknown AP is close (strong signal) — useful for spotting rogue/evil-twin APs.
-- **Runs With the Official Integration**: Add the infrastructure metrics the native UniFi integration lacks, without duplicate device cards.
+- **Data-Cap Management**: Watch daily and monthly WAN usage and if desired, create automations to get notified as you approach an ISP data limit.
+- **WAN/dual-WAN & Internet Quality**: Monitor WAN1/WAN2 up/active status, latency, uptime, and the active routing interface; drive failover automations and dashboards.
+- **Speedtest History**: Keep a per-WAN record of speedtests run directly from the gateway - download/upload/ping. Trigger on-demand tests from HA.
+- **Network Security Awareness**: Detect nearby **rogue access points** and raise a **Proximity Alert** when an unknown AP is close (strong signal) — useful for spotting rogue/evil-twin APs or resetting smart home devices.
+- **Load Balancing Status**: In multi-WAN mode, shows if operating in failover or load-balancing mode. If using  load-balancing, shows the weighted percentages and allows changing them. Useful if one of your ISPs has variable performance.
+- **Augment the Official Integration**: Runs well alongside the official HA UniF Network integration to provide additional information. Also works without the official integration present and, optionally, can provide additional info on UniFi devices like Access Points and Switches.
 
 ## ✅ Features
 
-### 🖥️ Gateway & System Diagnostics
-
-- **Hardware Metrics**: CPU %, memory %, CPU/board temperatures, storage used/size/percentage, and derived uptime/boot time.
-- **Firmware & Identity**: UniFi Network application version, gateway model, and SFP transceiver diagnostics.
-- **Threat Management State**: IPS/IDS mode, Ad-blocking, and Honeypot status.
-
 ### 🌐 WAN, Internet & Data Usage
 
-- **Dual-WAN Status**: WAN1/WAN2 active-uplink and link-up indicators, local/public IP addresses, and configured WAN interface names.
-- **Data Usage**: Daily and monthly per-WAN download/upload/total (displayed in GB).
-- **Multi-WAN Load Balancing**: Read and adjust the WAN1/WAN2 load-balance weight (always summing to 100).
+- **Data Usage**: Daily and monthly per-WAN download/upload/total (i.e. GB of data used).
+- **Dual-WAN Status**: WAN1/WAN2 active-uplink and link-up indicators, uptime, latency, local/public IP addresses, and configured WAN interface names.
+- **Multi-WAN Load Balancing**: Read and adjust the WAN1/WAN2 load-balance weight (always summing to 100%).
 
 ### ⚡ Speedtest
 
@@ -96,23 +92,32 @@ This integration does not provide any client tracking (i.e. device trackers) bey
 
 ### 🛡️ Network Security & Health
 
-- **Rogue AP Detection**: Count of unknown/rogue access points, the **Strongest Rogue SSID** and **Strongest Rogue RSSI**, with the full rogue-AP list as an attribute.
+- **Rogue AP Detection**: Count of rogue access points ( unknown APs), as detected by UniFi APs on the network, the **Strongest Rogue SSID** and **Strongest Rogue RSSI**, with the full rogue-AP list as an attribute.
 - **Proximity Alert**: A `PROBLEM` binary sensor that fires when the strongest rogue signal is at or above a user-set **Rogue Proximity Threshold** (dBm).
 - **Subsystem Health**: Aggregated **Network Problem** indicator plus per-subsystem OK sensors (WAN, Internet/WWW, WiFi/WLAN, LAN).
 - **WiFi, VLAN, VPN & Firewall**: Per-SSID broadcast status, per-VPN-tunnel status, VLAN and firewall-rule counts.
 
+### 🖥️ Gateway & System Diagnostics
+
+- **Firmware & Identity**: UniFi OS and Network application version, gateway model, and SFP transceiver diagnostics (SFP info is available but disabled by default).
+- **Threat Management State**: IPS/IDS mode, Ad-blocking, and Honeypot status.
+- **Hardware Metrics**: Storage utilization plus (disabled-by-default): CPU %, memory %, CPU/board temperatures, and uptime (disabled as they are also provided by the official integration, but available).
+
 ### 🔄 Dynamic Polling
 
 - **Pause Polling**: A switch to halt polling temporarily.
-- **Configurable Update Interval**: Adjust the scan interval from the HA UI or via automation (default `180` seconds).
+- **Configurable Update Interval**: Adjust the scan interval from the HA UI or via automation (default `180` seconds, range `10`to `3600`).
 - **Standard System Option**: Also honours Home Assistant's **System options > Enable polling for changes** toggle.
 
 ### 🎛️ Scoped Setup (Sensor Groups)
 
 Choose at setup — and change any time via **Configure** — which groups of sensors are created. A disabled group both hides its sensors **and skips its API calls**:
 
-- **UniFi device (Access Point & Switch) sensors** — none / AP Satisfaction Score only / all.
 - **Speedtest monitoring**, **WAN data-usage statistics**, **Security monitoring** (rogue APs / VPN / firewall).
+  - These entities are specific to this integration and do not overlap with the official HA UniFI NEtwork integration. However, if you don't want or need this info, turning them off removes entities from the UI and saves an API fetch.
+
+- **UniFi device (Access Point & Switch) sensors** — none / AP Satisfaction Score only / all.
+  - The integration is deigned to work with the official HA UniFi Network integration, and provide minimal overlap. There is though the option to fetch info from all UniFi devices, should you wish.
 
 ### 🧹 Housekeeping
 
@@ -120,7 +125,7 @@ Choose at setup — and change any time via **Configure** — which groups of se
 
 ## 🔍 What You Get
 
-This integration exposes its entities across several sub-devices on the gateway — **Gateway**, **Internet**, **Speedtest**, **Status**, and **System** — plus a dynamic sub-device per adopted **Access Point** and **Switch**. Each sub-device appears as its own card in Home Assistant, and entity IDs are prefixed accordingly (e.g. `sensor.unifi_network_gateway_cpu_temperature`, `binary_sensor.unifi_network_status_network_problem`).
+This integration exposes its entities across several sub-devices — **Gateway**, **Internet**, **Speedtest**, **Status**, and **System** — plus, (if enabled) a dynamic sub-device per adopted **Access Point** and **Switch**. Each sub-device appears as its own card in Home Assistant, and entity IDs are prefixed accordingly (e.g. `sensor.unifi_network_gateway_last_backup`, `binary_sensor.unifi_network_status_network_problem`).
 
 > [!NOTE]
 >
@@ -144,7 +149,7 @@ Enable any disabled entity per-entity when you want it. Your totals also differ 
 
 > [!NOTE]
 >
-> **Per-device sensors scale with your hardware.** Choosing **Add all device sensors** creates one sub-device per adopted AP/switch: **+11 entities per AP** and **+6 per switch**. For example, a rig with 8 APs + 12 switches adds 8×11 + 12×6 = **160 entities**.
+> **Per-device sensors scale with your hardware.** Choosing **Add all device sensors** creates one sub-device per adopted AP/switch: **+11 entities per AP** and **+6 per switch**. For example, a set-up with 8 APs + 12 switches adds 8×11 + 12×6 = **160 entities**.
 >
 > **Enabled-by-default depends on HA Core UniFi:** if you do **not** run the official HA Core UniFi integration, all of these per-device entities are created **and enabled**. If you **do** run Core UniFi, only the AP **Satisfaction Score** is enabled by default and the rest come in disabled (they'd duplicate what Core already provides — hence the "duplicates disabled" label).
 

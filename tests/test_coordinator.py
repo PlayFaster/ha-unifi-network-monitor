@@ -1953,3 +1953,61 @@ async def test_endpoint_available_healthy(hass: Any, mock_config_entry: Any) -> 
     api = MagicMock()
     coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
     assert coordinator.endpoint_available("healthy_ep") is True
+
+
+async def test_rogue_ap_age_calculation(hass: Any, mock_config_entry: Any) -> None:
+    """Rogue AP age is calculated dynamically from current time and last_seen."""
+    mock_config_entry.add_to_hass(hass)
+    api = MagicMock()
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+
+    from homeassistant.util import dt as dt_util
+
+    current_time = dt_util.now()
+    current_ts = int(dt_util.as_timestamp(current_time))
+
+    # 1. Test seen 2.5 hours ago -> 2h
+    last_seen_2h = current_ts - (2.5 * 3600)
+    # 2. Test seen 17.8 hours ago -> 17h
+    last_seen_17h = current_ts - (17.8 * 3600)
+
+    devices_raw = [
+        {
+            "mac": "f4:92:bf:77:b6:c7",
+            "model": "UDMPRO",
+            "state": 1,
+        }
+    ]
+    rogueaps_raw = [
+        {
+            "essid": "Rogue-2h",
+            "bssid": "00:11:22:33:44:55",
+            "last_seen": int(last_seen_2h),
+        },
+        {
+            "essid": "Rogue-17h",
+            "bssid": "66:77:88:99:aa:bb",
+            "last_seen": int(last_seen_17h),
+        },
+    ]
+
+    api.get_devices = AsyncMock(return_value=devices_raw)
+    api.get_health = AsyncMock(return_value=[])
+    api.get_sysinfo = AsyncMock(return_value=[])
+    api.get_networkconf = AsyncMock(return_value=[])
+    api.get_settings = AsyncMock(return_value=[])
+    api.get_daily_gateway = AsyncMock(return_value=[])
+    api.get_monthly_gateway = AsyncMock(return_value=[])
+    api.get_rogueaps = AsyncMock(return_value=rogueaps_raw)
+    api.get_guests = AsyncMock(return_value=[])
+    api.get_backups = AsyncMock(return_value=[])
+    api.get_speedtest_results = AsyncMock(return_value=[])
+    api.get_wlanconf = AsyncMock(return_value=[])
+
+    data = await coordinator._async_update_data()
+    rogues = data["gateway"]["rogue_aps_list"]
+
+    assert rogues[0]["essid"] == "Rogue-2h"
+    assert rogues[0]["age"] == "2h"
+    assert rogues[1]["essid"] == "Rogue-17h"
+    assert rogues[1]["age"] == "17h"

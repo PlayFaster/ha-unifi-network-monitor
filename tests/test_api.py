@@ -412,12 +412,15 @@ async def test_new_endpoints() -> None:
         path = mock_post.call_args[0][0]
         assert "/cmd/backup" in path
 
+        await api.get_rogueaps()
+        path = mock_post.call_args[0][0]
+        payload = mock_post.call_args[0][1]
+        assert "/stat/rogueap" in path
+        assert payload == {"within": 1}
+
     with patch.object(
         api, "_get", AsyncMock(return_value={"data": [{"ok": True}]})
     ) as mock_get:
-        await api.get_rogueaps()
-        mock_get.assert_called_with("/proxy/network/api/s/default/stat/rogueap")
-
         await api.get_guests()
         mock_get.assert_called_with("/proxy/network/api/s/default/stat/guest")
 

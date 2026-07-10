@@ -902,11 +902,21 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     rogue_ap_count = (
                         len(rogueaps_raw) if rogueaps_raw is not None else 0
                     )
+                    current_ts = int(dt_util.as_timestamp(update_time))
                     for r in rogueaps_raw or []:
                         ap_mac = r.get("ap_mac", "")
                         detected_by = ap_name_map.get(ap_mac.lower()) or ap_mac
-                        age_val = _safe_int(r.get("age"))
-                        age_str = f"{age_val}h" if age_val is not None else None
+
+                        last_seen = _safe_int(r.get("last_seen"))
+                        if last_seen is not None:
+                            true_age_secs = max(0, current_ts - last_seen)
+                            age_hours = true_age_secs // 3600
+                            age_str = f"{age_hours}h"
+                        else:
+                            # Fallback to API static age if last_seen is absent
+                            api_age = _safe_int(r.get("age"))
+                            age_str = f"{api_age}h" if api_age is not None else None
+
                         rogue_aps_list.append(
                             {
                                 "essid": r.get("essid", ""),
