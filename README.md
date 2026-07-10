@@ -582,7 +582,6 @@ Shifts traffic load balance weight away from WAN2 if its average latency exceeds
 alias: "UniFi: Optimize WAN Weight on High Latency"
 description: |
   Shifts traffic load balance weight away from WAN2 if its average latency exceeds 150ms for consecutive poll periods.
-
 triggers:
   - trigger: numeric_state
     entity_id: sensor.unifi_network_internet_wan2_latency_avg
@@ -611,24 +610,37 @@ Automatically runs a WAN1 speedtest if internet latency spikes, helping to diagn
 ```yaml
 alias: "UniFi: Trigger Diagnostic Speedtest"
 description: |
-  Automatically runs a WAN1 speedtest if internet latency spikes, helping to diagnose bandwidth degradation.
+  Automatically runs a diagnostic speedtest on WAN1 or WAN2 if their respective
+  average latency spikes above 100ms.
 triggers:
   - trigger: numeric_state
-    entity_id: sensor.unifi_network_internet_latency
+    entity_id: sensor.unifi_network_internet_wan1_latency_avg
     above: 100
     for:
       seconds: |
         {{ [120, (states('sensor.unifi_network_system_polling_interval') | int(180)) + 5] | max }}
+    id: wan1
     note: |
-      Triggers when internet latency goes above 100ms. Dynamic delay ensures we wait for
-      consecutive polls to confirm the network degradation is sustained before running.
+      Triggers when WAN1 latency exceeds 100ms. Dynamic delay ensures we wait for
+      consecutive polls to confirm the latency spike is sustained.
+  - trigger: numeric_state
+    entity_id: sensor.unifi_network_internet_wan2_latency_avg
+    above: 100
+    for:
+      seconds: |
+        {{ [120, (states('sensor.unifi_network_system_polling_interval') | int(180)) + 5] | max }}
+    id: wan2
+    note: |
+      Triggers when WAN2 latency exceeds 100ms. Dynamic delay ensures we wait for
+      consecutive polls to confirm the latency spike is sustained.
 actions:
   - action: button.press
     target:
-      entity_id: button.unifi_network_speedtest_wan1_run
+      entity_id: |
+        {{ 'button.unifi_network_speedtest_wan1_run' if trigger.id == 'wan1' else 'button.unifi_network_speedtest_wan2_run' }}
     note: |
-      Presses the Speedtest run button for WAN1 to capture current download/upload speeds
-      while the network is struggling.
+      Presses the Speedtest run button for whichever WAN interface is experiencing
+      high latency.
 ```
 
 ## 📥 Installation
