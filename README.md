@@ -294,13 +294,19 @@ Notify when an unknown access point is detected close by (signal at/above your t
 
 ```yaml
 alias: "UniFi: Rogue AP Nearby"
+description: |
+  Notifies when an unknown access point is detected close by, waiting for consecutive
+  polls to filter out transient signals.
 triggers:
   - trigger: state
     entity_id: binary_sensor.unifi_network_status_rogue_ap_proximity_alert
     to: "on"
-    for: "00:02:00"
+    for:
+      seconds: |
+        {{ [120, (states('sensor.unifi_network_system_polling_interval') | int(180)) + 5] | max }}
     note: |
-      Triggers if a rogue AP remains at or above the proximity threshold for 2 continuous minutes.
+      Triggers when a rogue AP exceeds the proximity threshold. Dynamic delay ensures we wait
+      for consecutive polls to confirm it is a stationary/sustained threat rather than a passing car.
 actions:
   - action: notify.mobile_app_your_phone
     data:
@@ -315,20 +321,35 @@ actions:
 
 ```yaml
 alias: "UniFi: Internet Down"
+description: |
+  Triggers immediately when the internet goes offline, forces a refresh to verify,
+  and alerts if the outage is confirmed.
 triggers:
   - trigger: state
     entity_id: binary_sensor.unifi_network_internet_internet_connected
     to: "off"
-    for: "00:01:00"
     note: |
-      Triggers if the internet connection is lost for at least 1 continuous minute to filter out transient drops.
+      Triggers instantly the moment the gateway reports an outage.
 actions:
-  - action: notify.mobile_app_your_phone
-    data:
-      title: "Internet connection lost"
-      message: "The UniFi gateway reports the internet is down."
+  - action: button.press
+    target:
+      entity_id: button.unifi_network_system_refresh_now
     note: |
-      Sends a push notification alerting that the internet is offline.
+      Forces the integration to perform an immediate API poll of the controller.
+  - delay: "00:00:20"
+    note: |
+      Wait 20 seconds to allow the integration to fetch the new data and update states.
+  - if:
+      - condition: state
+        entity_id: binary_sensor.unifi_network_internet_internet_connected
+        state: "off"
+    then:
+      - action: notify.mobile_app_your_phone
+        data:
+          title: "Internet connection lost"
+          message: "The UniFi gateway reports the internet is down."
+        note: |
+          Sends a push notification alerting that the internet is offline.
 ```
 
 ### 🚨 Monthly Data-Usage Alert
@@ -423,6 +444,106 @@ actions:
       message: |
         Latency alert triggered! Current Internet Latency: {{ states('sensor.unifi_network_internet_latency') }} ms.
     note: "Alerts you which interface is experiencing high latency."
+```
+
+### 🔀 WAN Failover / Restore (Dual-WAN)
+
+Notify when the gateway fails over to WAN2, and again when it returns to WAN1.
+
+```yaml
+alias: "UniFi: WAN Failover"
+description: |
+  Alerts when WAN2 becomes the active routing interface (failover from the
+  primary WAN), and again when traffic returns to WAN1.
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.unifi_network_internet_wan2_active_uplink
+    to: "on"
+    id: failover
+    note: |
+      Fires instantly when WAN2 becomes the active uplink (primary WAN down).
+  - trigger: state
+    entity_id: binary_sensor.unifi_network_internet_wan2_active_uplink
+    to: "off"
+    id: restored
+    note: |
+      Fires instantly when WAN2 is no longer the active uplink (primary WAN restored).
+actions:
+  - action: button.press
+    target:
+      entity_id: button.unifi_network_system_refresh_now
+    note: |
+      Forces the integration to perform an immediate API poll of the controller.
+  - delay: "00:00:20"
+    note: |
+      Wait 20 seconds to allow the integration to fetch the new data and update states.
+  - condition: template
+    value_template: |
+      {{ (trigger.id == 'failover' and is_state('binary_sensor.unifi_network_internet_wan2_active_uplink', 'on')) or
+         (trigger.id == 'restored' and is_state('binary_sensor.unifi_network_internet_wan2_active_uplink', 'off')) }}
+    note: |
+      Ensures the failover/restored state is still active after the forced refresh before continuing.
+  - action: notify.mobile_app_your_phone
+    data:
+      title: |
+        {{ 'Failed over to WAN2' if trigger.id == 'failover' else 'Back on WAN1' }}
+      message: |
+        {{ 'Primary WAN appears down — the gateway is now routing over WAN2.' if trigger.id == 'failover' else 'WAN1 has recovered and is carrying traffic again.' }}
+    note: |
+      One automation covers both directions via trigger IDs; the title and message switch on whether we failed over or recovered. Single-WAN users can ignore this example.
+```
+
+### ⏱️ Scheduled Nightly Speedtest
+
+Run a speedtest automatically each night to build a regular performance baseline — no need to open the UI.
+
+```yaml
+alias: "UniFi: Nightly Speedtest"
+description: |
+  Presses the WAN speedtest button(s) once a day so you accumulate a consistent speedtest history.
+triggers:
+  - trigger: time
+    at: "03:00:00"
+    note: |
+      Runs once a day at 03:00 local time — pick a quiet hour so the test doesn't compete with normal usage.
+actions:
+  - action: button.press
+    target:
+      entity_id: button.unifi_network_speedtest_wan1_run
+    note: |
+      Presses the WAN1 speedtest button, triggering a gateway speedtest on the primary interface.
+  - delay: "00:01:00"
+    note: |
+      Short gap so the WAN1 test finishes before WAN2 starts — the gateway runs one speedtest at a time.
+  - action: button.press
+    target:
+      entity_id: button.unifi_network_speedtest_wan2_run
+    note: |
+      Presses the WAN2 speedtest button. Remove this step (and the delay above) if you only have a single WAN.
+```
+
+### 🐢 Slow Speedtest Result
+
+Alert if a WAN1 speedtest comes back below your expected download speed — useful for catching an ISP not delivering the plan you pay for.
+
+```yaml
+alias: "UniFi: Slow Speedtest"
+description: |
+  Notifies when the latest WAN1 download result drops below a threshold you set.
+triggers:
+  - trigger: numeric_state
+    entity_id: sensor.unifi_network_speedtest_wan1_download
+    below: 200 # Mbps — set to roughly 80% of your provisioned download speed
+    note: |
+      Fires when the WAN1 download result falls below 200 Mbps. Setting the threshold to about 80% of your plan speed allows for normal variance without false alarms.
+actions:
+  - action: notify.mobile_app_your_phone
+    data:
+      title: "UniFi: Slow WAN1 speedtest"
+      message: |
+        WAN1 download tested at {{ states('sensor.unifi_network_speedtest_wan1_download') }} Mbps, below the 200 Mbps threshold.
+    note: |
+      Sends the measured download speed so you can decide whether it's worth contacting your ISP.
 ```
 
 ### 👥 Guest Network in Use
