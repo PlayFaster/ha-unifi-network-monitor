@@ -580,9 +580,9 @@ Shifts traffic load balance weight away from WAN2 if its average latency exceeds
 
 ```yaml
 alias: "UniFi: Optimize WAN Weight on High Latency"
-description: >-
-  Shifts traffic load balance weight away from WAN2 if its average latency
-  exceeds 150ms for consecutive poll periods.
+description: |
+  Shifts traffic load balance weight away from WAN2 if its average latency exceeds 150ms for consecutive poll periods.
+
 triggers:
   - trigger: numeric_state
     entity_id: sensor.unifi_network_internet_wan2_latency_avg
@@ -610,9 +610,8 @@ Automatically runs a WAN1 speedtest if internet latency spikes, helping to diagn
 
 ```yaml
 alias: "UniFi: Trigger Diagnostic Speedtest"
-description: >-
-  Automatically runs a WAN1 speedtest if internet latency spikes, helping to
-  diagnose bandwidth degradation.
+description: |
+  Automatically runs a WAN1 speedtest if internet latency spikes, helping to diagnose bandwidth degradation.
 triggers:
   - trigger: numeric_state
     entity_id: sensor.unifi_network_internet_latency
@@ -626,7 +625,7 @@ triggers:
 actions:
   - action: button.press
     target:
-      entity_id: button.unifi_network_speedtest_run_wan1_speedtest
+      entity_id: button.unifi_network_speedtest_wan1_run
     note: |
       Presses the Speedtest run button for WAN1 to capture current download/upload speeds
       while the network is struggling.
