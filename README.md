@@ -34,6 +34,7 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
   - [✅ Features](#-features)
   - [🔍 What You Get](#-what-you-get)
   - [📸 Screenshots](#-screenshots)
+  - [📡 Rogue Access Point Monitoring](#-rogue-access-point-monitoring)
   - [💡 Example Automations](#-example-automations)
   - [📥 Installation](#-installation)
   - [🔧 Configuration](#-configuration)
@@ -250,6 +251,32 @@ The exceptions — **17** numeric sensors (14 base + 3 per-AP) that currently ha
 
 ---
 
+## 📡 Rogue Access Point Monitoring
+
+UniFi access points continuously scan the airwaves for nearby Wi-Fi networks. Any SSID broadcasting nearby that is not part of your managed UniFi network is reported by the controller as a "Rogue Access Point".
+
+This integration filters these detections to show only active devices seen within the **last 1 hour** (the default query window) and exposes them through a set of helpful entities under the **Status** sub-device:
+
+- **Rogue Access Points (`sensor.*_rogue_access_points`)**: A count of the number of unique rogue APs detected nearby in the last hour.
+- **Strongest Rogue SSID (`sensor.*_strongest_rogue_ssid`)**: The name (SSID) of the rogue network with the strongest (least negative) signal.
+  - *Additional Info (Attributes)*: This sensor carries a `rogue_aps` list attribute containing detailed records of every detected rogue network, including their BSSID (MAC), channel, signal strength (RSSI), manufacturer (OUI), age (rendered dynamically in minutes or hours), and the friendly name of your UniFi AP that detected it.
+- **Strongest Rogue RSSI (`sensor.*_strongest_rogue_rssi`)**: The signal strength (in dBm) of the strongest rogue network.
+- **Rogue Proximity Threshold (`number.*_rogue_proximity_threshold`)**: A slider entity in Home Assistant (defaulting to `-60` dBm) that lets you define what signal level is considered "close".
+- **Rogue AP Proximity Alert (`binary_sensor.*_rogue_ap_proximity_alert`)**: A safety binary sensor (configured with `device_class: problem`). It turns `on` (triggers a "Problem" state) when the strongest rogue AP's RSSI is equal to or higher than your custom Proximity Threshold (e.g. `-50` dBm is higher/closer than `-60` dBm).
+
+### ❓ Why is this useful?
+
+1. **Security Awareness**: Detect if someone has plugged in an unauthorized router nearby, or is running an "evil twin" AP mimicking common SSIDs.
+2. **Perimeter Monitoring / Smart Home Troubleshooting**: Since smart home devices occasionally fail and revert to their own internal Wi-Fi broadcast setup (e.g. a Shelly plug broadcasting `shellyplug-s-XXXXXX` when disconnected), this alert can notify you immediately if a smart plug or IoT device has dropped offline and is broadcasting its setup SSID.
+
+### ⚙️ How to use it
+
+1. Look at the typical signal levels of your neighbors' Wi-Fi networks in your dashboard.
+2. Set your **Rogue Proximity Threshold** slightly above this normal background level (e.g. if neighbors average `-75` dBm, set the threshold to `-65` or `-60` dBm).
+3. Set up an automation to send a notification to your phone when the **Proximity Alert** binary sensor turns `on`. (See the example below).
+
+---
+
 ## 💡 Example Automations
 
 > [!NOTE]
@@ -379,8 +406,8 @@ At setup you also choose:
 
 - **UniFi device (Access Point & Switch) sensors** — `Don't add` (default), `AP Satisfaction Score only`, or `Add all` (duplicates disabled).
   - Leave at `Don't Add` (default) unless you **know** that you are interested in additional UniFi Access Point and Switch information
-    - Case 1: You **have** core HA UniFi Networks installed as well, but you particularly want the AP Satisfaction Score that this integration provides
-    - Case 2: You do **NOT** have core HA UniFi Networks installed, and want detailed info (CPU, Memory, Uptime, CLients) on your UniFi devices e.g. Access Points and Switches
+  - Case 1: You **have** core HA UniFi Networks installed as well, but you particularly want the AP Satisfaction Score that this integration provides
+  - Case 2: You do **NOT** have core HA UniFi Networks installed, and want detailed info (CPU, Memory, Uptime, CLients) on your UniFi devices e.g. Access Points and Switches
 - **Speedtest monitoring** — on/off (default on).
   - Leave `ON` (default) unless you **know** that you are not interested in data on the speedtests that the UniFi gateway regularly runs.
 
