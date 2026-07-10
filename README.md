@@ -2,7 +2,7 @@
 
 [![HACS Integration](https://img.shields.io/badge/HACS-Integration-orange.svg)](https://hacs.xyz/) [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5?logo=homeassistant&logoColor=white)](https://hacs.xyz/docs/faq/custom_repositories) [![Latest Release](https://img.shields.io/github/v/release/PlayFaster/ha-unifi-network-monitor?label=Release&logo=github)](https://github.com/PlayFaster/ha-unifi-network-monitor/releases) [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0) [![Validate](https://github.com/PlayFaster/ha-unifi-network-monitor/actions/workflows/validate.yaml/badge.svg)](https://github.com/PlayFaster/ha-unifi-network-monitor/actions/workflows/validate.yaml) ![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/PlayFaster/PLACEHOLDER_GIST_ID/raw/coverage.json) [![Last Commit](https://img.shields.io/github/last-commit/PlayFaster/ha-unifi-network-monitor?label=Last%20commit)](https://github.com/PlayFaster/ha-unifi-network-monitor/commits/main)
 
-A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via your UniFI Gateway (e.g. UDM Pro or similar), designed to run in conjunction with and be complementary to, the official Home Assistant [UniFi Network Integration](https://www.home-assistant.io/integrations/unifi/), but it does not require it.
+A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via your UniFi Gateway (e.g. UDM Pro or similar), designed to run in conjunction with and be complementary to, the official Home Assistant [UniFi Network Integration](https://www.home-assistant.io/integrations/unifi/), but it does not require it.
 
 - The focus is on providing information that the core integration does not, such as: Internet data usage, Speedtest data, WAN latency and IP address, Rogue Access Point insights and summary stats.
 - It works in single or dual WAN mode. In dual WAN mode, it provides per WAN (WAN1, WAN2) info for Internet data usage; Speedtest results; latency; IP addresses and load-balancing status, and if set, balance-weight, plus the ability to change load balancing weight.
@@ -14,7 +14,7 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
 > **Is this the right integration for you?**
 >
 > - **If you run a UniFi Network on a UDM Gateway** and want infrastructure-level monitoring — data usage, WAN/internet quality, speedtests, and network security info — directly in Home Assistant, then **yes**.
-> - It is designed to run **alongside** the official Home Assistant UniFi Network integration Where both cover the same physical device, entities **merge onto one device card** — no duplicate device entries.
+> - It is designed to run **alongside** the official Home Assistant UniFi Network integration. Where both cover the same physical device, entities **merge onto one device card** — no duplicate device entries.
 > - **This integration is for you if** you want:
 >   - **Internet Data usage** — Daily and monthly download, upload and totals, per WAN if in dual WAN mode.
 >   - **Speedtest tracking** — per-WAN download/upload/ping history, plus one-click manual runs.
@@ -57,20 +57,19 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
 - **Access Points & Switches**: Adopted UniFi APs and switches **optionally** are discovered automatically for per-device sensors (see [Configuration](#-configuration)).
 - **Not Supported**: Non-UniFi hardware; setups without a UniFi OS gateway.
 
-**🌐 Network:**
-
-- Local network access to the gateway's UniFi Network API is required. No cloud account or internet access is needed.
-- **Authentication** — either:
-  - A **local API key** (preferred; UniFi OS 3.x and later — `X-API-Key` header), or
-  - **Username / password** for the controller (cookie-based session).
-
-**🏠 Home Assistant and UniFI Versions:**
+**🏠 Home Assistant and UniFi Versions:**
 
 - Minimum: Home Assistant **2024.8.0**
 - Minimum Python: **3.12+** (this is built into and handled by HA, but relevant for non-standard installs).
-- Minimum UniFi OS: **3.0+** (required for all API endpoints).
-- Minimum UniFi Network Application: **8.1.113+** - Required for API Key authentication and full functionality
-- Reduced Functionality Minimum UniFi Network Application: **7.4.x+** - Cannot use API Key authentication, seven entities become unavailable
+- Minimum UniFi OS: **3.2.7+** (required for all API endpoints). OS 3.0+ will work with reduced functionality.
+- Minimum UniFi Network Application: **8.1.113+** - Required for API Key authentication and full functionality. Network **7.4.x+** will work with reduced functionality.
+
+**🌐 Network:**
+
+- Local network access to the gateway's UniFi Network API is required. No cloud account or internet access is needed.
+- **Authentication** — see [initial set-up](#-initial-setup), use either:
+  - A **local API key** (preferred; UniFi OS 3.2.7 and Network Application 8.1.113 and later), or
+  - A local **Username / password** for the controller (cookie-based session)
 
 ## 🎯 Use Cases
 
@@ -79,7 +78,7 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
 - **Speedtest History**: Keep a per-WAN record of speedtests run directly from the gateway - download/upload/ping. Trigger on-demand tests from HA.
 - **Network Security Awareness**: Detect nearby **rogue access points** and raise a **Proximity Alert** when an unknown AP is close (strong signal) — useful for spotting rogue/evil-twin APs or resetting smart home devices.
 - **Load Balancing Status**: In multi-WAN mode, shows if operating in failover or load-balancing mode. If using load-balancing, shows the weighted percentages and allows changing them. Useful if one of your ISPs has variable performance.
-- **Augment the Official Integration**: Runs well alongside the official HA UniF Network integration to provide additional information. Also works without the official integration present and, optionally, can provide additional info on UniFi devices like Access Points and Switches.
+- **Augment the Official Integration**: Runs well alongside the official HA UniFi Network integration to provide additional information. Also works without the official integration present and, optionally, can provide additional info on UniFi devices like Access Points and Switches.
 
 ## ✅ Features
 
@@ -105,12 +104,12 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
 
 - **Firmware & Identity**: UniFi OS and Network application version, gateway model, and SFP transceiver diagnostics (SFP info is available but disabled by default).
 - **Threat Management State**: IPS/IDS mode, Ad-blocking, and Honeypot status.
-- **Hardware Metrics**: Storage utilization plus (disabled-by-default): CPU %, memory %, CPU/board temperatures, and uptime (disabled as they are also provided by the official integration, but available).
+- **Hardware Metrics**: Storage utilization (enabled) plus CPU %, memory %, CPU & board (board=phy in core) temperatures, and uptime (disabled as they are also provided by the official integration, but available).
 
 ### 🔄 Dynamic Polling
 
 - **Pause Polling**: A switch to halt polling temporarily.
-- **Configurable Update Interval**: Adjust the scan interval from the HA UI or via automation (default `180` seconds, range `10`to `3600`).
+- **Configurable Update Interval**: Adjust the scan interval from the HA UI or via automation (default `180` seconds, range `10` to `3600`).
 - **Standard System Option**: Also honours Home Assistant's **System options > Enable polling for changes** toggle.
 
 ### 🎛️ Scoped Setup (Sensor Groups)
@@ -118,10 +117,10 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
 Choose at setup — and change any time via **Configure** — which groups of sensors are created. A disabled group both hides its sensors **and skips its API calls**:
 
 - **Speedtest monitoring**, **WAN data-usage statistics**, **Security monitoring** (rogue APs / VPN / firewall).
-  - These entities are specific to this integration and do not overlap with the official HA UniFI NEtwork integration. However, if you don't want or need this info, turning them off removes entities from the UI and saves an API fetch.
+  - These entities are specific to this integration and do not overlap with the official HA UniFi Network integration. However, if you don't want or need this info, turning them off removes entities from the UI and saves an API fetch.
 
 - **UniFi device (Access Point & Switch) sensors** — none / AP Satisfaction Score only / all.
-  - The integration is deigned to work with the official HA UniFi Network integration, and provide minimal overlap. There is though the option to fetch info from all UniFi devices, should you wish.
+  - The integration is designed to work with the official HA UniFi Network integration, and provide minimal overlap. There is though the option to fetch info from all UniFi devices, should you wish.
 
 ### 🧹 Housekeeping
 
@@ -255,11 +254,11 @@ The exceptions — **17** numeric sensors (14 base + 3 per-AP) that currently ha
 
 UniFi access points continuously scan the airwaves for nearby Wi-Fi networks. Any SSID broadcasting nearby that is not part of your managed UniFi network is reported by the controller as a "Rogue Access Point".
 
-This integration filters these detections to show only active devices seen within the **last 1 hour** (the default query window) and exposes them through a set of helpful entities under the **Status** sub-device:
+This integration filters these detections to show only active devices seen within the **last hour** (the default query window) and exposes them through a set of helpful entities under the **Status** sub-device:
 
 - **Rogue Access Points (`sensor.*_rogue_access_points`)**: A count of the number of unique rogue APs detected nearby in the last hour.
 - **Strongest Rogue SSID (`sensor.*_strongest_rogue_ssid`)**: The name (SSID) of the rogue network with the strongest (least negative) signal.
-  - *Additional Info (Attributes)*: This sensor carries a `rogue_aps` list attribute containing detailed records of every detected rogue network, including their BSSID (MAC), channel, signal strength (RSSI), manufacturer (OUI), age (rendered dynamically in minutes or hours), and the friendly name of your UniFi AP that detected it.
+  - _Additional Info (Attributes)_: This sensor carries a `rogue_aps` list attribute containing detailed records of every detected rogue network, including their BSSID (MAC), channel, signal strength (RSSI), manufacturer (OUI), age (rendered dynamically in minutes or hours), and the friendly name of your UniFi AP that detected it.
 - **Strongest Rogue RSSI (`sensor.*_strongest_rogue_rssi`)**: The signal strength (in dBm) of the strongest rogue network.
 - **Rogue Proximity Threshold (`number.*_rogue_proximity_threshold`)**: A slider entity in Home Assistant (defaulting to `-60` dBm) that lets you define what signal level is considered "close".
 - **Rogue AP Proximity Alert (`binary_sensor.*_rogue_ap_proximity_alert`)**: A safety binary sensor (configured with `device_class: problem`). It turns `on` (triggers a "Problem" state) when the strongest rogue AP's RSSI is equal to or higher than your custom Proximity Threshold (e.g. `-50` dBm is higher/closer than `-60` dBm).
@@ -335,22 +334,6 @@ actions:
       message: "WAN1 monthly usage has exceeded 500 GB."
 ```
 
-### 🌡️ Gateway Over-Temperature
-
-```yaml
-alias: "UniFi: Gateway Hot"
-triggers:
-  - trigger: numeric_state
-    entity_id: sensor.unifi_network_gateway_cpu_temperature
-    above: 90 # °C — adjust to your hardware's safe range
-    for: "00:05:00"
-actions:
-  - action: notify.mobile_app_your_phone
-    data:
-      title: "UniFi gateway temperature high"
-      message: "Gateway CPU temperature is {{ states('sensor.unifi_network_gateway_cpu_temperature') }} °C."
-```
-
 ### 🔁 Auto-Resume Polling
 
 ```yaml
@@ -393,7 +376,7 @@ actions:
 Setup is handled entirely via the UI. Provide connection details for your gateway's UniFi Network API:
 
 - **Host** — Gateway IP address or hostname (e.g. `192.168.1.1`). Any `http://` / `https://` prefix and trailing slashes are stripped automatically.
-- **API Key** _(preferred)_ — Local API key from **UniFi Network → Integrations → Create New API Key** (UniFi OS 5.x+).
+- **API Key** _(preferred)_ — Local API key from **UniFi Network → Integrations → Create New API Key** (UniFi OS 3.2.7+).
 - **Username / Password** — **LOCAL** user credentials. Can be the same as you use for the HA core UniFi Network integration.
   - Your Ubiquiti login will not work. See [info here](https://www.home-assistant.io/integrations/unifi/#local-user) for more info
 - **Site ID** — UniFi site (default `default`; change only if you run multiple sites).
@@ -404,16 +387,16 @@ Setup is handled entirely via the UI. Provide connection details for your gatewa
 
 At setup you also choose:
 
-- **UniFi device (Access Point & Switch) sensors** — `Don't add` (default), `AP Satisfaction Score only`, or `Add all` (duplicates disabled).
-  - Leave at `Don't Add` (default) unless you **know** that you are interested in additional UniFi Access Point and Switch information
+- **UniFi device (Access Point & Switch) sensors** — `Don't add` (default), `AP Satisfaction Score only`, or `Add all device sensors` (duplicates disabled).
+  - Leave at `Don't add` (default) unless you **know** that you are interested in additional UniFi Access Point and Switch information
   - Case 1: You **have** core HA UniFi Networks installed as well, but you particularly want the AP Satisfaction Score that this integration provides
-  - Case 2: You do **NOT** have core HA UniFi Networks installed, and want detailed info (CPU, Memory, Uptime, CLients) on your UniFi devices e.g. Access Points and Switches
+  - Case 2: You do **NOT** have core HA UniFi Networks installed, and want detailed info (CPU, Memory, Uptime, Clients) on your UniFi devices e.g. Access Points and Switches
 - **Speedtest monitoring** — on/off (default on).
   - Leave `ON` (default) unless you **know** that you are not interested in data on the speedtests that the UniFi gateway regularly runs.
 
 > [!NOTE]
 >
-> If the official Home Assistant **UniFi** integration is not installed, the device-sensor choice offers `Don't add` (default) or `Add all`.
+> If the official Home Assistant **UniFi** integration is not installed, the device-sensor choice offers `Don't add` (default) or `Add all device sensors`.
 
 ### 🔨 Runtime Options (Reconfigure / Configure)
 
@@ -438,8 +421,8 @@ Use this to change any of the [initial set-up](#-initial-setup) options above, c
 Several settings are exposed as control entities so you can drive them from dashboards or automations:
 
 - **Pause Polling** (`switch`, System) — halt polling temporarily.
-- **Polling Interval** (`number`, System) — scan interval in seconds (default `180` seconds, range `10`to `3600`).
-- **WAN1 Load Balance Weight** (`number`, System) — WAN1 share of a weighted dual-WAN setup; WAN2 gets set as is `100 − WAN1`.
+- **Polling Interval** (`number`, System) — scan interval in seconds (default `180` seconds, range `10` to `3600`).
+- **WAN1 Load Balance Weight** (`number`, System) — WAN1 share of a weighted dual-WAN setup; WAN2 gets set to `100 − WAN1`.
 - **Rogue Proximity Threshold** (`number`, Status) — dBm at or above which a rogue AP triggers the Proximity Alert (default `-60`; kept negative to match how RSSI is measured). Shown only when Security monitoring is on.
 - **Refresh Now** (`button`, System) — immediate data fetch.
 - **Clean Up Unused Entities** (`button`, System) — remove orphaned entities (see [Actions](#-actions-services)).
@@ -507,7 +490,7 @@ The gateway and all physical devices use `connections={(CONNECTION_NETWORK_MAC, 
 
 **Gateway card:** when Core UniFi is installed, this integration's **Gateway** sub-device merges into Core's gateway card (it adopts Core's device name, e.g. `MyUniFi`, and Core's firmware string). The other four sub-devices (Internet, Speedtest, Status, System) use identifiers only, so they remain separate cards hanging off the gateway.
 
-**Disabled-by-default when Core is present:** to avoid duplicating what Core already provides on that shared card, six gateway diagnostics — **CPU utilization, Memory utilization, CPU temperature, Board Temperature, Uptime, and Update Available** — are **disabled-by-default whenever Core UniFi is installed**, and enabled-by-default only when it isn't. Core surfaces the gateway's CPU and memory itself; the temperatures are unique to this integration but are still left off by default to keep the merged card tidy — enable them (from either integration) if you want them.
+**Disabled-by-default when Core is present:** to avoid duplicating what Core already provides on that shared card, six gateway diagnostics — **CPU utilization, Memory utilization, CPU temperature, Board Temperature, Uptime, and Update Available** — are **disabled-by-default whenever Core UniFi is installed**, and enabled-by-default only when it isn't. Core surfaces the gateway's CPU and memory and temperatures — enable them (from either integration) if you want them.
 
 ## ❓ FAQ & Troubleshooting
 
@@ -516,7 +499,7 @@ The gateway and all physical devices use `connections={(CONNECTION_NETWORK_MAC, 
 #### **"Failed to connect" / "Authentication failed"**
 
 - Verify the **Host** is correct and reachable from Home Assistant.
-- Prefer an **API key** (UniFi OS 3.x+) from **UniFi Network → Integrations → Create New API Key**.
+- Prefer an **API key** (UniFi OS 3.2.7+) from **UniFi Network → Integrations → Create New API Key**.
 - If using **username/password**, confirm they match the credentials that you have set-up in the controller (and that they haven't been changed).
 - Confirm the **Site ID** (usually `default`).
 
@@ -539,11 +522,11 @@ The gateway and all physical devices use `connections={(CONNECTION_NETWORK_MAC, 
 - Some (not all) entities showing `unknown` is **Expected Behavior**. It may be:
   - situational and transitory e.g. Strongest Rogue RSSI is `unknown` when no rogue APs are detected
   - set-up related e.g. in single WAN mode (WAN1) **ALL** WAN2 sensors will be `unknown`
-  - controller / firmware related e.g. not every metric exists on every firmware/site (; v3-only config sensors are `unknown` on older controllers).
+  - controller / firmware related e.g. not every metric exists on every firmware/site (v3-only config sensors are `unknown` on older controllers).
 
 #### 🛑 **A group of sensors shows "Unavailable"**
 
-- That endpoint has failed its retry strikes (see [Resilience](#-data-polling--resilience-)) — the rest keep working. It recovers automatically when the endpoint responds again.
+- That endpoint has failed its retry strikes (see [Resilience](#-data-polling--3-strike-resilience-)) — the rest keep working. It recovers automatically when the endpoint responds again.
 
 #### 🖥️ **My gateway CPU / Memory / Temperature / Uptime sensors are disabled**
 
@@ -580,7 +563,7 @@ To fully uninstall (HACS):
 
 ## 📝 Maintenance Status
 
-This is a **personal project**. Support and updates are provided on a **"best-effort"** basis only. While I use this integration daily and aim to keep it functional with the latest Home Assistant and UniFI releases, I cannot guarantee immediate fixes for issues or compatibility with all UniFi firmware versions.
+This is a **personal project**. Support and updates are provided on a **"best-effort"** basis only. While I use this integration daily and aim to keep it functional with the latest Home Assistant and UniFi releases, I cannot guarantee immediate fixes for issues or compatibility with all UniFi firmware versions.
 
 ---
 
@@ -590,7 +573,7 @@ This integration stands on the shoulders of several excellent open-source projec
 
 - 🙏 **Home Assistant Core — [UniFi Network Integration](https://www.home-assistant.io/integrations/unifi/)** (@Kane610 , and contributors)
 
-- 🙏 **[UniFI API Browser](https://github.com/Art-of-WiFi/UniFi-API-browser)** Utility (@Art-of-WiFi , and contributors): The utility that allows a UDM gateway to be explored and interrogated.
+- 🙏 **[UniFi API Browser](https://github.com/Art-of-WiFi/UniFi-API-browser)** Utility (@Art-of-WiFi , and contributors): The utility that allows a UDM gateway to be explored and interrogated.
 
 - 🙏 **[UniFi WAN](https://github.com/holdestmade/Unifi-WAN)** Custom Component (@holdestmade , and contributors): Insight into what Speedtest endpoints are available.
 
