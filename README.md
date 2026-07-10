@@ -367,7 +367,7 @@ triggers:
   - trigger: template
     value_template: >-
       {{ (as_timestamp(now()) - as_timestamp(states('sensor.unifi_network_gateway_last_backup'))) > (10 * 86400) }}
-    note: >-
+    note: |
       Checks if current time minus last backup time is greater than 10 days (864,000 seconds).
 actions:
   - action: notify.mobile_app_your_phone
@@ -383,9 +383,9 @@ Alerts when any of the latency sensors exceed 100ms for consecutive poll periods
 
 ```yaml
 alias: "UniFi: High Internet Latency"
-description: >-
-  Triggers if Internet, WAN1, or WAN2 latency goes above 100ms for at least two
-  polling periods (or 2 minutes, whichever is longer).
+description: |
+  Triggers if Internet, WAN1, or WAN2 latency goes above 100ms for at least
+  two polling periods (or 2 minutes, whichever is longer).
 triggers:
   - trigger: numeric_state
     entity_id:
@@ -396,18 +396,17 @@ triggers:
     for:
       seconds: >-
         {{ [120, (states('sensor.unifi_network_system_polling_interval') | int(180)) + 5] | max }}
-    note: >-
-      Triggers when latency exceeds 100ms. The duration matches your custom poll
-      interval plus a 5-second buffer (enforcing a minimum 120-second floor) to
-      confirm the latency remains high on the next consecutive poll.
+    note: |
+      Triggers when latency exceeds 100ms. The duration matches your custom poll interval
+      plus a 5-second buffer (enforcing a minimum 120-second floor) to confirm the 
+      latency remains high on the next consecutive poll.
 actions:
   - action: notify.mobile_app_your_phone
     data:
       title: "High Latency Detected"
       message: >-
-        Latency alert triggered! Current Internet Latency: {{
-        states('sensor.unifi_network_internet_latency') }} ms.
-    note: Alerts you which interface is experiencing high latency.
+        Latency alert triggered! Current Internet Latency: {{ states('sensor.unifi_network_internet_latency') }} ms.
+    note: "Alerts you which interface is experiencing high latency."
 ```
 
 ### 👥 Guest Network in Use
@@ -416,9 +415,9 @@ Notify if there are active guests on the guest network for consecutive poll peri
 
 ```yaml
 alias: "UniFi: Guest Network Active"
-description: >-
-  Triggers when guest users are active on the network for at least two polling
-  periods (or 2 minutes, whichever is longer).
+description: |
+  Triggers when guest users are active on the network for at least 
+  two polling periods (or 2 minutes, whichever is longer).
 triggers:
   - trigger: numeric_state
     entity_id: sensor.unifi_network_gateway_guest_users
@@ -426,11 +425,10 @@ triggers:
     for:
       seconds: >-
         {{ [120, (states('sensor.unifi_network_system_polling_interval') | int(180)) + 5] | max }}
-    note: >-
-      Triggers when guest user count goes above 0. Evaluates the duration
-      dynamically using the polling interval plus a 5-second buffer (minimum
-      120-second floor) to confirm guest activity persists across consecutive
-      polls.
+    note: |
+      Triggers when guest user count goes above 0. Evaluates the duration dynamically using
+      the polling interval plus a 5-second buffer (minimum 120-second floor) to confirm
+      guest activity persists across consecutive polls.
 actions:
   - action: notify.mobile_app_your_phone
     data:
