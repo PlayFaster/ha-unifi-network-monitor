@@ -296,7 +296,7 @@ This integration filters these detections to show only active devices seen withi
 >
 > The Automation examples below use the `note:` functionality introduced in Home Assistant 2026.6 as a way to document/comment Automations that is permanent - NOT stripped out by the editor. If using an older version of Home Assistant you may need to remove the `notes:` sections
 
-### Security Related Automations
+### 🔒 Security Related Automations
 
 Monitor for Rogue Access Points and Guest WiFi use
 
@@ -357,7 +357,7 @@ actions:
     note: Sends a push notification indicating active guest count.
 ```
 
-### Internet Status and Alert Automations
+### 🌐 Internet Status and Alert Automations
 
 Get notified if the internet is down, if its performing slowly, if you are operating in failover mode, if you internet data usage is high, and, if in dual WAN load-balancing mode, change the balance weight on poor performance.
 
@@ -529,7 +529,7 @@ actions:
       Sends a warning notification to help you avoid monthly ISP data cap surcharges.
 ```
 
-### Speedtest Automations
+### 🚀 Speedtest Automations
 
 Schedule speedtests to run on the UniFi gateway, get notified if speedtest results are slow and run a speedtest if latency suggests poor performance.
 
@@ -638,7 +638,7 @@ actions:
       high latency.
 ```
 
-### Gateway Automations
+### 💾 Gateway Automations
 
 Reset polling and get notified if your backup is over a week old
 
