@@ -156,7 +156,15 @@ Enable any disabled entity per-entity when you want it. Your totals also differ 
 >
 > **Enabled-by-default depends on HA Core UniFi:** if you do **not** run the official HA Core UniFi integration, all of these per-device entities are created **and enabled**. If you **do** run Core UniFi, only the AP **Satisfaction Score** is enabled by default and the rest come in disabled (they'd duplicate what Core already provides — hence the "duplicates disabled" label).
 
----
+### 📊 Coexistence Summary: With vs. Without HA Core UniFi
+
+Below is a quick reference showing how entities are default-enabled depending on whether you run the official Home Assistant **UniFi Network** integration alongside this one:
+
+| Scenario / Entity Group | Without Core UniFi (Standalone) | With Core UniFi Installed (Coexistence) | Rationale / Detail |
+| :--- | :--- | :--- | :--- |
+| **Base Install Entities** | **93 Enabled** / 23 Disabled | **87 Enabled** / 29 Disabled | Standalone mode enables all infrastructure diagnostics by default. |
+| **Gateway Diagnostics** *(CPU, RAM, Temp, Uptime)* | **Enabled** by default | **Disabled** by default | Avoids duplicate diagnostic telemetry since Core UniFi already monitors the gateway hardware. |
+| **Per-Device Entities** *(AP & Switch Client/CPU/Uptime)* | **Opt-in** *(Created as **Enabled** if added)* | **Opt-in** *(Created as **Disabled** if added)* | These entities are not created by default. If you choose to add them, they are created as Enabled in Standalone mode, but Disabled in Coexistence mode to avoid duplicates. |
 
 > [!TIP]
 >
@@ -258,7 +266,7 @@ This integration filters these detections to show only active devices seen withi
 
 - **Rogue Access Points (`sensor.*_rogue_access_points`)**: A count of the number of unique rogue APs detected nearby in the last hour.
 - **Strongest Rogue SSID (`sensor.*_strongest_rogue_ssid`)**: The name (SSID) of the rogue network with the strongest (least negative) signal.
-  - _Additional Info (Attributes)_: This sensor carries a `rogue_aps` list attribute containing detailed records of every detected rogue network, including their BSSID (MAC), channel, signal strength (RSSI), manufacturer (OUI), age (rendered dynamically in minutes or hours), and the friendly name of your UniFi AP that detected it.
+  - *Additional Info (Attributes)*: This sensor carries a `rogue_aps` list attribute containing detailed records of every detected rogue network, including their BSSID (MAC), channel, signal strength (RSSI), manufacturer (OUI), age (rendered dynamically in minutes or hours), and the friendly name of your UniFi AP that detected it.
 - **Strongest Rogue RSSI (`sensor.*_strongest_rogue_rssi`)**: The signal strength (in dBm) of the strongest rogue network.
 - **Rogue Proximity Threshold (`number.*_rogue_proximity_threshold`)**: A slider entity in Home Assistant (defaulting to `-60` dBm) that lets you define what signal level is considered "close".
 - **Rogue AP Proximity Alert (`binary_sensor.*_rogue_ap_proximity_alert`)**: A safety binary sensor (configured with `device_class: problem`). It turns `on` (triggers a "Problem" state) when the strongest rogue AP's RSSI is equal to or higher than your custom Proximity Threshold (e.g. `-50` dBm is higher/closer than `-60` dBm).
@@ -288,7 +296,11 @@ This integration filters these detections to show only active devices seen withi
 >
 > The Automation examples below use the `note:` functionality introduced in Home Assistant 2026.6 as a way to document/comment Automations that is permanent - NOT stripped out by the editor. If using an older version of Home Assistant you may need to remove the `notes:` sections
 
-### 🛡️ Rogue AP Proximity Alert
+### Security Related Automations
+
+Monitor for Rogue Access Points and Guest WiFi use
+
+#### 🛡️ Rogue AP Proximity Alert
 
 Notify when an unknown access point is detected close by (signal at/above your threshold).
 
@@ -317,7 +329,122 @@ actions:
       Sends a phone notification containing the SSID and RSSI signal level of the closest rogue AP.
 ```
 
-### 🌐 Internet / WAN Down Alert
+#### 👥 Guest Network in Use
+
+Notify if there are active guests on the guest network for consecutive poll periods.
+
+```yaml
+alias: "UniFi: Guest Network Active"
+description: |
+  Triggers when guest users are active on the network for at least 
+  two polling periods (or 2 minutes, whichever is longer).
+triggers:
+  - trigger: numeric_state
+    entity_id: sensor.unifi_network_status_guest_users
+    above: 0
+    for:
+      seconds: |
+        {{ [120, (states('sensor.unifi_network_system_polling_interval') | int(180)) + 5] | max }}
+    note: |
+      Triggers when guest user count goes above 0. Evaluates the duration dynamically using
+      the polling interval plus a 5-second buffer (minimum 120-second floor) to confirm
+      guest activity persists across consecutive polls.
+actions:
+  - action: notify.mobile_app_your_phone
+    data:
+      title: "Guest Network Active"
+      message: "There are currently {{ states('sensor.unifi_network_status_guest_users') }} active guest(s) on your Wi-Fi."
+    note: Sends a push notification indicating active guest count.
+```
+
+### Internet Status and Alert Automations
+
+Get notified if the internet is down, if its performing slowly, if you are operating in failover mode, if you internet data usage is high, and, if in dual WAN load-balancing mode, change the balance weight on poor performance.
+
+#### ⚡ High Internet / WAN Latency
+
+Alerts when any of the latency sensors exceed 100ms for consecutive poll periods (dynamic delay calculation).
+
+```yaml
+alias: "UniFi: High Internet Latency"
+description: |
+  Triggers if Internet, WAN1, or WAN2 latency goes above 100ms for at least
+  two polling periods (or 2 minutes, whichever is longer).
+triggers:
+  - trigger: numeric_state
+    entity_id:
+      - sensor.unifi_network_internet_internet_latency
+      - sensor.unifi_network_internet_wan1_latency
+      - sensor.unifi_network_internet_wan2_latency
+    above: 100
+    for:
+      seconds: |
+        {{ [120, (states('sensor.unifi_network_system_polling_interval') | int(180)) + 5] | max }}
+    note: |
+      Triggers when latency exceeds 100ms. The duration matches your custom poll interval
+      plus a 5-second buffer (enforcing a minimum 120-second floor) to confirm the 
+      latency remains high on the next consecutive poll.
+actions:
+  - action: notify.mobile_app_your_phone
+    data:
+      title: "High Latency Detected"
+      message: |
+        Latency alert triggered! Current Internet Latency: {{ states('sensor.unifi_network_internet_internet_latency') }} ms.
+    note: "Alerts you which interface is experiencing high latency."
+```
+
+#### 🔀 WAN Failover / Restore (Dual-WAN)
+
+Notify when the gateway fails over to WAN2, and again when it returns to WAN1.
+
+```yaml
+alias: "UniFi: WAN Failover"
+description: |
+  Alerts when WAN2 becomes the active routing interface (failover from the
+  primary WAN), and again when traffic returns to WAN1.
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.unifi_network_internet_wan2_active_uplink
+    from: "off"
+    to: "on"
+    id: failover
+    note: |
+      Fires instantly when WAN2 transitions from off to on (primary WAN down).
+  - trigger: state
+    entity_id: binary_sensor.unifi_network_internet_wan2_active_uplink
+    from: "on"
+    to: "off"
+    id: restored
+    note: |
+      Fires instantly when WAN2 transitions from on to off (primary WAN restored).
+actions:
+  - action: button.press
+    target:
+      entity_id: button.unifi_network_system_refresh_now
+    note: |
+      Forces the integration to perform an immediate API poll of the controller.
+  - delay: "00:00:20"
+    note: |
+      Wait 20 seconds to allow the integration to fetch the new data and update states.
+  - condition: template
+    value_template: |
+      {{ (trigger.id == 'failover' and is_state('binary_sensor.unifi_network_internet_wan2_active_uplink', 'on')) or
+         (trigger.id == 'restored' and is_state('binary_sensor.unifi_network_internet_wan2_active_uplink', 'off')) }}
+    note: |
+      Ensures the failover/restored state is still active after the forced refresh before continuing.
+  - action: notify.mobile_app_your_phone
+    data:
+      title: |
+        {{ 'Failed over to WAN2' if trigger.id == 'failover' else 'Back on WAN1' }}
+      message: |
+        {{ 'Primary WAN appears down — the gateway is now routing over WAN2.' if trigger.id == 'failover' else 'WAN1 has recovered and is carrying traffic again.' }}
+    note: |
+      One automation covers both directions via trigger IDs; the title and message switch on whether we failed over or recovered. Single-WAN users can ignore this example.
+```
+
+#### 🌐 Internet / WAN Down Alert
+
+Get an alert when the internet goes down. This does depend on your connectivity, works on LAN, but if there is no connectivity, may not notify you externally.
 
 ```yaml
 alias: "UniFi: Internet Down"
@@ -352,229 +479,7 @@ actions:
           Sends a push notification alerting that the internet is offline.
 ```
 
-### 🚨 Monthly Data-Usage Alert
-
-The example assumes usage sensors display in **GB**. Adjust the threshold/units to match your sensor.
-
-```yaml
-alias: "UniFi: High WAN Data Usage"
-triggers:
-  - trigger: numeric_state
-    entity_id: sensor.unifi_network_internet_wan1_month_total
-    above: 500 # GB
-    note: |
-      Triggers when total WAN1 monthly data consumption exceeds 500 GB.
-actions:
-  - action: notify.mobile_app_your_phone
-    data:
-      title: "UniFi Data Alert"
-      message: "WAN1 monthly usage has exceeded 500 GB."
-    note: |
-      Sends a warning notification to help you avoid monthly ISP data cap surcharges.
-```
-
-### 🔁 Auto-Resume Polling
-
-```yaml
-alias: "UniFi: Auto-Resume Polling"
-description: "Turn polling back on after 1 hour if it was manually paused."
-triggers:
-  - trigger: state
-    entity_id: switch.unifi_network_system_pause_polling
-    to: "on"
-    for: "01:00:00"
-    note: |
-      Triggers if the system pause polling switch has been turned on for exactly 1 hour.
-actions:
-  - action: switch.turn_off
-    target:
-      entity_id: switch.unifi_network_system_pause_polling
-    note: |
-      Automatically resumes integration polling to restore dashboard telemetry updates.
-```
-
-### 💾 Backup Stale Alert
-
-Notify if the gateway has not compiled a backup for more than 10 days.
-
-```yaml
-alias: "UniFi: Backup Stale Alert"
-description: "Triggers if the latest UniFi controller backup is older than 10 days."
-triggers:
-  - trigger: template
-    value_template: |
-      {{ has_value('sensor.unifi_network_gateway_last_backup') and (as_timestamp(now()) - as_timestamp(states('sensor.unifi_network_gateway_last_backup'), 0)) > (10 * 86400) }}
-    note: |
-      Checks if the last backup entity is populated and is older than 10 days (864,000 seconds).
-actions:
-  - action: notify.mobile_app_your_phone
-    data:
-      title: "UniFi Backup Stale"
-      message: "The last local backup is over 10 days old!"
-    note: Sends a push notification warning that the backup is stale.
-```
-
-### ⚡ High Internet / WAN Latency
-
-Alerts when any of the latency sensors exceed 100ms for consecutive poll periods (dynamic delay calculation).
-
-```yaml
-alias: "UniFi: High Internet Latency"
-description: |
-  Triggers if Internet, WAN1, or WAN2 latency goes above 100ms for at least
-  two polling periods (or 2 minutes, whichever is longer).
-triggers:
-  - trigger: numeric_state
-    entity_id:
-      - sensor.unifi_network_internet_internet_latency
-      - sensor.unifi_network_internet_wan1_latency
-      - sensor.unifi_network_internet_wan2_latency
-    above: 100
-    for:
-      seconds: |
-        {{ [120, (states('sensor.unifi_network_system_polling_interval') | int(180)) + 5] | max }}
-    note: |
-      Triggers when latency exceeds 100ms. The duration matches your custom poll interval
-      plus a 5-second buffer (enforcing a minimum 120-second floor) to confirm the 
-      latency remains high on the next consecutive poll.
-actions:
-  - action: notify.mobile_app_your_phone
-    data:
-      title: "High Latency Detected"
-      message: |
-        Latency alert triggered! Current Internet Latency: {{ states('sensor.unifi_network_internet_internet_latency') }} ms.
-    note: "Alerts you which interface is experiencing high latency."
-```
-
-### 🔀 WAN Failover / Restore (Dual-WAN)
-
-Notify when the gateway fails over to WAN2, and again when it returns to WAN1.
-
-```yaml
-alias: "UniFi: WAN Failover"
-description: |
-  Alerts when WAN2 becomes the active routing interface (failover from the
-  primary WAN), and again when traffic returns to WAN1.
-triggers:
-  - trigger: state
-    entity_id: binary_sensor.unifi_network_internet_wan2_active_uplink
-    to: "on"
-    id: failover
-    note: |
-      Fires instantly when WAN2 becomes the active uplink (primary WAN down).
-  - trigger: state
-    entity_id: binary_sensor.unifi_network_internet_wan2_active_uplink
-    to: "off"
-    id: restored
-    note: |
-      Fires instantly when WAN2 is no longer the active uplink (primary WAN restored).
-actions:
-  - action: button.press
-    target:
-      entity_id: button.unifi_network_system_refresh_now
-    note: |
-      Forces the integration to perform an immediate API poll of the controller.
-  - delay: "00:00:20"
-    note: |
-      Wait 20 seconds to allow the integration to fetch the new data and update states.
-  - condition: template
-    value_template: |
-      {{ (trigger.id == 'failover' and is_state('binary_sensor.unifi_network_internet_wan2_active_uplink', 'on')) or
-         (trigger.id == 'restored' and is_state('binary_sensor.unifi_network_internet_wan2_active_uplink', 'off')) }}
-    note: |
-      Ensures the failover/restored state is still active after the forced refresh before continuing.
-  - action: notify.mobile_app_your_phone
-    data:
-      title: |
-        {{ 'Failed over to WAN2' if trigger.id == 'failover' else 'Back on WAN1' }}
-      message: |
-        {{ 'Primary WAN appears down — the gateway is now routing over WAN2.' if trigger.id == 'failover' else 'WAN1 has recovered and is carrying traffic again.' }}
-    note: |
-      One automation covers both directions via trigger IDs; the title and message switch on whether we failed over or recovered. Single-WAN users can ignore this example.
-```
-
-### ⏱️ Scheduled Nightly Speedtest
-
-Run a speedtest automatically each night to build a regular performance baseline — no need to open the UI.
-
-```yaml
-alias: "UniFi: Nightly Speedtest"
-description: |
-  Presses the WAN speedtest button(s) once a day so you accumulate a consistent speedtest history.
-triggers:
-  - trigger: time
-    at: "03:00:00"
-    note: |
-      Runs once a day at 03:00 local time — pick a quiet hour so the test doesn't compete with normal usage.
-actions:
-  - action: button.press
-    target:
-      entity_id: button.unifi_network_speedtest_wan1_run
-    note: |
-      Presses the WAN1 speedtest button, triggering a gateway speedtest on the primary interface.
-  - delay: "00:01:00"
-    note: |
-      Short gap so the WAN1 test finishes before WAN2 starts — the gateway runs one speedtest at a time.
-  - action: button.press
-    target:
-      entity_id: button.unifi_network_speedtest_wan2_run
-    note: |
-      Presses the WAN2 speedtest button. Remove this step (and the delay above) if you only have a single WAN.
-```
-
-### 🐢 Slow Speedtest Result
-
-Alert if a WAN1 speedtest comes back below your expected download speed — useful for catching an ISP not delivering the plan you pay for.
-
-```yaml
-alias: "UniFi: Slow Speedtest"
-description: |
-  Notifies when the latest WAN1 download result drops below a threshold you set.
-triggers:
-  - trigger: numeric_state
-    entity_id: sensor.unifi_network_speedtest_wan1_download
-    below: 200 # Mbps — set to roughly 80% of your provisioned download speed
-    note: |
-      Fires when the WAN1 download result falls below 200 Mbps. Setting the threshold to about 80% of your plan speed allows for normal variance without false alarms.
-actions:
-  - action: notify.mobile_app_your_phone
-    data:
-      title: "UniFi: Slow WAN1 speedtest"
-      message: |
-        WAN1 download tested at {{ states('sensor.unifi_network_speedtest_wan1_download') }} Mbps, below the 200 Mbps threshold.
-    note: |
-      Sends the measured download speed so you can decide whether it's worth contacting your ISP.
-```
-
-### 👥 Guest Network in Use
-
-Notify if there are active guests on the guest network for consecutive poll periods.
-
-```yaml
-alias: "UniFi: Guest Network Active"
-description: |
-  Triggers when guest users are active on the network for at least 
-  two polling periods (or 2 minutes, whichever is longer).
-triggers:
-  - trigger: numeric_state
-    entity_id: sensor.unifi_network_status_guest_users
-    above: 0
-    for:
-      seconds: |
-        {{ [120, (states('sensor.unifi_network_system_polling_interval') | int(180)) + 5] | max }}
-    note: |
-      Triggers when guest user count goes above 0. Evaluates the duration dynamically using
-      the polling interval plus a 5-second buffer (minimum 120-second floor) to confirm
-      guest activity persists across consecutive polls.
-actions:
-  - action: notify.mobile_app_your_phone
-    data:
-      title: "Guest Network Active"
-      message: "There are currently {{ states('sensor.unifi_network_status_guest_users') }} active guest(s) on your Wi-Fi."
-    note: Sends a push notification indicating active guest count.
-```
-
-### 🎛️ Optimize WAN Weight on High Latency
+#### 🎛️ Optimize WAN Weight on High Latency
 
 Shifts traffic load balance weight away from WAN2 if its average latency exceeds 150ms for consecutive poll periods.
 
@@ -603,7 +508,97 @@ actions:
       away from the struggling connection.
 ```
 
-### ⏱️ Trigger Diagnostic Speedtest
+#### 🚨 Monthly Data-Usage Alert
+
+The example assumes usage sensors display in **GB**. Adjust the threshold/units to match your sensor.
+
+```yaml
+alias: "UniFi: High WAN Data Usage"
+triggers:
+  - trigger: numeric_state
+    entity_id: sensor.unifi_network_internet_wan1_month_total
+    above: 500
+    note: |
+      Triggers when total WAN1 monthly data consumption exceeds 500 GB.
+actions:
+  - action: notify.mobile_app_your_phone
+    data:
+      title: "UniFi Data Alert"
+      message: "WAN1 monthly usage has exceeded 500 GB."
+    note: |
+      Sends a warning notification to help you avoid monthly ISP data cap surcharges.
+```
+
+### Speedtest Automations
+
+Schedule speedtests to run on the UniFi gateway, get notified if speedtest results are slow and run a speedtest if latency suggests poor performance.
+
+#### ⏱️ Scheduled Speedtests
+
+Run speedtests automatically per a schedule to build a regular performance baseline — no need to open the UI.
+
+```yaml
+alias: "UniFi: Nightly Speedtest"
+description: |
+  Presses the WAN speedtest button(s) once a day so you accumulate a consistent speedtest history.
+triggers:
+  - trigger: time
+    at: "09:00:00"
+    note: >
+      Morning Test
+  - trigger: time
+    at: "16:00:00"
+    note: >
+      Afternoon Test
+  - trigger: time
+    at: "23:00:00"
+    note: >
+      Late Night Test
+  - trigger: time
+    at: "04:00:00"
+    note: >
+      Overnight Test
+actions:
+  - action: button.press
+    target:
+      entity_id: button.unifi_network_speedtest_wan1_run
+    note: |
+      Presses the WAN1 speedtest button, triggering a gateway speedtest on the primary interface.
+  - delay: "00:01:00"
+    note: |
+      Short gap so the WAN1 test finishes before WAN2 starts — the gateway runs one speedtest at a time.
+  - action: button.press
+    target:
+      entity_id: button.unifi_network_speedtest_wan2_run
+    note: |
+      Presses the WAN2 speedtest button. Remove this step (and the delay above) if you only have a single WAN.
+```
+
+#### 🐢 Slow Speedtest Result
+
+Alert if a WAN1 speedtest comes back below your expected download speed — useful for catching an ISP not delivering the plan you pay for.
+
+```yaml
+alias: "UniFi: Slow Speedtest"
+description: |
+  Notifies when the latest WAN1 download result drops below a threshold you set.
+triggers:
+  - trigger: numeric_state
+    entity_id: sensor.unifi_network_speedtest_wan1_download
+    below: 200 # Mbps — set to roughly 80% of your provisioned download speed
+    note: |
+      Fires when the WAN1 download result falls below 200 Mbps. Setting the threshold to about 80% of your plan speed allows for normal variance without false alarms.
+actions:
+  - action: notify.mobile_app_your_phone
+    data:
+      title: "UniFi: Slow WAN1 speedtest"
+      message: |
+        WAN1 download tested at {{ states('sensor.unifi_network_speedtest_wan1_download') }} Mbps, below the 200 Mbps threshold.
+    note: |
+      Sends the measured download speed so you can decide whether it's worth contacting your ISP.
+```
+
+#### ⏱️ Trigger Diagnostic Speedtest
 
 Automatically runs a WAN1 speedtest if internet latency spikes, helping to diagnose bandwidth degradation dynamically without scheduling constant speedtests.
 
@@ -641,6 +636,51 @@ actions:
     note: |
       Presses the Speedtest run button for whichever WAN interface is experiencing
       high latency.
+```
+
+### Gateway Automations
+
+Reset polling and get notified if your backup is over a week old
+
+#### 🔁 Auto-Resume Polling
+
+```yaml
+alias: "UniFi: Auto-Resume Polling"
+description: "Turn polling back on after 1 hour if it was manually paused."
+triggers:
+  - trigger: state
+    entity_id: switch.unifi_network_system_pause_polling
+    to: "on"
+    for: "01:00:00"
+    note: |
+      Triggers if the system pause polling switch has been turned on for exactly 1 hour.
+actions:
+  - action: switch.turn_off
+    target:
+      entity_id: switch.unifi_network_system_pause_polling
+    note: |
+      Automatically resumes integration polling to restore dashboard telemetry updates.
+```
+
+#### 💾 Backup Stale Alert
+
+Notify if the gateway has not compiled a backup for more than 10 days.
+
+```yaml
+alias: "UniFi: Backup Stale Alert"
+description: "Triggers if the latest UniFi controller backup is older than 10 days."
+triggers:
+  - trigger: template
+    value_template: |
+      {{ has_value('sensor.unifi_network_gateway_last_backup') and (as_timestamp(now()) - as_timestamp(states('sensor.unifi_network_gateway_last_backup'), 0)) > (10 * 86400) }}
+    note: |
+      Checks if the last backup entity is populated and is older than 10 days (864,000 seconds).
+actions:
+  - action: notify.mobile_app_your_phone
+    data:
+      title: "UniFi Backup Stale"
+      message: "The last local backup is over 10 days old!"
+    note: Sends a push notification warning that the backup is stale.
 ```
 
 ## 📥 Installation
@@ -863,6 +903,8 @@ This is a **personal project**. Support and updates are provided on a **"best-ef
 ## 🤝 Contributors & Acknowledgements
 
 This integration stands on the shoulders of several excellent open-source projects:
+
+- 🙏 [**@johntdyer](https://github.com/johntdyer) , who, way back in 2024 provided the [original python script](https://github.com/custom-components/sensor.unifigateway/issues/59#issuecomment-1938652085) that I used and modifed until deciding to make a custom component out of it.  THANKS!
 
 - 🙏 **Home Assistant Core — [UniFi Network Integration](https://www.home-assistant.io/integrations/unifi/)** (@Kane610 , and contributors)
 
