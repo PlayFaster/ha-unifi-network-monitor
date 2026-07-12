@@ -153,7 +153,8 @@ def single_wan_excluded_keys() -> frozenset[str]:
 
 def dual_wan_enabled(options: Mapping[str, Any]) -> bool:
     """Return True when dual-WAN monitoring (WAN2 + load-balance) is enabled."""
-    return options.get(CONF_ENABLE_DUAL_WAN, DEFAULT_ENABLE_DUAL_WAN)
+    return bool(options.get(CONF_ENABLE_DUAL_WAN, DEFAULT_ENABLE_DUAL_WAN))
+
 
 # Gateway model identifiers from UniFi stat/device
 GATEWAY_MODELS = {

@@ -1480,9 +1480,7 @@ async def async_setup_entry(
     standalone = "unifi" not in hass.config_entries.async_domains()
     device_mode = entry.options.get(CONF_UNIFI_DEVICE_MODE, DEFAULT_UNIFI_DEVICE_MODE)
     disabled_eps = disabled_endpoints(entry.options)
-    excluded = (
-        set() if dual_wan_enabled(entry.options) else single_wan_excluded_keys()
-    )
+    excluded = set() if dual_wan_enabled(entry.options) else single_wan_excluded_keys()
 
     entities: list[SensorEntity] = []
 

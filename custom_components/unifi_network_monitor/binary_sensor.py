@@ -538,9 +538,7 @@ async def async_setup_entry(
         == DEVICE_MODE_ALL
     )
     disabled_eps = disabled_endpoints(entry.options)
-    excluded = (
-        set() if dual_wan_enabled(entry.options) else single_wan_excluded_keys()
-    )
+    excluded = set() if dual_wan_enabled(entry.options) else single_wan_excluded_keys()
 
     entities: list[BinarySensorEntity] = []
 

@@ -111,7 +111,9 @@ def _device_mode_field(defaults: dict[str, Any], core_present: bool) -> dict[Any
     }
 
 
-def _sensor_groups_section(defaults: dict[str, Any], include_all: bool = True) -> section:
+def _sensor_groups_section(
+    defaults: dict[str, Any], include_all: bool = True
+) -> section:
     """Build the collapsible 'Sensor groups' section of feature toggles.
 
     Shown only in the Configure/Reconfigure flow (initial setup is connection
@@ -163,9 +165,7 @@ def _settings_schema(defaults: dict[str, Any], core_present: bool) -> vol.Schema
     fields[
         vol.Optional(
             CONF_ROGUE_IGNORE_SSIDS,
-            default=defaults.get(
-                CONF_ROGUE_IGNORE_SSIDS, DEFAULT_ROGUE_IGNORE_SSIDS
-            ),
+            default=defaults.get(CONF_ROGUE_IGNORE_SSIDS, DEFAULT_ROGUE_IGNORE_SSIDS),
         )
     ] = str
     fields[

@@ -17,6 +17,7 @@ from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
+from .alerts import build_alert_attrs
 from .api import UnifiAuthError, UnifiConnectionError, UnifiNetworkAPI
 from .const import (
     CONF_ENABLE_LOGS_ALERTS,
@@ -61,7 +62,6 @@ from .const import (
     GATEWAY_MODELS,
     ROGUE_PERIOD_HOURS,
 )
-from .alerts import build_alert_attrs
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -95,7 +95,7 @@ def _split_patterns(raw: str) -> list[str]:
 
 
 def _ap_matches(reporter: dict[str, str], patterns: list[str]) -> bool:
-    """True if a reporting AP's MAC or friendly name matches any wildcard pattern."""
+    """Check if a reporting AP's MAC or friendly name matches any wildcard pattern."""
     mac = reporter.get("mac") or ""
     name = reporter.get("name") or ""
     return any(fnmatchcase(mac, pat) or fnmatchcase(name, pat) for pat in patterns)
@@ -956,9 +956,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     ignore_aps = _split_patterns(
                         opts.get(CONF_ROGUE_IGNORE_APS, DEFAULT_ROGUE_IGNORE_APS)
                     )
-                    show_24 = opts.get(
-                        CONF_ROGUE_SHOW_24GHZ, DEFAULT_ROGUE_SHOW_24GHZ
-                    )
+                    show_24 = opts.get(CONF_ROGUE_SHOW_24GHZ, DEFAULT_ROGUE_SHOW_24GHZ)
                     show_5 = opts.get(CONF_ROGUE_SHOW_5GHZ, DEFAULT_ROGUE_SHOW_5GHZ)
                     apply_ap_ignore = opts.get(
                         CONF_ROGUE_APPLY_AP_IGNORE, DEFAULT_ROGUE_APPLY_AP_IGNORE
@@ -994,9 +992,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                                 "last_seen": last_seen,
                             },
                         )
-                        cl["reporters"].append(
-                            {"mac": ap_mac, "name": detected_by}
-                        )
+                        cl["reporters"].append({"mac": ap_mac, "name": detected_by})
                         if signal is not None and (
                             cl["signal"] is None or signal > cl["signal"]
                         ):
@@ -1013,8 +1009,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             and ignore_aps
                             and cl["reporters"]
                             and all(
-                                _ap_matches(rep, ignore_aps)
-                                for rep in cl["reporters"]
+                                _ap_matches(rep, ignore_aps) for rep in cl["reporters"]
                             )
                         ):
                             continue
