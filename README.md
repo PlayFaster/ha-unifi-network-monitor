@@ -161,10 +161,10 @@ Enable any disabled entity per-entity when you want it. Your totals also differ 
 Below is a quick reference showing how entities are default-enabled depending on whether you run the official Home Assistant **UniFi Network** integration alongside this one:
 
 | Scenario / Entity Group | Without Core UniFi (Standalone) | With Core UniFi Installed (Coexistence) | Rationale / Detail |
-| :--- | :--- | :--- | :--- |
+| :-- | :-- | :-- | :-- |
 | **Base Install Entities** | **93 Enabled** / 23 Disabled | **87 Enabled** / 29 Disabled | Standalone mode enables all infrastructure diagnostics by default. |
-| **Gateway Diagnostics** *(CPU, RAM, Temp, Uptime)* | **Enabled** by default | **Disabled** by default | Avoids duplicate diagnostic telemetry since Core UniFi already monitors the gateway hardware. |
-| **Per-Device Entities** *(AP & Switch Client/CPU/Uptime)* | **Opt-in** *(Created as **Enabled** if added)* | **Opt-in** *(Created as **Disabled** if added)* | These entities are not created by default. If you choose to add them, they are created as Enabled in Standalone mode, but Disabled in Coexistence mode to avoid duplicates. |
+| **Gateway Diagnostics** _(CPU, RAM, Temp, Uptime)_ | **Enabled** by default | **Disabled** by default | Avoids duplicate diagnostic telemetry since Core UniFi already monitors the gateway hardware. |
+| **Per-Device Entities** _(AP & Switch Client/CPU/Uptime)_ | **Opt-in** _(Created as **Enabled** if added)_ | **Opt-in** _(Created as **Disabled** if added)_ | These entities are not created by default. If you choose to add them, they are created as Enabled in Standalone mode, but Disabled in Coexistence mode to avoid duplicates. |
 
 > [!TIP]
 >
@@ -266,7 +266,7 @@ This integration filters these detections to show only active devices seen withi
 
 - **Rogue Access Points (`sensor.*_rogue_access_points`)**: A count of the number of unique rogue APs detected nearby in the last hour.
 - **Strongest Rogue SSID (`sensor.*_strongest_rogue_ssid`)**: The name (SSID) of the rogue network with the strongest (least negative) signal.
-  - *Additional Info (Attributes)*: This sensor carries a `rogue_aps` list attribute containing detailed records of every detected rogue network, including their BSSID (MAC), channel, signal strength (RSSI), manufacturer (OUI), age (rendered dynamically in minutes or hours), and the friendly name of your UniFi AP that detected it.
+  - _Additional Info (Attributes)_: This sensor carries a `rogue_aps` list attribute containing detailed records of every detected rogue network, including their BSSID (MAC), channel, signal strength (RSSI), manufacturer (OUI), age (rendered dynamically in minutes or hours), and the friendly name of your UniFi AP that detected it.
 - **Strongest Rogue RSSI (`sensor.*_strongest_rogue_rssi`)**: The signal strength (in dBm) of the strongest rogue network.
 - **Rogue Proximity Threshold (`number.*_rogue_proximity_threshold`)**: A slider entity in Home Assistant (defaulting to `-60` dBm) that lets you define what signal level is considered "close".
 - **Rogue AP Proximity Alert (`binary_sensor.*_rogue_ap_proximity_alert`)**: A safety binary sensor (configured with `device_class: problem`). It turns `on` (triggers a "Problem" state) when the strongest rogue AP's RSSI is equal to or higher than your custom Proximity Threshold (e.g. `-50` dBm is higher/closer than `-60` dBm).
@@ -544,19 +544,19 @@ description: |
 triggers:
   - trigger: time
     at: "09:00:00"
-    note: >
+    note: |
       Morning Test
   - trigger: time
     at: "16:00:00"
-    note: >
+    note: |
       Afternoon Test
   - trigger: time
     at: "23:00:00"
-    note: >
+    note: |
       Late Night Test
   - trigger: time
     at: "04:00:00"
-    note: >
+    note: |
       Overnight Test
 actions:
   - action: button.press
@@ -904,7 +904,7 @@ This is a **personal project**. Support and updates are provided on a **"best-ef
 
 This integration stands on the shoulders of several excellent open-source projects:
 
-- 🙏 [**@johntdyer](https://github.com/johntdyer) , who, way back in 2024 provided the [original python script](https://github.com/custom-components/sensor.unifigateway/issues/59#issuecomment-1938652085) that I used and modifed until deciding to make a custom component out of it.  THANKS!
+- 🙏 [**@johntdyer**](https://github.com/johntdyer) , who, way back in 2024 provided the [original python script](https://github.com/custom-components/sensor.unifigateway/issues/59#issuecomment-1938652085) that I used and modified until deciding to make a custom component out of it. THANKS!
 
 - 🙏 **Home Assistant Core — [UniFi Network Integration](https://www.home-assistant.io/integrations/unifi/)** (@Kane610 , and contributors)
 

@@ -98,7 +98,7 @@ Hardware metadata (`mac`, `model`, `sw_version`) is discovered once at config fl
 ### Config Entry Data vs. Options
 
 - **`entry.data`** — discovered hardware metadata: `mac`, `model`, `sw_version` (plus persisted `boot_times`).
-- **`entry.options`** — live, user-editable settings: `host`, `api_key`, `username`, `password`, `site`, `scan_interval`, `stop_polling`, `rogue_proximity_rssi_threshold`, and the scoping options `unifi_device_mode` (`none`/`satisfaction_only`/`all`), `enable_speedtest`, `enable_wan_usage`, `enable_security_monitoring` (all default to preserve prior behaviour: mode `none`, toggles `True`).
+- **`entry.options`** — live, user-editable settings: `host`, `api_key`, `username`, `password`, `site`, `scan_interval`, `stop_polling`, `rogue_proximity_rssi_threshold`, and the scoping options `unifi_device_mode` (`none`/`satisfaction_only`/`all`), `enable_speedtest`, `enable_wan_usage`, `enable_security_monitoring` (all default to preserve prior behavior: mode `none`, toggles `True`).
 
 Read credentials from `entry.options`, not `entry.data`. Config flow is `VERSION = 1`.
 
@@ -110,7 +110,7 @@ Using `connections={(CONNECTION_NETWORK_MAC, mac)}` in `DeviceInfo` for all phys
 
 Full design: `.notes/design_monitor_setup_options.md`. Cross-project porting guide: `shared/SharedNotes/issues/setup_cleanup_options.md`.
 
-- **Per-UniFi-device sensors** (`unifi_device_mode`): `none` (default — create nothing per-device), `satisfaction_only` (AP Satisfaction Score keys only), `all` (everything). Core-detected setup offers all three; core-absent offers `none`/`all`. `sensor.py`'s `_device_descs(dev_type, mode)` returns the descriptions to create; both the static loop and the dynamic listener use it. Superseded the old "always create disabled" behaviour (the `standalone` flag now only affects `entity_registry_enabled_default`).
+- **Per-UniFi-device sensors** (`unifi_device_mode`): `none` (default — create nothing per-device), `satisfaction_only` (AP Satisfaction Score keys only), `all` (everything). Core-detected setup offers all three; core-absent offers `none`/`all`. `sensor.py`'s `_device_descs(dev_type, mode)` returns the descriptions to create; both the static loop and the dynamic listener use it. Superseded the old "always create disabled" behavior (the `standalone` flag now only affects `entity_registry_enabled_default`).
 - **Feature toggles** each map to a _sensor group_ **and** its endpoint(s): `enable_speedtest`→`get_speedtest_results`; `enable_wan_usage`→daily/monthly gateway; `enable_security_monitoring`→rogue APs + VPN + firewall. Off = sensors not created **and** the fetch skipped.
 - **Config flow**: setup + reconfigure + options share schema builders; the feature toggles live in a collapsible **section** (`from homeassistant.data_entry_flow import section`, key `sensor_groups`). Sectioned input comes back nested, so `_flatten_sections()` lifts it before validation. Reauth still uses the credentials-only `_edit_schema`. Reconfigure does `async_update_entry` + `async_abort` (no self-reload) — the update listener owns the single reload for both reconfigure and options.
 - **Duplicate-entity `_mon` id**: per-device sensors that duplicate core (`clients`, `cpu`, `ram`, `uptime` in `_DUPLICATES_CORE_KEYS`) keep their display name but get a deterministic `_mon` entity_id (`async_generate_entity_id`) instead of HA's `_2`. AP Satisfaction Score is not suffixed.
