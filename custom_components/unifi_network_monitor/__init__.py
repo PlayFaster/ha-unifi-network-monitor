@@ -122,6 +122,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     session = async_get_clientsession(hass)
     options = entry.options
 
+    # Normalise a stored per-device mode that's invalid for the current
+    # environment (e.g. satisfaction_only stored, then core UniFi removed).
+    # Done before the update listener is registered so the corrective write
+    # cannot trigger a reload loop; only writes when the value actually changes.
+    core_present = "unifi" in hass.config_entries.async_domains()
+    stored_mode = options.get(CONF_UNIFI_DEVICE_MODE, DEFAULT_UNIFI_DEVICE_MODE)
+    clamped_mode = clamp_device_mode(stored_mode, core_present)
+    if clamped_mode != stored_mode:
+        hass.config_entries.async_update_entry(
+            entry, options={**options, CONF_UNIFI_DEVICE_MODE: clamped_mode}
+        )
+        options = entry.options
+
     api = UnifiNetworkAPI(
         session,
         options.get(CONF_HOST, ""),

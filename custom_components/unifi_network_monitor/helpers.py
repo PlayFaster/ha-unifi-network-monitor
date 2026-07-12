@@ -64,6 +64,8 @@ def build_sub_device_info(
         "system": "System",
         "speedtest": "Speedtest",
         "status": "Status",
+        "security": "Security",
+        "alerts": "Alerts",
     }
     suffix = suffixes.get(device_key, "System")
 
