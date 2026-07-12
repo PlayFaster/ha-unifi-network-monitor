@@ -153,7 +153,7 @@
       "gateway_wan1_interface_name": { "name": "WAN1 Name" },
       "gateway_wan2_interface_name": { "name": "WAN2 Name" },
       "health_wan_isp_name": { "name": "ISP Name" },
-      "health_wan_isp_org": { "name": "ISP Organisation" },
+      "health_wan_isp_org": { "name": "ISP Organization" },
       "health_wan_gw_version": { "name": "UniFi OS Version" },
       "health_wan_num_sta": { "name": "Total Devices" },
       "health_wan1_availability": { "name": "WAN1 Availability" },
