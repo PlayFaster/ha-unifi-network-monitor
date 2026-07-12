@@ -19,7 +19,11 @@ from .api import UnifiError, UnifiNetworkAPI
 from .cleanup import apply_cleanup, plan_device_cleanup
 from .const import (
     CONF_API_KEY,
+    CONF_ROGUE_APPLY_AP_IGNORE,
+    CONF_ROGUE_PERIOD,
     CONF_ROGUE_PROXIMITY_RSSI_THRESHOLD,
+    CONF_ROGUE_SHOW_5GHZ,
+    CONF_ROGUE_SHOW_24GHZ,
     CONF_SCAN_INTERVAL,
     CONF_SITE,
     CONF_STOP_POLLING,
@@ -40,7 +44,16 @@ CLEANUP_SCHEMA = vol.Schema({vol.Optional("dry_run", default=True): cv.boolean})
 # entry (the controls apply them directly). Any other option change reloads so
 # the setup/feature toggles take effect immediately on submit.
 _LIVE_OPTION_KEYS = frozenset(
-    {CONF_SCAN_INTERVAL, CONF_ROGUE_PROXIMITY_RSSI_THRESHOLD, CONF_STOP_POLLING}
+    {
+        CONF_SCAN_INTERVAL,
+        CONF_ROGUE_PROXIMITY_RSSI_THRESHOLD,
+        CONF_STOP_POLLING,
+        # Rogue control entities apply live (option read each poll) — no reload.
+        CONF_ROGUE_PERIOD,
+        CONF_ROGUE_SHOW_24GHZ,
+        CONF_ROGUE_SHOW_5GHZ,
+        CONF_ROGUE_APPLY_AP_IGNORE,
+    }
 )
 
 
@@ -65,6 +78,7 @@ PLATFORMS = [
     Platform.BINARY_SENSOR,
     Platform.BUTTON,
     Platform.NUMBER,
+    Platform.SELECT,
     Platform.SWITCH,
 ]
 

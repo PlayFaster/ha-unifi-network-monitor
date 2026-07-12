@@ -29,6 +29,8 @@ from .const import (
     EP_SETTINGS,
     EP_VPN_TUNNELS,
     EP_WLAN,
+    dual_wan_enabled,
+    single_wan_excluded_keys,
 )
 from .coordinator import (
     UnifiNetworkDataUpdateCoordinator,
@@ -120,7 +122,7 @@ GATEWAY_BINARY_SENSORS: Final[tuple[UnifiBinarySensorEntityDescription, ...]] = 
         device_class=BinarySensorDeviceClass.RUNNING,
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda d: d.get("ad_blocking"),
-        device_key="system",
+        device_key="security",
     ),
     UnifiBinarySensorEntityDescription(
         key="honeypot",
@@ -128,7 +130,7 @@ GATEWAY_BINARY_SENSORS: Final[tuple[UnifiBinarySensorEntityDescription, ...]] = 
         device_class=BinarySensorDeviceClass.RUNNING,
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda d: d.get("honeypot"),
-        device_key="system",
+        device_key="security",
     ),
 )
 
@@ -474,8 +476,8 @@ class UnifiRogueProximityBinarySensor(
 
     @property
     def device_info(self) -> DeviceInfo:
-        """Return Status sub-device info."""
-        return build_sub_device_info(self.coordinator, self._entry, "status")
+        """Return Security sub-device info."""
+        return build_sub_device_info(self.coordinator, self._entry, "security")
 
 
 class UnifiVpnBinarySensor(UnifiBinarySensorBase):
@@ -536,16 +538,21 @@ async def async_setup_entry(
         == DEVICE_MODE_ALL
     )
     disabled_eps = disabled_endpoints(entry.options)
+    excluded = (
+        set() if dual_wan_enabled(entry.options) else single_wan_excluded_keys()
+    )
 
     entities: list[BinarySensorEntity] = []
 
     entities.extend(
         UnifiGatewayBinarySensor(coordinator, entry, desc, desc.key, standalone)
         for desc in GATEWAY_BINARY_SENSORS
+        if desc.key not in excluded
     )
     entities.extend(
         UnifiHealthBinarySensor(coordinator, entry, desc, f"health_{desc.key}")
         for desc in HEALTH_BINARY_SENSORS
+        if f"health_{desc.key}" not in excluded
     )
     if EP_ROGUE not in disabled_eps:
         entities.append(UnifiRogueProximityBinarySensor(coordinator, entry))

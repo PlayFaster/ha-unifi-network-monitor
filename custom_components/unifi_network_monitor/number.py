@@ -27,6 +27,7 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     EP_ROGUE,
+    dual_wan_enabled,
 )
 from .coordinator import UnifiNetworkDataUpdateCoordinator, disabled_endpoints
 from .helpers import build_sub_device_info
@@ -80,8 +81,10 @@ async def async_setup_entry(
     )
     numbers: list[NumberEntity] = [
         UnifiScanIntervalNumber(coordinator, entry, initial),
-        WanLoadBalanceNumber(coordinator, entry),
     ]
+    # The load-balance control is meaningless with a single WAN.
+    if dual_wan_enabled(entry.options):
+        numbers.append(WanLoadBalanceNumber(coordinator, entry))
     # The proximity threshold only makes sense alongside the rogue-AP alert.
     if EP_ROGUE not in disabled_endpoints(entry.options):
         numbers.append(
@@ -258,5 +261,5 @@ class UnifiRogueProximityThresholdNumber(
 
     @property
     def device_info(self) -> DeviceInfo:
-        """Return Status sub-device info."""
-        return build_sub_device_info(self.coordinator, self._entry, "status")
+        """Return Security sub-device info."""
+        return build_sub_device_info(self.coordinator, self._entry, "security")

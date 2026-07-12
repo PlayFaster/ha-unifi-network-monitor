@@ -13,7 +13,12 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .api import UnifiError
 from .cleanup import apply_cleanup, plan_device_cleanup
-from .const import CONF_ENABLE_SPEEDTEST, DEFAULT_ENABLE_SPEEDTEST, DOMAIN
+from .const import (
+    CONF_ENABLE_SPEEDTEST,
+    DEFAULT_ENABLE_SPEEDTEST,
+    DOMAIN,
+    dual_wan_enabled,
+)
 from .coordinator import UnifiNetworkDataUpdateCoordinator
 from .helpers import build_sub_device_info
 
@@ -55,11 +60,12 @@ async def async_setup_entry(
                 coordinator, entry, _WAN1_SPEEDTEST_DESCRIPTION, "wan1"
             )
         )
-        buttons.append(
-            UnifiSpeedtestButton(
-                coordinator, entry, _WAN2_SPEEDTEST_DESCRIPTION, "wan2"
+        if dual_wan_enabled(entry.options):
+            buttons.append(
+                UnifiSpeedtestButton(
+                    coordinator, entry, _WAN2_SPEEDTEST_DESCRIPTION, "wan2"
+                )
             )
-        )
     async_add_entities(buttons)
 
 

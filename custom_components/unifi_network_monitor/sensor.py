@@ -44,9 +44,12 @@ from .const import (
     EP_SETTINGS,
     EP_SPEEDTEST,
     EP_SYSINFO,
+    EP_SYSLOG,
     EP_VPN_TUNNELS,
     EP_WAN_IF,
     EP_WLAN,
+    dual_wan_enabled,
+    single_wan_excluded_keys,
 )
 from .coordinator import (
     UnifiNetworkDataUpdateCoordinator,
@@ -111,6 +114,9 @@ _ENDPOINT_BY_KEY: dict[str, str] = {
     "rules_configured": EP_FIREWALL,
     "rules_active": EP_FIREWALL,
     "rules_disabled": EP_FIREWALL,
+    "last_critical_alert": EP_SYSLOG,
+    "alerts_high_24h": EP_SYSLOG,
+    "alerts_very_high_24h": EP_SYSLOG,
 }
 
 
@@ -291,7 +297,7 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         translation_key="gateway_ips_mode",
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda d: d.get("ips_mode"),
-        device_key="system",
+        device_key="security",
     ),
     UnifiSensorEntityDescription(
         key="wan1_sfp_vendor",
@@ -528,13 +534,13 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         state_class=SensorStateClass.MEASUREMENT,
         min_limit=0.0,
         value_fn=lambda d: d.get("rogue_ap_count"),
-        device_key="status",
+        device_key="security",
     ),
     UnifiSensorEntityDescription(
         key="strongest_rogue_ssid",
         translation_key="gateway_strongest_rogue_ssid",
         value_fn=lambda d: d.get("strongest_rogue_ssid"),
-        device_key="status",
+        device_key="security",
     ),
     UnifiSensorEntityDescription(
         key="strongest_rogue_rssi",
@@ -545,7 +551,7 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         min_limit=-100.0,
         max_limit=0.0,
         value_fn=lambda d: d.get("strongest_rogue_rssi"),
-        device_key="status",
+        device_key="security",
     ),
     UnifiSensorEntityDescription(
         key="guest_user_count",
@@ -706,7 +712,7 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         min_limit=0.0,
         value_fn=lambda d: d.get("vpn_connections_total"),
-        device_key="status",
+        device_key="security",
     ),
     UnifiSensorEntityDescription(
         key="vpn_connections_active",
@@ -714,7 +720,7 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         state_class=SensorStateClass.MEASUREMENT,
         min_limit=0.0,
         value_fn=lambda d: d.get("vpn_connections_active"),
-        device_key="status",
+        device_key="security",
     ),
     # Firewall Rules
     UnifiSensorEntityDescription(
@@ -724,7 +730,7 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         min_limit=0.0,
         value_fn=lambda d: d.get("rules_configured"),
-        device_key="status",
+        device_key="security",
     ),
     UnifiSensorEntityDescription(
         key="rules_active",
@@ -732,7 +738,7 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         state_class=SensorStateClass.MEASUREMENT,
         min_limit=0.0,
         value_fn=lambda d: d.get("rules_active"),
-        device_key="status",
+        device_key="security",
     ),
     UnifiSensorEntityDescription(
         key="rules_disabled",
@@ -740,7 +746,7 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         state_class=SensorStateClass.MEASUREMENT,
         min_limit=0.0,
         value_fn=lambda d: d.get("rules_disabled"),
-        device_key="status",
+        device_key="security",
     ),
     # WAN Names
     UnifiSensorEntityDescription(
@@ -756,6 +762,29 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda d: d.get("wan2_interface_name"),
         device_key="internet",
+    ),
+    # Alerts sub-device (system-log critical alerts)
+    UnifiSensorEntityDescription(
+        key="last_critical_alert",
+        translation_key="gateway_last_critical_alert",
+        value_fn=lambda d: d.get("last_critical_alert"),
+        device_key="alerts",
+    ),
+    UnifiSensorEntityDescription(
+        key="alerts_very_high_24h",
+        translation_key="gateway_alerts_very_high_24h",
+        state_class=SensorStateClass.MEASUREMENT,
+        min_limit=0.0,
+        value_fn=lambda d: d.get("alerts_very_high_24h"),
+        device_key="alerts",
+    ),
+    UnifiSensorEntityDescription(
+        key="alerts_high_24h",
+        translation_key="gateway_alerts_high_24h",
+        state_class=SensorStateClass.MEASUREMENT,
+        min_limit=0.0,
+        value_fn=lambda d: d.get("alerts_high_24h"),
+        device_key="alerts",
     ),
 )
 
@@ -1314,6 +1343,10 @@ class UnifiGatewaySensor(UnifiSensorBase):
             return {
                 "rogue_aps": gw.get("rogue_aps_list"),
             }
+        if self.entity_description.key == "last_critical_alert":
+            attrs = dict(gw.get("last_critical_alert_attrs") or {})
+            attrs["recent_alerts"] = gw.get("recent_alerts")
+            return attrs
         return None
 
 
@@ -1450,20 +1483,26 @@ async def async_setup_entry(
     standalone = "unifi" not in hass.config_entries.async_domains()
     device_mode = entry.options.get(CONF_UNIFI_DEVICE_MODE, DEFAULT_UNIFI_DEVICE_MODE)
     disabled_eps = disabled_endpoints(entry.options)
+    excluded = (
+        set() if dual_wan_enabled(entry.options) else single_wan_excluded_keys()
+    )
 
     entities: list[SensorEntity] = []
 
-    # Static gateway sensors (skip those whose feature toggle is off)
+    # Static gateway sensors (skip those whose feature toggle is off, or whose
+    # WAN2/load-balance key is excluded when dual-WAN monitoring is off)
     entities.extend(
         UnifiGatewaySensor(coordinator, entry, desc, desc.key, standalone)
         for desc in GATEWAY_SENSORS
         if _ENDPOINT_BY_KEY.get(desc.key) not in disabled_eps
+        and desc.key not in excluded
     )
 
     # Static network health sensors
     entities.extend(
         UnifiHealthSensor(coordinator, entry, desc, f"health_{desc.key}")
         for desc in HEALTH_SENSORS
+        if f"health_{desc.key}" not in excluded
     )
 
     # Dynamic device sensors from first coordinator data snapshot (per device mode)
