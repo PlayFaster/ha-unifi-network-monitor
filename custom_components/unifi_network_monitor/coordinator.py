@@ -7,6 +7,7 @@ import contextlib
 import logging
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
+from fnmatch import fnmatchcase
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -86,6 +87,18 @@ def disabled_endpoints(options: Mapping[str, Any]) -> frozenset[str]:
     if not options.get(CONF_ENABLE_LOGS_ALERTS, DEFAULT_ENABLE_LOGS_ALERTS):
         disabled.add(EP_SYSLOG)
     return frozenset(disabled)
+
+
+def _split_patterns(raw: str) -> list[str]:
+    """Split a comma-separated ignore-list option into stripped, non-empty patterns."""
+    return [p.strip() for p in (raw or "").split(",") if p.strip()]
+
+
+def _ap_matches(reporter: dict[str, str], patterns: list[str]) -> bool:
+    """True if a reporting AP's MAC or friendly name matches any wildcard pattern."""
+    mac = reporter.get("mac") or ""
+    name = reporter.get("name") or ""
+    return any(fnmatchcase(mac, pat) or fnmatchcase(name, pat) for pat in patterns)
 
 
 def _safe_float(val: Any, default: float | None = None) -> float | None:
@@ -920,7 +933,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         err,
                     )
 
-                # Rogue Access Points
+                # Rogue Access Points — band filter + SSID/AP ignore + BSSID cluster
                 rogue_ap_count = 0
                 rogue_aps_list: list[dict[str, Any]] = []
                 # "None Detected" (not unknown) is preferred for the text sensor
@@ -937,44 +950,101 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                                 device.get("name") or device.get("model") or mac
                             )
 
-                    rogue_ap_count = (
-                        len(rogueaps_raw) if rogueaps_raw is not None else 0
+                    ignore_ssids = _split_patterns(
+                        opts.get(CONF_ROGUE_IGNORE_SSIDS, DEFAULT_ROGUE_IGNORE_SSIDS)
+                    )
+                    ignore_aps = _split_patterns(
+                        opts.get(CONF_ROGUE_IGNORE_APS, DEFAULT_ROGUE_IGNORE_APS)
+                    )
+                    show_24 = opts.get(
+                        CONF_ROGUE_SHOW_24GHZ, DEFAULT_ROGUE_SHOW_24GHZ
+                    )
+                    show_5 = opts.get(CONF_ROGUE_SHOW_5GHZ, DEFAULT_ROGUE_SHOW_5GHZ)
+                    apply_ap_ignore = opts.get(
+                        CONF_ROGUE_APPLY_AP_IGNORE, DEFAULT_ROGUE_APPLY_AP_IGNORE
                     )
                     current_ts = int(dt_util.as_timestamp(update_time))
+
+                    # Band filter + SSID ignore, then group by BSSID.
+                    clusters: dict[str, dict[str, Any]] = {}
                     for r in rogueaps_raw or []:
+                        band = r.get("band")  # "ng"=2.4GHz, "na"=5GHz
+                        if band == "ng" and not show_24:
+                            continue
+                        if band == "na" and not show_5:
+                            continue
+                        essid = r.get("essid", "")
+                        if any(fnmatchcase(essid, pat) for pat in ignore_ssids):
+                            continue
+                        bssid = r.get("bssid", "")
                         ap_mac = r.get("ap_mac", "")
                         detected_by = ap_name_map.get(ap_mac.lower()) or ap_mac
-
+                        signal = _safe_int(r.get("signal"))
                         last_seen = _safe_int(r.get("last_seen"))
-                        if last_seen is not None:
-                            true_age_secs = max(0, current_ts - last_seen)
-                            if true_age_secs < 3600:
-                                age_str = f"{true_age_secs // 60}m"
-                            else:
-                                age_str = f"{true_age_secs // 3600}h"
-                        else:
-                            # Fallback to API static age if last_seen is absent
-                            api_age = _safe_int(r.get("age"))
-                            if api_age is not None:
-                                if api_age < 3600:
-                                    age_str = f"{api_age // 60}m"
-                                else:
-                                    age_str = f"{api_age // 3600}h"
-                            else:
-                                age_str = None
+                        cl = clusters.setdefault(
+                            bssid,
+                            {
+                                "essid": essid,
+                                "bssid": bssid,
+                                "band": band,
+                                "channel": _safe_int(r.get("channel")),
+                                "signal": signal,
+                                "oui": r.get("oui", ""),
+                                "reporters": [],
+                                "last_seen": last_seen,
+                            },
+                        )
+                        cl["reporters"].append(
+                            {"mac": ap_mac, "name": detected_by}
+                        )
+                        if signal is not None and (
+                            cl["signal"] is None or signal > cl["signal"]
+                        ):
+                            cl["signal"] = signal
+                        if last_seen is not None and (
+                            cl["last_seen"] is None or last_seen > cl["last_seen"]
+                        ):
+                            cl["last_seen"] = last_seen
 
+                    for cl in clusters.values():
+                        # AP ignore: drop only if EVERY reporting AP matches the list.
+                        if (
+                            apply_ap_ignore
+                            and ignore_aps
+                            and cl["reporters"]
+                            and all(
+                                _ap_matches(rep, ignore_aps)
+                                for rep in cl["reporters"]
+                            )
+                        ):
+                            continue
+                        last_seen = cl.get("last_seen")
+                        if last_seen is not None:
+                            true_age = max(0, current_ts - last_seen)
+                            age_str = (
+                                f"{true_age // 60}m"
+                                if true_age < 3600
+                                else f"{true_age // 3600}h"
+                            )
+                        else:
+                            age_str = None
+                        names = list(
+                            dict.fromkeys(rep["name"] for rep in cl["reporters"])
+                        )
                         rogue_aps_list.append(
                             {
-                                "essid": r.get("essid", ""),
-                                "bssid": r.get("bssid", ""),
-                                "channel": _safe_int(r.get("channel")),
-                                "signal": _safe_int(r.get("signal")),
-                                "oui": r.get("oui", ""),
+                                "essid": cl["essid"],
+                                "bssid": cl["bssid"],
+                                "band": cl["band"],
+                                "channel": cl["channel"],
+                                "signal": cl["signal"],
+                                "oui": cl["oui"],
                                 "age": age_str,
-                                "detected_by": detected_by,
+                                "detected_by": ", ".join(names),
                             }
                         )
 
+                    rogue_ap_count = len(rogue_aps_list)
                     # Strongest rogue = highest (least-negative) signal in dBm.
                     signalled = [
                         ap for ap in rogue_aps_list if ap.get("signal") is not None
