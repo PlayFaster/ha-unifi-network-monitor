@@ -360,6 +360,23 @@ class UnifiNetworkAPI:
         resp = await self._get(f"/proxy/network/api/s/{self.site}/rest/wlanconf")
         return self._extract(resp)
 
+    async def get_system_logs(
+        self,
+        severities: list[str] | None = None,
+        page_number: int = 0,
+        page_size: int = 100,
+    ) -> list[dict[str, Any]]:
+        """Fetch system logs / alerts from the v2 API (newest first)."""
+        payload: dict[str, Any] = {
+            "pageNumber": page_number,
+            "pageSize": page_size,
+        }
+        if severities:
+            payload["severities"] = severities
+        path = f"/proxy/network/v2/api/site/{self.site}/system-log/all"
+        resp = await self._post(path, payload)
+        return self._extract(resp)
+
     async def get_sites(self) -> list[dict[str, Any]]:
         """Fetch all sites managed by the controller (official integration API)."""
         resp = await self._get("/proxy/network/integration/v1/sites")

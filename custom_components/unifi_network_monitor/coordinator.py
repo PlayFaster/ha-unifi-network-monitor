@@ -1312,11 +1312,53 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     if not wan2_interface_name and len(wan_interfaces_raw) > 1:
                         wan2_interface_name = wan_interfaces_raw[1].get("name")
 
+                # System-log alerts (HIGH / VERY_HIGH) — newest first
+                last_critical_alert: str | None = None
+                last_critical_alert_attrs: dict[str, Any] | None = None
+                recent_alerts: list[dict[str, Any]] = []
+                alerts_high_24h = 0
+                alerts_very_high_24h = 0
+                try:
+                    logs = sorted(
+                        system_logs_raw or [],
+                        key=lambda x: x.get("timestamp") or 0,
+                        reverse=True,
+                    )
+                    cutoff_ms = (
+                        int(dt_util.as_timestamp(update_time) - 24 * 3600) * 1000
+                    )
+                    for ev in logs:
+                        if (ev.get("timestamp") or 0) >= cutoff_ms:
+                            sev = ev.get("severity")
+                            if sev == "VERY_HIGH":
+                                alerts_very_high_24h += 1
+                            elif sev == "HIGH":
+                                alerts_high_24h += 1
+                    if logs:
+                        last_critical_alert = logs[0].get("id")
+                        last_critical_alert_attrs = build_alert_attrs(logs[0])
+                        recent_alerts = [build_alert_attrs(e) for e in logs[:3]]
+                except (
+                    AttributeError,
+                    KeyError,
+                    TypeError,
+                    ValueError,
+                    IndexError,
+                ) as err:
+                    _LOGGER.debug(
+                        "%s: Failed to parse system logs: %s", self.entry.title, err
+                    )
+
                 # Inject parsed configuration into gateway data if gateway is present
                 if gateway_data is not None:
                     gateway_data.update(
                         {
                             "wan_mode": wan_mode,
+                            "last_critical_alert": last_critical_alert,
+                            "last_critical_alert_attrs": last_critical_alert_attrs,
+                            "recent_alerts": recent_alerts,
+                            "alerts_high_24h": alerts_high_24h,
+                            "alerts_very_high_24h": alerts_very_high_24h,
                             "wan1_weight": wan1_weight,
                             "wan2_weight": wan2_weight,
                             "ips_mode": ips_mode,
