@@ -18,13 +18,27 @@ from homeassistant.util import dt as dt_util
 
 from .api import UnifiAuthError, UnifiConnectionError, UnifiNetworkAPI
 from .const import (
+    CONF_ENABLE_LOGS_ALERTS,
     CONF_ENABLE_SECURITY_MONITORING,
     CONF_ENABLE_SPEEDTEST,
     CONF_ENABLE_WAN_USAGE,
+    CONF_ROGUE_APPLY_AP_IGNORE,
+    CONF_ROGUE_IGNORE_APS,
+    CONF_ROGUE_IGNORE_SSIDS,
+    CONF_ROGUE_PERIOD,
+    CONF_ROGUE_SHOW_5GHZ,
+    CONF_ROGUE_SHOW_24GHZ,
     CONF_SCAN_INTERVAL,
+    DEFAULT_ENABLE_LOGS_ALERTS,
     DEFAULT_ENABLE_SECURITY_MONITORING,
     DEFAULT_ENABLE_SPEEDTEST,
     DEFAULT_ENABLE_WAN_USAGE,
+    DEFAULT_ROGUE_APPLY_AP_IGNORE,
+    DEFAULT_ROGUE_IGNORE_APS,
+    DEFAULT_ROGUE_IGNORE_SSIDS,
+    DEFAULT_ROGUE_PERIOD,
+    DEFAULT_ROGUE_SHOW_5GHZ,
+    DEFAULT_ROGUE_SHOW_24GHZ,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     EP_BACKUPS,
@@ -37,13 +51,16 @@ from .const import (
     EP_SETTINGS,
     EP_SPEEDTEST,
     EP_SYSINFO,
+    EP_SYSLOG,
     EP_VPN_SERVERS,
     EP_VPN_TUNNELS,
     EP_WAN_IF,
     EP_WLAN,
     FETCH_STRIKE_LIMIT,
     GATEWAY_MODELS,
+    ROGUE_PERIOD_HOURS,
 )
+from .alerts import build_alert_attrs
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -63,7 +80,11 @@ def disabled_endpoints(options: Mapping[str, Any]) -> frozenset[str]:
     if not options.get(
         CONF_ENABLE_SECURITY_MONITORING, DEFAULT_ENABLE_SECURITY_MONITORING
     ):
-        disabled.update({EP_ROGUE, EP_VPN_SERVERS, EP_VPN_TUNNELS, EP_FIREWALL})
+        disabled.update(
+            {EP_ROGUE, EP_VPN_SERVERS, EP_VPN_TUNNELS, EP_FIREWALL, EP_SETTINGS}
+        )
+    if not options.get(CONF_ENABLE_LOGS_ALERTS, DEFAULT_ENABLE_LOGS_ALERTS):
+        disabled.add(EP_SYSLOG)
     return frozenset(disabled)
 
 
@@ -679,6 +700,11 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 want_security = opts.get(
                     CONF_ENABLE_SECURITY_MONITORING, DEFAULT_ENABLE_SECURITY_MONITORING
                 )
+                want_logs = opts.get(
+                    CONF_ENABLE_LOGS_ALERTS, DEFAULT_ENABLE_LOGS_ALERTS
+                )
+                rogue_period = opts.get(CONF_ROGUE_PERIOD, DEFAULT_ROGUE_PERIOD)
+                rogue_within = ROGUE_PERIOD_HOURS.get(rogue_period, 1)
 
                 # Define concurrent tasks
                 tasks = [
@@ -686,20 +712,31 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     self.api.get_health(),
                     self._fetch_optional(self.api.get_sysinfo, EP_SYSINFO),
                     self._fetch_optional(self.api.get_networkconf, EP_NETWORKCONF),
-                    self._fetch_optional(self.api.get_settings, EP_SETTINGS),
+                    self._optional(want_security, self.api.get_settings, EP_SETTINGS),
                     self._optional(
                         want_wan_usage, self.api.get_daily_gateway, EP_DAILY
                     ),
                     self._optional(
                         want_wan_usage, self.api.get_monthly_gateway, EP_MONTHLY
                     ),
-                    self._optional(want_security, self.api.get_rogueaps, EP_ROGUE),
+                    self._optional(
+                        want_security,
+                        lambda: self.api.get_rogueaps(within_hours=rogue_within),
+                        EP_ROGUE,
+                    ),
                     self._fetch_optional(self.api.get_guests, EP_GUESTS),
                     self._fetch_optional(self.api.get_backups, EP_BACKUPS),
                     self._optional(
                         want_speedtest, self.api.get_speedtest_results, EP_SPEEDTEST
                     ),
                     self._fetch_optional(self.api.get_wlanconf, EP_WLAN),
+                    self._optional(
+                        want_logs,
+                        lambda: self.api.get_system_logs(
+                            severities=["HIGH", "VERY_HIGH"]
+                        ),
+                        EP_SYSLOG,
+                    ),
                 ]
 
                 # Conditional v3 endpoint fetches
@@ -751,6 +788,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     backups_raw,
                     speedtest_raw,
                     wlanconf_raw,
+                    system_logs_raw,
                     wan_interfaces_raw,
                     _vpn_servers_raw,
                     vpn_tunnels_raw,
