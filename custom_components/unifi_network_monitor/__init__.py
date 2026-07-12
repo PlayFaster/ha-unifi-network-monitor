@@ -23,8 +23,11 @@ from .const import (
     CONF_SCAN_INTERVAL,
     CONF_SITE,
     CONF_STOP_POLLING,
+    CONF_UNIFI_DEVICE_MODE,
     DEFAULT_SITE,
+    DEFAULT_UNIFI_DEVICE_MODE,
     DOMAIN,
+    clamp_device_mode,
 )
 from .coordinator import UnifiNetworkDataUpdateCoordinator
 

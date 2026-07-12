@@ -281,7 +281,7 @@ class UnifiNetworkConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="user",
-            data_schema=_user_schema(user_input or {}, _core_present(self.hass)),
+            data_schema=_user_schema(user_input or {}),
             errors=errors,
         )
 
