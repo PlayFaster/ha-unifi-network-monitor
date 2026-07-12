@@ -26,6 +26,8 @@ from .const import (
     EP_ROGUE,
     EP_SPEEDTEST,
     EP_VPN_TUNNELS,
+    dual_wan_enabled,
+    single_wan_excluded_keys,
 )
 from .coordinator import UnifiNetworkDataUpdateCoordinator, disabled_endpoints
 from .sensor import _ENDPOINT_BY_KEY, _device_descs
@@ -65,7 +67,14 @@ def _feature_source(uid: str, unique_id: str) -> str | None:
     suffix = unique_id[len(prefix) :]
     if suffix in _ENDPOINT_BY_KEY:
         return _ENDPOINT_BY_KEY[suffix]
-    if suffix in ("rogue_proximity_alert", "rogue_proximity_rssi_threshold"):
+    if suffix in (
+        "rogue_proximity_alert",
+        "rogue_proximity_rssi_threshold",
+        "rogue_show_24ghz",
+        "rogue_show_5ghz",
+        "rogue_apply_ap_ignore",
+        "rogue_period",
+    ):
         return EP_ROGUE
     if suffix in ("wan1_speedtest", "wan2_speedtest"):
         return EP_SPEEDTEST
@@ -113,6 +122,20 @@ def plan_device_cleanup(
             if reg_entry.entity_id in already:
                 continue
             if _feature_source(uid, reg_entry.unique_id) in disabled:
+                plan.entity_ids.append(reg_entry.entity_id)
+
+    # WAN2 / load-balance entities orphaned when dual-WAN monitoring is off. WAN2
+    # rides shared endpoints, so it is a key-set filter — not endpoint-aligned.
+    if not dual_wan_enabled(entry.options):
+        excluded = single_wan_excluded_keys()
+        already = set(plan.entity_ids)
+        prefix = f"{uid}_"
+        for reg_entry in registered:
+            if reg_entry.entity_id in already:
+                continue
+            if not reg_entry.unique_id.startswith(prefix):
+                continue
+            if reg_entry.unique_id[len(prefix) :] in excluded:
                 plan.entity_ids.append(reg_entry.entity_id)
 
     return plan

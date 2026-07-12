@@ -230,7 +230,6 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         native_unit_of_measurement=UnitOfInformation.BYTES,
         suggested_unit_of_measurement=UnitOfInformation.GIGABYTES,
         suggested_display_precision=2,
-        state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
         min_limit=0.0,
         value_fn=lambda d: d.get("storage_used"),
@@ -286,7 +285,6 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         key="wan2_weight",
         translation_key="gateway_wan2_weight",
         native_unit_of_measurement=PERCENTAGE,
-        state_class=SensorStateClass.MEASUREMENT,
         min_limit=0.0,
         max_limit=100.0,
         value_fn=lambda d: d.get("wan2_weight"),
@@ -350,6 +348,7 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
     UnifiSensorEntityDescription(
         key="wan1_today_rx",
         translation_key="gateway_wan1_today_rx",
+        state_class=SensorStateClass.TOTAL_INCREASING,
         device_class=SensorDeviceClass.DATA_SIZE,
         native_unit_of_measurement=UnitOfInformation.BYTES,
         suggested_unit_of_measurement=UnitOfInformation.GIGABYTES,
@@ -361,6 +360,7 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
     UnifiSensorEntityDescription(
         key="wan1_today_tx",
         translation_key="gateway_wan1_today_tx",
+        state_class=SensorStateClass.TOTAL_INCREASING,
         device_class=SensorDeviceClass.DATA_SIZE,
         native_unit_of_measurement=UnitOfInformation.BYTES,
         suggested_unit_of_measurement=UnitOfInformation.GIGABYTES,
@@ -372,6 +372,7 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
     UnifiSensorEntityDescription(
         key="wan1_today_total",
         translation_key="gateway_wan1_today_total",
+        state_class=SensorStateClass.TOTAL_INCREASING,
         device_class=SensorDeviceClass.DATA_SIZE,
         native_unit_of_measurement=UnitOfInformation.BYTES,
         suggested_unit_of_measurement=UnitOfInformation.GIGABYTES,
@@ -387,6 +388,7 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
     UnifiSensorEntityDescription(
         key="wan2_today_rx",
         translation_key="gateway_wan2_today_rx",
+        state_class=SensorStateClass.TOTAL_INCREASING,
         device_class=SensorDeviceClass.DATA_SIZE,
         native_unit_of_measurement=UnitOfInformation.BYTES,
         suggested_unit_of_measurement=UnitOfInformation.GIGABYTES,
@@ -398,6 +400,7 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
     UnifiSensorEntityDescription(
         key="wan2_today_tx",
         translation_key="gateway_wan2_today_tx",
+        state_class=SensorStateClass.TOTAL_INCREASING,
         device_class=SensorDeviceClass.DATA_SIZE,
         native_unit_of_measurement=UnitOfInformation.BYTES,
         suggested_unit_of_measurement=UnitOfInformation.GIGABYTES,
@@ -409,6 +412,7 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
     UnifiSensorEntityDescription(
         key="wan2_today_total",
         translation_key="gateway_wan2_today_total",
+        state_class=SensorStateClass.TOTAL_INCREASING,
         device_class=SensorDeviceClass.DATA_SIZE,
         native_unit_of_measurement=UnitOfInformation.BYTES,
         suggested_unit_of_measurement=UnitOfInformation.GIGABYTES,
@@ -573,7 +577,6 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
     UnifiSensorEntityDescription(
         key="configured_vlans",
         translation_key="gateway_configured_vlans",
-        state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
         min_limit=0.0,
@@ -611,6 +614,7 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
     UnifiSensorEntityDescription(
         key="wan1_speedtest_ping",
         translation_key="gateway_wan1_speedtest_ping",
+        state_class=SensorStateClass.MEASUREMENT,
         device_class=SensorDeviceClass.DURATION,
         native_unit_of_measurement=_MS_UNIT,
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -652,6 +656,7 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
     UnifiSensorEntityDescription(
         key="wan2_speedtest_ping",
         translation_key="gateway_wan2_speedtest_ping",
+        state_class=SensorStateClass.MEASUREMENT,
         device_class=SensorDeviceClass.DURATION,
         native_unit_of_measurement=_MS_UNIT,
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -672,7 +677,6 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
     UnifiSensorEntityDescription(
         key="wifi_networks_total",
         translation_key="gateway_wifi_networks_total",
-        state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
         min_limit=0.0,
         value_fn=lambda d: d.get("wifi_networks_total"),
@@ -690,7 +694,6 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
     UnifiSensorEntityDescription(
         key="vlans_total",
         translation_key="gateway_vlans_total",
-        state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
         min_limit=0.0,
         value_fn=lambda d: d.get("vlans_total"),
@@ -708,7 +711,6 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
     UnifiSensorEntityDescription(
         key="vpn_connections_total",
         translation_key="gateway_vpn_connections_total",
-        state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
         min_limit=0.0,
         value_fn=lambda d: d.get("vpn_connections_total"),
@@ -726,7 +728,6 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
     UnifiSensorEntityDescription(
         key="rules_configured",
         translation_key="gateway_rules_configured",
-        state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
         min_limit=0.0,
         value_fn=lambda d: d.get("rules_configured"),
@@ -830,7 +831,6 @@ HEALTH_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         key="wan1_availability",
         translation_key="health_wan1_availability",
         native_unit_of_measurement=PERCENTAGE,
-        state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
         min_limit=0.0,
         max_limit=100.0,
@@ -884,7 +884,6 @@ HEALTH_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         key="wan2_availability",
         translation_key="health_wan2_availability",
         native_unit_of_measurement=PERCENTAGE,
-        state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
         min_limit=0.0,
         max_limit=100.0,
@@ -1001,7 +1000,6 @@ HEALTH_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
     UnifiSensorEntityDescription(
         key="wlan_num_iot",
         translation_key="health_wlan_num_iot",
-        state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
         min_limit=0.0,
@@ -1011,7 +1009,6 @@ HEALTH_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
     UnifiSensorEntityDescription(
         key="wlan_num_ap",
         translation_key="health_wlan_num_ap",
-        state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
         min_limit=0.0,
@@ -1030,7 +1027,6 @@ HEALTH_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
     UnifiSensorEntityDescription(
         key="lan_num_iot",
         translation_key="health_lan_num_iot",
-        state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
         min_limit=0.0,
@@ -1040,7 +1036,6 @@ HEALTH_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
     UnifiSensorEntityDescription(
         key="lan_num_sw",
         translation_key="health_lan_num_sw",
-        state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
         min_limit=0.0,
@@ -1050,7 +1045,6 @@ HEALTH_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
     UnifiSensorEntityDescription(
         key="lan_num_adopted",
         translation_key="health_lan_num_adopted",
-        state_class=SensorStateClass.MEASUREMENT,
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
         min_limit=0.0,
@@ -1112,26 +1106,29 @@ AP_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
     UnifiSensorEntityDescription(
         key="score",
         translation_key="device_score",
+        state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=PERCENTAGE,
-        min_limit=-1.0,
+        min_limit=0.0,
         max_limit=100.0,
         value_fn=lambda d: d.get("score"),
     ),
     UnifiSensorEntityDescription(
         key="score_wifi0",
         translation_key="device_score_wifi0",
+        state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=PERCENTAGE,
         entity_registry_enabled_default=False,
-        min_limit=-1.0,
+        min_limit=0.0,
         max_limit=100.0,
         value_fn=lambda d: d.get("score_wifi0"),
     ),
     UnifiSensorEntityDescription(
         key="score_wifi1",
         translation_key="device_score_wifi1",
+        state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement=PERCENTAGE,
         entity_registry_enabled_default=False,
-        min_limit=-1.0,
+        min_limit=0.0,
         max_limit=100.0,
         value_fn=lambda d: d.get("score_wifi1"),
     ),

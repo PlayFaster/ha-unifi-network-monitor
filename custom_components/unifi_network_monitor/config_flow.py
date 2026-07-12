@@ -111,33 +111,37 @@ def _device_mode_field(defaults: dict[str, Any], core_present: bool) -> dict[Any
     }
 
 
-def _sensor_groups_section(defaults: dict[str, Any], include_all: bool) -> section:
+def _sensor_groups_section(defaults: dict[str, Any], include_all: bool = True) -> section:
     """Build the collapsible 'Sensor groups' section of feature toggles.
 
-    Initial setup shows only Speedtest; reconfigure/options show all three.
+    Shown only in the Configure/Reconfigure flow (initial setup is connection
+    only). All five group toggles are presented, expanded.
     """
     fields: dict[Any, Any] = {
         vol.Required(
             CONF_ENABLE_SPEEDTEST,
             default=defaults.get(CONF_ENABLE_SPEEDTEST, DEFAULT_ENABLE_SPEEDTEST),
-        ): bool
-    }
-    if include_all:
-        fields[
-            vol.Required(
-                CONF_ENABLE_WAN_USAGE,
-                default=defaults.get(CONF_ENABLE_WAN_USAGE, DEFAULT_ENABLE_WAN_USAGE),
-            )
-        ] = bool
-        fields[
-            vol.Required(
+        ): bool,
+        vol.Required(
+            CONF_ENABLE_WAN_USAGE,
+            default=defaults.get(CONF_ENABLE_WAN_USAGE, DEFAULT_ENABLE_WAN_USAGE),
+        ): bool,
+        vol.Required(
+            CONF_ENABLE_SECURITY_MONITORING,
+            default=defaults.get(
                 CONF_ENABLE_SECURITY_MONITORING,
-                default=defaults.get(
-                    CONF_ENABLE_SECURITY_MONITORING,
-                    DEFAULT_ENABLE_SECURITY_MONITORING,
-                ),
-            )
-        ] = bool
+                DEFAULT_ENABLE_SECURITY_MONITORING,
+            ),
+        ): bool,
+        vol.Required(
+            CONF_ENABLE_DUAL_WAN,
+            default=defaults.get(CONF_ENABLE_DUAL_WAN, DEFAULT_ENABLE_DUAL_WAN),
+        ): bool,
+        vol.Required(
+            CONF_ENABLE_LOGS_ALERTS,
+            default=defaults.get(CONF_ENABLE_LOGS_ALERTS, DEFAULT_ENABLE_LOGS_ALERTS),
+        ): bool,
+    }
     return section(vol.Schema(fields), {"collapsed": False})
 
 
@@ -154,9 +158,22 @@ def _settings_schema(defaults: dict[str, Any], core_present: bool) -> vol.Schema
     """Reconfigure/options schema — setup fields plus all feature toggles."""
     fields = _connection_fields(defaults)
     fields.update(_device_mode_field(defaults, core_present))
-    fields[vol.Required(SECTION_SENSOR_GROUPS)] = _sensor_groups_section(
-        defaults, include_all=True
-    )
+    fields[vol.Required(SECTION_SENSOR_GROUPS)] = _sensor_groups_section(defaults)
+    # Rogue-AP ignore lists (advanced; comma-separated, wildcards via fnmatch).
+    fields[
+        vol.Optional(
+            CONF_ROGUE_IGNORE_SSIDS,
+            default=defaults.get(
+                CONF_ROGUE_IGNORE_SSIDS, DEFAULT_ROGUE_IGNORE_SSIDS
+            ),
+        )
+    ] = str
+    fields[
+        vol.Optional(
+            CONF_ROGUE_IGNORE_APS,
+            default=defaults.get(CONF_ROGUE_IGNORE_APS, DEFAULT_ROGUE_IGNORE_APS),
+        )
+    ] = str
     return vol.Schema(fields)
 
 
