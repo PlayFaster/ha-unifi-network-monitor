@@ -41,6 +41,7 @@ from .const import (
     DEVICE_MODE_NONE,
     DEVICE_MODE_SATISFACTION,
     DOMAIN,
+    clamp_device_mode,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -60,16 +61,6 @@ def _clean_host(host: str) -> str:
 def _core_present(hass: HomeAssistant) -> bool:
     """Return True when the HA-native UniFi (core) integration is configured."""
     return "unifi" in hass.config_entries.async_domains()
-
-
-def _clamp_device_mode(value: Any, core_present: bool) -> str:
-    """Coerce a stored device mode to an option valid for the current context."""
-    valid = (
-        {DEVICE_MODE_NONE, DEVICE_MODE_SATISFACTION, DEVICE_MODE_ALL}
-        if core_present
-        else {DEVICE_MODE_NONE, DEVICE_MODE_ALL}
-    )
-    return value if value in valid else DEFAULT_UNIFI_DEVICE_MODE
 
 
 def _device_mode_selector(core_present: bool) -> SelectSelector:
@@ -104,7 +95,7 @@ def _device_mode_field(defaults: dict[str, Any], core_present: bool) -> dict[Any
     return {
         vol.Required(
             CONF_UNIFI_DEVICE_MODE,
-            default=_clamp_device_mode(
+            default=clamp_device_mode(
                 defaults.get(CONF_UNIFI_DEVICE_MODE, DEFAULT_UNIFI_DEVICE_MODE),
                 core_present,
             ),
@@ -142,14 +133,13 @@ def _sensor_groups_section(defaults: dict[str, Any], include_all: bool) -> secti
     return section(vol.Schema(fields), {"collapsed": False})
 
 
-def _user_schema(defaults: dict[str, Any], core_present: bool) -> vol.Schema:
-    """Build the initial setup schema (connection + device choice + Speedtest)."""
-    fields = _connection_fields(defaults)
-    fields.update(_device_mode_field(defaults, core_present))
-    fields[vol.Required(SECTION_SENSOR_GROUPS)] = _sensor_groups_section(
-        defaults, include_all=False
-    )
-    return vol.Schema(fields)
+def _user_schema(defaults: dict[str, Any]) -> vol.Schema:
+    """Build the initial setup schema — connection only.
+
+    Entity-scope choices (per-device mode + feature-group toggles) are made in
+    the Configure/Reconfigure flow, not at initial setup.
+    """
+    return vol.Schema(_connection_fields(defaults))
 
 
 def _settings_schema(defaults: dict[str, Any], core_present: bool) -> vol.Schema:

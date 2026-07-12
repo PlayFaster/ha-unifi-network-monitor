@@ -35,6 +35,21 @@ DEFAULT_ENABLE_SECURITY_MONITORING = True
 # Kept negative to match how RSSI is measured and reported by the sensors.
 DEFAULT_ROGUE_PROXIMITY_RSSI_THRESHOLD = -60
 
+
+def clamp_device_mode(value: str | None, core_present: bool) -> str:
+    """Coerce a stored per-UniFi-device mode to a valid option for the context.
+
+    ``satisfaction_only`` is only meaningful when the HA-native UniFi (core)
+    integration is present. Lives here (not config_flow) so both the flow and
+    the runtime load-time normaliser can share it without an import cycle.
+    """
+    valid = (
+        {DEVICE_MODE_NONE, DEVICE_MODE_SATISFACTION, DEVICE_MODE_ALL}
+        if core_present
+        else {DEVICE_MODE_NONE, DEVICE_MODE_ALL}
+    )
+    return value if value in valid else DEFAULT_UNIFI_DEVICE_MODE
+
 # Per-endpoint resilience
 # Optional endpoints hold their last-good value for this many consecutive
 # failures, then their entities are marked unavailable.
