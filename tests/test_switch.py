@@ -42,8 +42,9 @@ async def test_async_setup_entry_creates_switch(hass) -> None:
     await async_setup_entry(hass, entry, async_add_entities)
     async_add_entities.assert_called_once()
     entities = async_add_entities.call_args[0][0]
-    assert len(entities) == 1
+    assert len(entities) == 4
     assert entities[0].unique_id == f"{MOCK_MAC}_pause_polling"
+    assert entities[1].unique_id == f"{MOCK_MAC}_rogue_show_24ghz"
 
 
 def test_switch_initial_is_on() -> None:
@@ -141,3 +142,168 @@ async def test_switch_turn_off_resumes_polling() -> None:
     assert call_kwargs["options"][CONF_STOP_POLLING] is False
     switch.async_write_ha_state.assert_called_once()
     coordinator.async_request_refresh.assert_awaited_once()
+
+
+# ---------------------------------------------------------------------------
+# UnifiRogueControlSwitch tests (lines 194, 198, 201-207)
+# ---------------------------------------------------------------------------
+
+
+def _make_rogue_coordinator() -> MagicMock:
+    coord = MagicMock()
+    coord.data = MOCK_COORDINATOR_DATA
+    coord.gateway_mac = MOCK_MAC
+    coord.gateway_model = "UDMPRO"
+    coord.sw_version = "5.1.19.33549"
+    coord.endpoint_available = MagicMock(return_value=True)
+    coord.async_request_refresh = AsyncMock()
+    coord.async_add_listener = MagicMock()
+    return coord
+
+
+def _make_rogue_entry(unique_id: str = MOCK_MAC, **options: bool) -> MagicMock:
+    entry = MagicMock()
+    entry.unique_id = unique_id
+    entry.title = "UniFi Network"
+    entry.entry_id = "test_entry_id"
+    entry.options = {
+        "host": "192.168.1.1",
+        "rogue_show_24ghz": options.get("rogue_show_24ghz", True),
+        "rogue_show_5ghz": options.get("rogue_show_5ghz", True),
+        "rogue_apply_ap_ignore": options.get("rogue_apply_ap_ignore", False),
+    }
+    return entry
+
+
+async def test_rogue_control_turn_on_updates_options_and_refresh() -> None:
+    """Rogue control switch turn_on updates options and calls refresh."""
+    from custom_components.unifi_network_monitor.switch import (
+        _ROGUE_SWITCHES,
+        UnifiRogueControlSwitch,
+    )
+
+    coordinator = _make_rogue_coordinator()
+    entry = _make_rogue_entry(rogue_show_5ghz=False)
+    desc = _ROGUE_SWITCHES[1]  # rogue_show_5ghz
+    switch = UnifiRogueControlSwitch(coordinator, entry, desc)
+    hass = MagicMock()
+    hass.config_entries.async_update_entry = MagicMock()
+    switch.hass = hass
+    switch.async_write_ha_state = MagicMock()
+
+    await switch.async_turn_on()
+
+    call_kwargs = hass.config_entries.async_update_entry.call_args[1]
+    assert call_kwargs["options"]["rogue_show_5ghz"] is True
+    switch.async_write_ha_state.assert_called_once()
+    coordinator.async_request_refresh.assert_awaited_once()
+
+
+async def test_rogue_control_turn_off_updates_options_and_refresh() -> None:
+    """Rogue control switch turn_off updates options and calls refresh."""
+    from custom_components.unifi_network_monitor.switch import (
+        _ROGUE_SWITCHES,
+        UnifiRogueControlSwitch,
+    )
+
+    coordinator = _make_rogue_coordinator()
+    entry = _make_rogue_entry(rogue_show_5ghz=True)
+    desc = _ROGUE_SWITCHES[1]  # rogue_show_5ghz
+    switch = UnifiRogueControlSwitch(coordinator, entry, desc)
+    hass = MagicMock()
+    hass.config_entries.async_update_entry = MagicMock()
+    switch.hass = hass
+    switch.async_write_ha_state = MagicMock()
+
+    await switch.async_turn_off()
+
+    call_kwargs = hass.config_entries.async_update_entry.call_args[1]
+    assert call_kwargs["options"]["rogue_show_5ghz"] is False
+    switch.async_write_ha_state.assert_called_once()
+    coordinator.async_request_refresh.assert_awaited_once()
+
+
+async def test_rogue_control_available_when_endpoint_unavailable() -> None:
+    """Rogue control switch is unavailable when rogue endpoint is stale."""
+    from custom_components.unifi_network_monitor.switch import (
+        _ROGUE_SWITCHES,
+        UnifiRogueControlSwitch,
+    )
+
+    coordinator = _make_rogue_coordinator()
+    coordinator.endpoint_available = MagicMock(return_value=False)
+    entry = _make_rogue_entry()
+    desc = _ROGUE_SWITCHES[0]
+    switch = UnifiRogueControlSwitch(coordinator, entry, desc)
+    assert switch.available is False
+
+
+async def test_rogue_control_available_when_endpoint_available() -> None:
+    """Rogue control switch is available when rogue endpoint is healthy."""
+    from custom_components.unifi_network_monitor.switch import (
+        _ROGUE_SWITCHES,
+        UnifiRogueControlSwitch,
+    )
+
+    coordinator = _make_rogue_coordinator()
+    coordinator.endpoint_available = MagicMock(return_value=True)
+    entry = _make_rogue_entry()
+    desc = _ROGUE_SWITCHES[0]
+    switch = UnifiRogueControlSwitch(coordinator, entry, desc)
+    assert switch.available is True
+
+
+def test_rogue_control_is_on() -> None:
+    """Rogue control switch is_on reflects entry option."""
+    from custom_components.unifi_network_monitor.switch import (
+        _ROGUE_SWITCHES,
+        UnifiRogueControlSwitch,
+    )
+
+    coordinator = _make_rogue_coordinator()
+    entry = _make_rogue_entry(rogue_show_24ghz=True)
+    desc = _ROGUE_SWITCHES[0]  # rogue_show_24ghz
+    switch = UnifiRogueControlSwitch(coordinator, entry, desc)
+    assert switch.is_on is True
+
+
+def test_rogue_control_is_off() -> None:
+    """Rogue control switch is_on returns False when option is False."""
+    from custom_components.unifi_network_monitor.switch import (
+        _ROGUE_SWITCHES,
+        UnifiRogueControlSwitch,
+    )
+
+    coordinator = _make_rogue_coordinator()
+    entry = _make_rogue_entry(rogue_show_24ghz=False)
+    desc = _ROGUE_SWITCHES[0]  # rogue_show_24ghz
+    switch = UnifiRogueControlSwitch(coordinator, entry, desc)
+    assert switch.is_on is False
+
+
+def test_rogue_control_unique_id() -> None:
+    """Rogue control switch unique_id includes description key."""
+    from custom_components.unifi_network_monitor.switch import (
+        _ROGUE_SWITCHES,
+        UnifiRogueControlSwitch,
+    )
+
+    coordinator = _make_rogue_coordinator()
+    entry = _make_rogue_entry("aa:bb:cc:dd:ee:ff")
+    desc = _ROGUE_SWITCHES[0]
+    switch = UnifiRogueControlSwitch(coordinator, entry, desc)
+    assert switch.unique_id == "aa:bb:cc:dd:ee:ff_rogue_show_24ghz"
+
+
+def test_rogue_control_device_info() -> None:
+    """Rogue control switch reports device info."""
+    from custom_components.unifi_network_monitor.switch import (
+        _ROGUE_SWITCHES,
+        UnifiRogueControlSwitch,
+    )
+
+    coordinator = _make_rogue_coordinator()
+    entry = _make_rogue_entry()
+    desc = _ROGUE_SWITCHES[0]
+    switch = UnifiRogueControlSwitch(coordinator, entry, desc)
+    assert switch.device_info is not None

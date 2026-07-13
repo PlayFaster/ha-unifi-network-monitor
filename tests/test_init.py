@@ -459,3 +459,83 @@ async def test_setup_entry_background_init_unifi_error(
             await hass.async_block_till_done()
 
     assert result is True
+
+
+# ---------------------------------------------------------------------------
+# device_mode clamping write-back (lines 147-150)
+# ---------------------------------------------------------------------------
+
+
+async def test_setup_entry_clamps_device_mode(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """Invalid device_mode gets clamped on setup."""
+    from custom_components.unifi_network_monitor.const import CONF_UNIFI_DEVICE_MODE
+
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_config_entry,
+        options={
+            **mock_config_entry.options,
+            CONF_UNIFI_DEVICE_MODE: "invalid_mode",
+        },
+    )
+
+    with (
+        patch(
+            "custom_components.unifi_network_monitor.UnifiNetworkAPI"
+        ) as mock_api_cls,
+        patch.object(hass.config_entries, "async_update_entry") as mock_update,
+    ):
+        mock_api = MagicMock()
+        mock_api.logout = AsyncMock()
+        mock_api.get_devices = AsyncMock(return_value=[])
+        mock_api.get_health = AsyncMock(return_value=[])
+        mock_api.get_sysinfo = AsyncMock(return_value=[])
+        mock_api_cls.return_value = mock_api
+
+        result = await hass.config_entries.async_setup(mock_config_entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert result is True
+    mock_update.assert_called_once()
+    _, kwargs = mock_update.call_args
+    assert kwargs["options"][CONF_UNIFI_DEVICE_MODE] == "none"
+
+
+async def test_setup_entry_does_not_clamp_valid_mode(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """Valid device_mode is not clamped."""
+    from custom_components.unifi_network_monitor.const import (
+        CONF_UNIFI_DEVICE_MODE,
+        DEVICE_MODE_ALL,
+    )
+
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_config_entry,
+        options={
+            **mock_config_entry.options,
+            CONF_UNIFI_DEVICE_MODE: DEVICE_MODE_ALL,
+        },
+    )
+
+    with (
+        patch(
+            "custom_components.unifi_network_monitor.UnifiNetworkAPI"
+        ) as mock_api_cls,
+        patch.object(hass.config_entries, "async_update_entry") as mock_update,
+    ):
+        mock_api = MagicMock()
+        mock_api.logout = AsyncMock()
+        mock_api.get_devices = AsyncMock(return_value=[])
+        mock_api.get_health = AsyncMock(return_value=[])
+        mock_api.get_sysinfo = AsyncMock(return_value=[])
+        mock_api_cls.return_value = mock_api
+
+        result = await hass.config_entries.async_setup(mock_config_entry.entry_id)
+        await hass.async_block_till_done()
+
+    assert result is True
+    mock_update.assert_not_called()

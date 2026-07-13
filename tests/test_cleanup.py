@@ -28,6 +28,30 @@ from custom_components.unifi_network_monitor.const import (
 from .conftest import MOCK_COORDINATOR_DATA, MOCK_MAC
 
 # ---------------------------------------------------------------------------
+# single_wan_excluded_keys (const.py line 151)
+# ---------------------------------------------------------------------------
+
+
+def test_single_wan_excluded_keys_union() -> None:
+    """single_wan_excluded_keys returns WAN2_KEYS | LOAD_BALANCE_KEYS."""
+    from custom_components.unifi_network_monitor.const import (
+        LOAD_BALANCE_KEYS,
+        WAN2_KEYS,
+        single_wan_excluded_keys,
+    )
+
+    result = single_wan_excluded_keys()
+    assert isinstance(result, frozenset)
+    assert result == WAN2_KEYS | LOAD_BALANCE_KEYS
+    assert "wan2_local_ip" in result
+    assert "wan1_weight" in result
+    assert "wan_mode" in result
+    # Regular health keys should not be in the excluded set
+    assert "wan1_local_ip" not in result
+    assert "rogue_ap_count" not in result
+
+
+# ---------------------------------------------------------------------------
 # CleanupPlan.is_empty
 # ---------------------------------------------------------------------------
 
@@ -528,3 +552,143 @@ def test_apply_cleanup_empty_plan() -> None:
 
     mock_ent_reg.async_remove.assert_not_called()
     mock_dev_reg.async_update_device.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# WAN2 / load-balance key exclusion (lines 129-139)
+# ---------------------------------------------------------------------------
+
+
+def test_plan_dual_wan_enabled_no_exclusions() -> None:
+    """Dual-WAN enabled: no WAN2/load-balance keys excluded."""
+    hass = MagicMock()
+    entry = _make_entry(mode=DEVICE_MODE_ALL)
+    entry.options = {
+        "host": "192.168.1.1",
+        CONF_UNIFI_DEVICE_MODE: DEVICE_MODE_ALL,
+        CONF_ENABLE_SPEEDTEST: True,
+        CONF_ENABLE_WAN_USAGE: True,
+        CONF_ENABLE_SECURITY_MONITORING: True,
+        "enable_dual_wan": True,
+    }
+    coordinator = _make_coordinator({"devices": {}})
+
+    uid = entry.unique_id or ""
+    # Register entities that would be excluded if dual-WAN were off
+    ent_reg_entries = [
+        _make_reg_entry("sensor.wan2_ip", f"{uid}_wan2_local_ip"),
+        _make_reg_entry("sensor.wan2_speedtest", f"{uid}_wan2_speedtest"),
+        _make_reg_entry("sensor.wan1_weight", f"{uid}_wan1_weight"),
+        _make_reg_entry("sensor.wan_mode", f"{uid}_wan_mode"),
+    ]
+
+    with (
+        patch(
+            "custom_components.unifi_network_monitor.cleanup.er.async_get",
+            return_value=MagicMock(),
+        ),
+        patch(
+            "custom_components.unifi_network_monitor.cleanup.dr.async_get",
+            return_value=MagicMock(),
+        ),
+        patch(
+            "custom_components.unifi_network_monitor.cleanup.er.async_entries_for_config_entry",
+            return_value=ent_reg_entries,
+        ),
+    ):
+        plan = plan_device_cleanup(hass, entry, coordinator)
+    # All entities should remain (none excluded)
+    for e in ent_reg_entries:
+        assert e.entity_id not in plan.entity_ids
+
+
+def test_plan_dual_wan_disabled_excludes_wan2_and_lb() -> None:
+    """Dual-WAN disabled: WAN2 and load-balance unique_ids are excluded."""
+    hass = MagicMock()
+    entry = _make_entry(mode=DEVICE_MODE_ALL)
+    entry.options = {
+        "host": "192.168.1.1",
+        CONF_UNIFI_DEVICE_MODE: DEVICE_MODE_ALL,
+        CONF_ENABLE_SPEEDTEST: True,
+        CONF_ENABLE_WAN_USAGE: True,
+        CONF_ENABLE_SECURITY_MONITORING: True,
+        "enable_dual_wan": False,
+    }
+    coordinator = _make_coordinator({"devices": {}})
+
+    uid = entry.unique_id or ""
+    ent_reg_entries = [
+        _make_reg_entry("sensor.wan2_ip", f"{uid}_wan2_local_ip"),
+        _make_reg_entry("sensor.wan2_speedtest", f"{uid}_wan2_speedtest"),
+        _make_reg_entry("sensor.wan1_weight", f"{uid}_wan1_weight"),
+        _make_reg_entry("sensor.wan_mode", f"{uid}_wan_mode"),
+        # Regular entity that should NOT be excluded
+        _make_reg_entry("sensor.rogue_count", f"{uid}_rogue_ap_count"),
+        # Entity from another integration (different unique_id prefix, line 137)
+        _make_reg_entry("sensor.other", "other_integration_sensor"),
+    ]
+
+    with (
+        patch(
+            "custom_components.unifi_network_monitor.cleanup.er.async_get",
+            return_value=MagicMock(),
+        ),
+        patch(
+            "custom_components.unifi_network_monitor.cleanup.dr.async_get",
+            return_value=MagicMock(),
+        ),
+        patch(
+            "custom_components.unifi_network_monitor.cleanup.er.async_entries_for_config_entry",
+            return_value=ent_reg_entries,
+        ),
+    ):
+        plan = plan_device_cleanup(hass, entry, coordinator)
+    # WAN2 and load-balance keys should be excluded
+    assert "sensor.wan2_ip" in plan.entity_ids
+    assert "sensor.wan2_speedtest" in plan.entity_ids
+    assert "sensor.wan1_weight" in plan.entity_ids
+    assert "sensor.wan_mode" in plan.entity_ids
+    # Regular entity should remain
+    assert "sensor.rogue_count" not in plan.entity_ids
+    # Entity with different prefix should be ignored (line 137 coverage)
+    assert "sensor.other" not in plan.entity_ids
+
+
+def test_plan_dual_wan_disabled_skips_already_in_plan() -> None:
+    """Dual-WAN exclusion skips entities already in plan from other checks."""
+    hass = MagicMock()
+    entry = _make_entry(mode=DEVICE_MODE_NONE)
+    entry.options = {
+        "host": "192.168.1.1",
+        CONF_UNIFI_DEVICE_MODE: DEVICE_MODE_NONE,
+        CONF_ENABLE_SPEEDTEST: True,
+        CONF_ENABLE_WAN_USAGE: True,
+        CONF_ENABLE_SECURITY_MONITORING: True,
+        "enable_dual_wan": False,
+    }
+    coordinator = _make_coordinator(MOCK_COORDINATOR_DATA)
+
+    ap_mac = "bb:cc:dd:ee:ff:00"
+    uid = entry.unique_id or ""
+    # Entity that BOTH matches per-device cleanup (mode=none)
+    # AND could match WAN2 exclusion — should only appear once
+    ent_reg_entries = [
+        _make_reg_entry("sensor.dup", f"{uid}_{ap_mac}_clients"),
+    ]
+
+    with (
+        patch(
+            "custom_components.unifi_network_monitor.cleanup.er.async_get",
+            return_value=MagicMock(),
+        ),
+        patch(
+            "custom_components.unifi_network_monitor.cleanup.dr.async_get",
+            return_value=MagicMock(),
+        ),
+        patch(
+            "custom_components.unifi_network_monitor.cleanup.er.async_entries_for_config_entry",
+            return_value=ent_reg_entries,
+        ),
+    ):
+        plan = plan_device_cleanup(hass, entry, coordinator)
+    assert plan.entity_ids.count("sensor.dup") == 1

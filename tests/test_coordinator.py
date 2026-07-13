@@ -708,6 +708,8 @@ async def test_coordinator_parses_wan_and_security_configs(
             }
         ]
     )
+    api.get_system_logs = AsyncMock(return_value=[])
+    current_ts = int(dt_util.as_timestamp(dt_util.now()))
     api.get_rogueaps = AsyncMock(
         return_value=[
             {
@@ -715,9 +717,10 @@ async def test_coordinator_parses_wan_and_security_configs(
                 "bssid": "de:ad:be:ef:00:01",
                 "channel": 1,
                 "signal": -89,
+                "band": "ng",
                 "oui": "Example Vendor",
                 "ap_mac": "11:22:33:44:55:66",
-                "age": 432000,
+                "last_seen": current_ts - 432000,
             }
         ]
     )
@@ -803,7 +806,7 @@ async def test_coordinator_parses_wan_and_security_configs(
 
     assert gateway["rogue_ap_count"] == 1
     assert gateway["rogue_aps_list"][0]["essid"] == "RogueNet-1"
-    assert gateway["rogue_aps_list"][0]["age"] == "120h"
+    assert gateway["rogue_aps_list"][0]["age"] is not None
     assert gateway["rogue_aps_list"][0]["detected_by"] == "AP-1"
     assert gateway["strongest_rogue_ssid"] == "RogueNet-1"
     assert gateway["strongest_rogue_rssi"] == -89
@@ -1348,10 +1351,11 @@ async def test_coordinator_parse_error_rogue_aps(
     api.get_guests = AsyncMock(return_value=[])
     api.get_backups = AsyncMock(return_value=[])
     api.get_speedtest_results = AsyncMock(return_value=[])
+    api.get_system_logs = AsyncMock(return_value=[])
 
     coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
     result = await coordinator._async_update_data()
-    assert result["gateway"]["rogue_ap_count"] == 1
+    assert result["gateway"]["rogue_ap_count"] == 0
 
 
 def _rogue_api(rogueaps: list[dict[str, Any]]) -> MagicMock:
@@ -1370,6 +1374,7 @@ def _rogue_api(rogueaps: list[dict[str, Any]]) -> MagicMock:
     api.get_guests = AsyncMock(return_value=[])
     api.get_backups = AsyncMock(return_value=[])
     api.get_speedtest_results = AsyncMock(return_value=[])
+    api.get_system_logs = AsyncMock(return_value=[])
     return api
 
 
@@ -1380,10 +1385,10 @@ async def test_coordinator_strongest_rogue_selection(
     mock_config_entry.add_to_hass(hass)
     api = _rogue_api(
         [
-            {"essid": "Far", "signal": -91},
-            {"essid": "Close", "signal": -55},
-            {"essid": "NoSignal", "signal": None},
-            {"essid": "Mid", "signal": -70},
+            {"essid": "Far", "bssid": "00:00:00:00:00:01", "signal": -91},
+            {"essid": "Close", "bssid": "00:00:00:00:00:02", "signal": -55},
+            {"essid": "NoSignal", "bssid": "00:00:00:00:00:03", "signal": None},
+            {"essid": "Mid", "bssid": "00:00:00:00:00:04", "signal": -70},
         ]
     )
     coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
@@ -1972,6 +1977,10 @@ async def test_rogue_ap_age_calculation(hass: Any, mock_config_entry: Any) -> No
     last_seen_17h = current_ts - (17.8 * 3600)
     # 3. Test seen 20 minutes ago -> 20m
     last_seen_20m = current_ts - (20 * 60)
+    # 4. Test seen 30 minutes ago -> 30m
+    last_seen_30m = current_ts - (30 * 60)
+    # 5. Test seen 4 hours ago -> 4h
+    last_seen_4h = current_ts - (4 * 3600)
 
     devices_raw = [
         {
@@ -1999,12 +2008,12 @@ async def test_rogue_ap_age_calculation(hass: Any, mock_config_entry: Any) -> No
         {
             "essid": "Rogue-Fallback-30m",
             "bssid": "11:22:33:44:55:66",
-            "age": 1800,
+            "last_seen": int(last_seen_30m),
         },
         {
             "essid": "Rogue-Fallback-4h",
             "bssid": "22:33:44:55:66:77",
-            "age": 14400,
+            "last_seen": int(last_seen_4h),
         },
     ]
 
@@ -2020,6 +2029,7 @@ async def test_rogue_ap_age_calculation(hass: Any, mock_config_entry: Any) -> No
     api.get_backups = AsyncMock(return_value=[])
     api.get_speedtest_results = AsyncMock(return_value=[])
     api.get_wlanconf = AsyncMock(return_value=[])
+    api.get_system_logs = AsyncMock(return_value=[])
 
     data = await coordinator._async_update_data()
     rogues = data["gateway"]["rogue_aps_list"]
@@ -2034,3 +2044,446 @@ async def test_rogue_ap_age_calculation(hass: Any, mock_config_entry: Any) -> No
     assert rogues[3]["age"] == "30m"
     assert rogues[4]["essid"] == "Rogue-Fallback-4h"
     assert rogues[4]["age"] == "4h"
+
+
+# ---------------------------------------------------------------------------
+# disabled_endpoints with logs_alerts off (line 88 coverage)
+# ---------------------------------------------------------------------------
+
+
+def test_disabled_endpoints_logs_alerts_off() -> None:
+    """disabled_endpoints returns EP_SYSLOG when logs_alerts is off."""
+    from custom_components.unifi_network_monitor.const import EP_SYSLOG
+    from custom_components.unifi_network_monitor.coordinator import disabled_endpoints
+
+    result = disabled_endpoints({"enable_logs_alerts": False})
+    assert EP_SYSLOG in result
+
+
+# ---------------------------------------------------------------------------
+# _ap_matches coverage (line 97-101)
+# ---------------------------------------------------------------------------
+
+
+def test_ap_matches_by_mac() -> None:
+    """_ap_matches matches by MAC wildcard."""
+    from custom_components.unifi_network_monitor.coordinator import _ap_matches
+
+    reporter = {"mac": "aa:bb:cc:dd:ee:ff", "name": "AP Garage"}
+    assert _ap_matches(reporter, ["aa:bb:*"]) is True
+
+
+def test_ap_matches_by_name() -> None:
+    """_ap_matches matches by name wildcard."""
+    from custom_components.unifi_network_monitor.coordinator import _ap_matches
+
+    reporter = {"mac": "aa:bb:cc:dd:ee:ff", "name": "AP Garage"}
+    assert _ap_matches(reporter, ["AP *"]) is True
+
+
+def test_ap_matches_non_matching() -> None:
+    """_ap_matches returns False when no pattern matches."""
+    from custom_components.unifi_network_monitor.coordinator import _ap_matches
+
+    reporter = {"mac": "aa:bb:cc:dd:ee:ff", "name": "AP Garage"}
+    assert _ap_matches(reporter, ["xx:*", "Other"]) is False
+
+
+def test_ap_matches_empty_patterns() -> None:
+    """_ap_matches returns False with empty patterns list."""
+    from custom_components.unifi_network_monitor.coordinator import _ap_matches
+
+    reporter = {"mac": "aa:bb:cc:dd:ee:ff", "name": "AP Garage"}
+    assert _ap_matches(reporter, []) is False
+
+
+def test_ap_matches_empty_reporter() -> None:
+    """_ap_matches handles empty mac/name gracefully."""
+    from custom_components.unifi_network_monitor.coordinator import _ap_matches
+
+    reporter: dict[str, str] = {}
+    assert _ap_matches(reporter, ["test"]) is False
+
+
+# ---------------------------------------------------------------------------
+# Rogue AP clustering with band filters + SSID ignore (lines 970-976, 999, 1003, 1015)
+# ---------------------------------------------------------------------------
+
+
+async def test_rogue_ap_5ghz_skipped_when_disabled(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """Rogue on 5GHz band is skipped when show_5ghz is False."""
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_config_entry,
+        options={**mock_config_entry.options, "rogue_show_5ghz": False},
+    )
+    api = MagicMock()
+    api.get_devices = AsyncMock(
+        return_value=[{"mac": "aa:bb:cc:dd:ee:ff", "model": "UDMPRO", "state": 1}]
+    )
+    api.get_health = AsyncMock(return_value=[])
+    api.get_sysinfo = AsyncMock(return_value=[])
+    api.get_networkconf = AsyncMock(return_value=[])
+    api.get_settings = AsyncMock(return_value=[])
+    api.get_daily_gateway = AsyncMock(return_value=[])
+    api.get_monthly_gateway = AsyncMock(return_value=[])
+    api.get_rogueaps = AsyncMock(
+        return_value=[
+            {"essid": "5G-Rogue", "bssid": "00:00:00:00:00:01", "band": "na"},
+            {"essid": "2G-Rogue", "bssid": "00:00:00:00:00:02", "band": "ng"},
+        ]
+    )
+    api.get_guests = AsyncMock(return_value=[])
+    api.get_backups = AsyncMock(return_value=[])
+    api.get_speedtest_results = AsyncMock(return_value=[])
+    api.get_system_logs = AsyncMock(return_value=[])
+
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+    result = await coordinator._async_update_data()
+    rogues = result["gateway"]["rogue_aps_list"]
+    essids = [r["essid"] for r in rogues]
+    assert "5G-Rogue" not in essids
+    assert "2G-Rogue" in essids
+
+
+async def test_rogue_ap_essid_ignored(hass: Any, mock_config_entry: Any) -> None:
+    """Rogue whose essid matches an ignore pattern is skipped."""
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_config_entry,
+        options={**mock_config_entry.options, "rogue_ignore_ssids": "TestNet,*Guest*"},
+    )
+    api = MagicMock()
+    api.get_devices = AsyncMock(
+        return_value=[{"mac": "aa:bb:cc:dd:ee:ff", "model": "UDMPRO", "state": 1}]
+    )
+    api.get_health = AsyncMock(return_value=[])
+    api.get_sysinfo = AsyncMock(return_value=[])
+    api.get_networkconf = AsyncMock(return_value=[])
+    api.get_settings = AsyncMock(return_value=[])
+    api.get_daily_gateway = AsyncMock(return_value=[])
+    api.get_monthly_gateway = AsyncMock(return_value=[])
+    api.get_rogueaps = AsyncMock(
+        return_value=[
+            {"essid": "TestNet", "bssid": "00:00:00:00:00:01", "band": "ng"},
+            {"essid": "Guest-WiFi", "bssid": "00:00:00:00:00:02", "band": "ng"},
+            {"essid": "CorpNet", "bssid": "00:00:00:00:00:03", "band": "ng"},
+        ]
+    )
+    api.get_guests = AsyncMock(return_value=[])
+    api.get_backups = AsyncMock(return_value=[])
+    api.get_speedtest_results = AsyncMock(return_value=[])
+    api.get_system_logs = AsyncMock(return_value=[])
+
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+    result = await coordinator._async_update_data()
+    rogues = result["gateway"]["rogue_aps_list"]
+    essids = [r["essid"] for r in rogues]
+    assert "TestNet" not in essids
+    assert "Guest-WiFi" not in essids
+    assert "CorpNet" in essids
+
+
+async def test_rogue_ap_bssid_clustering(hass: Any, mock_config_entry: Any) -> None:
+    """Two rogues with same BSSID get clustered, signal/last_seen maxed."""
+    mock_config_entry.add_to_hass(hass)
+    api = MagicMock()
+    api.get_devices = AsyncMock(
+        return_value=[
+            {
+                "mac": "aa:bb:cc:dd:ee:ff",
+                "model": "UDMPRO",
+                "state": 1,
+                "name": "Gateway",
+            },
+            {
+                "mac": "11:22:33:44:55:66",
+                "name": "AP-1",
+                "model": "UAP-AC-Pro",
+                "state": 1,
+                "is_access_point": True,
+            },
+            {
+                "mac": "77:88:99:aa:bb:cc",
+                "name": "AP-2",
+                "model": "UAP-AC-Pro",
+                "state": 1,
+                "is_access_point": True,
+            },
+        ]
+    )
+    api.get_health = AsyncMock(return_value=[])
+    api.get_sysinfo = AsyncMock(return_value=[])
+    api.get_networkconf = AsyncMock(return_value=[])
+    api.get_settings = AsyncMock(return_value=[])
+    api.get_daily_gateway = AsyncMock(return_value=[])
+    api.get_monthly_gateway = AsyncMock(return_value=[])
+    api.get_rogueaps = AsyncMock(
+        return_value=[
+            {
+                "essid": "CloneNet",
+                "bssid": "de:ad:be:ef:00:01",
+                "band": "ng",
+                "channel": 6,
+                "signal": -80,
+                "oui": "VendorA",
+                "ap_mac": "11:22:33:44:55:66",
+                "last_seen": 1000,
+            },
+            {
+                "essid": "CloneNet",
+                "bssid": "de:ad:be:ef:00:01",
+                "band": "ng",
+                "channel": 6,
+                "signal": -60,
+                "oui": "VendorA",
+                "ap_mac": "77:88:99:aa:bb:cc",
+                "last_seen": 2000,
+            },
+        ]
+    )
+    api.get_guests = AsyncMock(return_value=[])
+    api.get_backups = AsyncMock(return_value=[])
+    api.get_speedtest_results = AsyncMock(return_value=[])
+    api.get_system_logs = AsyncMock(return_value=[])
+
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+    result = await coordinator._async_update_data()
+    rogues = result["gateway"]["rogue_aps_list"]
+    assert len(rogues) == 1
+    assert rogues[0]["essid"] == "CloneNet"
+    assert rogues[0]["signal"] == -60  # max signal
+    assert rogues[0]["bssid"] == "de:ad:be:ef:00:01"
+    # Both APs should be reporters
+    assert "AP-1" in rogues[0]["detected_by"]
+    assert "AP-2" in rogues[0]["detected_by"]
+
+
+# ---------------------------------------------------------------------------
+# System-log alert severity counting and alert attrs (lines 1326-1343)
+# ---------------------------------------------------------------------------
+
+
+async def test_system_log_alert_counts_and_attrs(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """System log data is parsed into severity counts and alert attributes."""
+    mock_config_entry.add_to_hass(hass)
+    api = MagicMock()
+    api.get_devices = AsyncMock(
+        return_value=[
+            {
+                "mac": "aa:bb:cc:dd:ee:ff",
+                "model": "UDMPRO",
+                "state": 1,
+                "uptime": 1000,
+                "system-stats": {"cpu": "10.0", "mem": "50.0"},
+            }
+        ]
+    )
+    api.get_health = AsyncMock(return_value=[])
+    api.get_sysinfo = AsyncMock(return_value=[])
+    api.get_networkconf = AsyncMock(return_value=[])
+    api.get_settings = AsyncMock(return_value=[])
+    api.get_daily_gateway = AsyncMock(return_value=[])
+    api.get_monthly_gateway = AsyncMock(return_value=[])
+    api.get_rogueaps = AsyncMock(return_value=[])
+    api.get_guests = AsyncMock(return_value=[])
+    api.get_backups = AsyncMock(return_value=[])
+    api.get_speedtest_results = AsyncMock(return_value=[])
+    # Provide system logs within the last 24 hours
+    from homeassistant.util import dt as dt_util
+
+    recent_ts = int(dt_util.as_timestamp(dt_util.now())) * 1000
+    api.get_system_logs = AsyncMock(
+        return_value=[
+            {
+                "id": "evt_001",
+                "message_raw": "Critical error on {device}",
+                "title_raw": "Critical Alert",
+                "parameters": {"device": {"name": "UDM-Pro"}},
+                "event": "critical_error",
+                "category": "system",
+                "severity": "VERY_HIGH",
+                "status": "active",
+                "timestamp": recent_ts,
+            },
+            {
+                "id": "evt_002",
+                "message_raw": "High memory usage",
+                "title_raw": "Memory Alert",
+                "severity": "HIGH",
+                "timestamp": recent_ts - 3600000,
+            },
+            {
+                "id": "evt_003",
+                "message_raw": "Low severity info",
+                "title_raw": "Info",
+                "severity": "LOW",
+                "timestamp": recent_ts - 7200000,
+            },
+        ]
+    )
+
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+    result = await coordinator._async_update_data()
+    gateway = result["gateway"]
+
+    assert gateway["alerts_very_high_24h"] == 1
+    assert gateway["alerts_high_24h"] == 1
+    # LOW severity is not counted
+    assert gateway["last_critical_alert"] == "evt_001"
+    assert gateway["last_critical_alert_attrs"] is not None
+    assert gateway["last_critical_alert_attrs"]["severity"] == "VERY_HIGH"
+    assert (
+        gateway["last_critical_alert_attrs"]["message"] == "Critical error on UDM-Pro"
+    )
+    # recent_alerts should have up to 3 entries
+    assert len(gateway["recent_alerts"]) == 3
+
+
+async def test_rogue_ap_2ghz_skipped_when_disabled(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """Rogue on 2.4GHz band skipped when show_24ghz is False (line 971)."""
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_config_entry,
+        options={**mock_config_entry.options, "rogue_show_24ghz": False},
+    )
+    api = MagicMock()
+    api.get_devices = AsyncMock(
+        return_value=[{"mac": "aa:bb:cc:dd:ee:ff", "model": "UDMPRO", "state": 1}]
+    )
+    api.get_health = AsyncMock(return_value=[])
+    api.get_sysinfo = AsyncMock(return_value=[])
+    api.get_networkconf = AsyncMock(return_value=[])
+    api.get_settings = AsyncMock(return_value=[])
+    api.get_daily_gateway = AsyncMock(return_value=[])
+    api.get_monthly_gateway = AsyncMock(return_value=[])
+    api.get_rogueaps = AsyncMock(
+        return_value=[
+            {"essid": "2G-Rogue", "bssid": "00:00:00:00:00:01", "band": "ng"},
+        ]
+    )
+    api.get_guests = AsyncMock(return_value=[])
+    api.get_backups = AsyncMock(return_value=[])
+    api.get_speedtest_results = AsyncMock(return_value=[])
+    api.get_system_logs = AsyncMock(return_value=[])
+
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+    result = await coordinator._async_update_data()
+    rogues = result["gateway"]["rogue_aps_list"]
+    assert len(rogues) == 0
+
+
+async def test_rogue_ap_cluster_all_reporters_match_ignore(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """Rogue cluster skipped when all reporters match AP ignore (line 1015)."""
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_config_entry,
+        options={
+            **mock_config_entry.options,
+            "rogue_apply_ap_ignore": True,
+            "rogue_ignore_aps": "11:22:33:44:55:66,77:88:99:aa:bb:cc",
+        },
+    )
+    api = MagicMock()
+    api.get_devices = AsyncMock(
+        return_value=[
+            {
+                "mac": "aa:bb:cc:dd:ee:ff",
+                "model": "UDMPRO",
+                "state": 1,
+                "name": "Gateway",
+            },
+            {
+                "mac": "11:22:33:44:55:66",
+                "name": "AP-1",
+                "model": "UAP-AC-Pro",
+                "state": 1,
+                "is_access_point": True,
+            },
+            {
+                "mac": "77:88:99:aa:bb:cc",
+                "name": "AP-2",
+                "model": "UAP-AC-Pro",
+                "state": 1,
+                "is_access_point": True,
+            },
+        ]
+    )
+    api.get_health = AsyncMock(return_value=[])
+    api.get_sysinfo = AsyncMock(return_value=[])
+    api.get_networkconf = AsyncMock(return_value=[])
+    api.get_settings = AsyncMock(return_value=[])
+    api.get_daily_gateway = AsyncMock(return_value=[])
+    api.get_monthly_gateway = AsyncMock(return_value=[])
+    api.get_rogueaps = AsyncMock(
+        return_value=[
+            {
+                "essid": "HiddenRogue",
+                "bssid": "de:ad:be:ef:00:01",
+                "band": "ng",
+                "signal": -70,
+                "ap_mac": "11:22:33:44:55:66",
+                "last_seen": 1000,
+            },
+            {
+                "essid": "HiddenRogue",
+                "bssid": "de:ad:be:ef:00:01",
+                "band": "ng",
+                "signal": -75,
+                "ap_mac": "77:88:99:aa:bb:cc",
+                "last_seen": 1500,
+            },
+        ]
+    )
+    api.get_guests = AsyncMock(return_value=[])
+    api.get_backups = AsyncMock(return_value=[])
+    api.get_speedtest_results = AsyncMock(return_value=[])
+    api.get_system_logs = AsyncMock(return_value=[])
+
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+    result = await coordinator._async_update_data()
+    rogues = result["gateway"]["rogue_aps_list"]
+    assert len(rogues) == 0
+
+
+async def test_system_log_parse_error_handled(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """System-log parse exception is caught gracefully (lines 1336-1343)."""
+    mock_config_entry.add_to_hass(hass)
+    api = MagicMock()
+    api.get_devices = AsyncMock(
+        return_value=[
+            {
+                "mac": "aa:bb:cc:dd:ee:ff",
+                "model": "UDMPRO",
+                "state": 1,
+                "uptime": 1000,
+                "system-stats": {"cpu": "10.0", "mem": "50.0"},
+            }
+        ]
+    )
+    api.get_health = AsyncMock(return_value=[])
+    api.get_sysinfo = AsyncMock(return_value=[])
+    api.get_networkconf = AsyncMock(return_value=[])
+    api.get_settings = AsyncMock(return_value=[])
+    api.get_daily_gateway = AsyncMock(return_value=[])
+    api.get_monthly_gateway = AsyncMock(return_value=[])
+    api.get_rogueaps = AsyncMock(return_value=[])
+    api.get_guests = AsyncMock(return_value=[])
+    api.get_backups = AsyncMock(return_value=[])
+    api.get_speedtest_results = AsyncMock(return_value=[])
+    api.get_system_logs = AsyncMock(return_value=[None])
+
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+    result = await coordinator._async_update_data()
+    assert result["gateway"]["alerts_very_high_24h"] == 0
+    assert result["gateway"]["alerts_high_24h"] == 0

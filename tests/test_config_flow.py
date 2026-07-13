@@ -22,10 +22,16 @@ from custom_components.unifi_network_monitor.config_flow import (
     _validate_connection,
 )
 from custom_components.unifi_network_monitor.const import (
+    CONF_ENABLE_DUAL_WAN,
+    CONF_ENABLE_LOGS_ALERTS,
     CONF_ENABLE_SECURITY_MONITORING,
     CONF_ENABLE_SPEEDTEST,
     CONF_ENABLE_WAN_USAGE,
+    CONF_ROGUE_IGNORE_APS,
+    CONF_ROGUE_IGNORE_SSIDS,
     CONF_UNIFI_DEVICE_MODE,
+    DEFAULT_ROGUE_IGNORE_APS,
+    DEFAULT_ROGUE_IGNORE_SSIDS,
     DOMAIN,
 )
 
@@ -46,8 +52,6 @@ VALID_INPUT = {
     "username": "",
     "password": "",
     "site": "default",
-    CONF_UNIFI_DEVICE_MODE: "none",
-    "sensor_groups": {CONF_ENABLE_SPEEDTEST: True},
 }
 
 SETTINGS_INPUT = {
@@ -61,7 +65,11 @@ SETTINGS_INPUT = {
         CONF_ENABLE_SPEEDTEST: True,
         CONF_ENABLE_WAN_USAGE: True,
         CONF_ENABLE_SECURITY_MONITORING: True,
+        CONF_ENABLE_DUAL_WAN: True,
+        CONF_ENABLE_LOGS_ALERTS: True,
     },
+    CONF_ROGUE_IGNORE_SSIDS: DEFAULT_ROGUE_IGNORE_SSIDS,
+    CONF_ROGUE_IGNORE_APS: DEFAULT_ROGUE_IGNORE_APS,
 }
 
 REAUTH_INPUT = {
@@ -149,8 +157,6 @@ async def test_config_flow_no_credentials_shows_error(hass: Any) -> None:
             "username": "",
             "password": "",
             "site": "default",
-            CONF_UNIFI_DEVICE_MODE: "none",
-            "sensor_groups": {CONF_ENABLE_SPEEDTEST: True},
         },
     )
 
@@ -271,7 +277,7 @@ async def test_options_flow_success(hass: Any) -> None:
 
         result = await hass.config_entries.options.async_configure(
             result["flow_id"],
-            user_input=VALID_INPUT,
+            user_input=SETTINGS_INPUT,
         )
         assert result["type"] == FlowResultType.CREATE_ENTRY
 
@@ -317,7 +323,7 @@ async def test_options_flow_cannot_connect(hass: Any) -> None:
         result = await hass.config_entries.options.async_init(entry.entry_id)
         result = await hass.config_entries.options.async_configure(
             result["flow_id"],
-            user_input=VALID_INPUT,
+            user_input=SETTINGS_INPUT,
         )
         assert result["type"] == FlowResultType.FORM
         assert result["errors"]["base"] == "cannot_connect"
@@ -346,7 +352,7 @@ async def test_options_flow_invalid_auth(hass: Any) -> None:
         result = await hass.config_entries.options.async_init(entry.entry_id)
         result = await hass.config_entries.options.async_configure(
             result["flow_id"],
-            user_input=VALID_INPUT,
+            user_input=SETTINGS_INPUT,
         )
         assert result["type"] == FlowResultType.FORM
         assert result["errors"]["base"] == "invalid_auth"
@@ -452,7 +458,7 @@ async def test_config_flow_reconfigure_step_success(hass: Any) -> None:
 
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"],
-            user_input={**VALID_INPUT, "api_key": "updated-key"},
+            user_input={**SETTINGS_INPUT, "api_key": "updated-key"},
         )
         assert result["type"] == FlowResultType.ABORT
         assert result["reason"] == "reconfigure_successful"
@@ -484,7 +490,7 @@ async def test_config_flow_reconfigure_auth_error(hass: Any) -> None:
         )
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"],
-            user_input={**VALID_INPUT, "api_key": "bad-key"},
+            user_input={**SETTINGS_INPUT, "api_key": "bad-key"},
         )
         assert result["type"] == FlowResultType.FORM
         assert result["errors"]["base"] == "invalid_auth"
@@ -516,7 +522,7 @@ async def test_config_flow_reconfigure_connection_error(hass: Any) -> None:
         )
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"],
-            user_input={**VALID_INPUT, "api_key": "bad-key"},
+            user_input={**SETTINGS_INPUT, "api_key": "bad-key"},
         )
         assert result["type"] == FlowResultType.FORM
         assert result["errors"]["base"] == "cannot_connect"
@@ -591,7 +597,7 @@ async def test_options_flow_unexpected_error(hass: Any) -> None:
         result = await hass.config_entries.options.async_init(entry.entry_id)
         result = await hass.config_entries.options.async_configure(
             result["flow_id"],
-            user_input=VALID_INPUT,
+            user_input=SETTINGS_INPUT,
         )
         assert result["type"] == FlowResultType.FORM
         assert result["errors"]["base"] == "unknown"
@@ -672,7 +678,7 @@ async def test_config_flow_reconfigure_unexpected_error(hass: Any) -> None:
         )
         result = await hass.config_entries.flow.async_configure(
             result["flow_id"],
-            user_input=VALID_INPUT,
+            user_input=SETTINGS_INPUT,
         )
         assert result["type"] == FlowResultType.FORM
         assert result["errors"]["base"] == "unknown"
@@ -834,6 +840,10 @@ NO_CRED_OPTIONS = {
     CONF_ENABLE_SPEEDTEST: True,
     CONF_ENABLE_WAN_USAGE: True,
     CONF_ENABLE_SECURITY_MONITORING: True,
+    CONF_ENABLE_DUAL_WAN: True,
+    CONF_ENABLE_LOGS_ALERTS: True,
+    CONF_ROGUE_IGNORE_SSIDS: DEFAULT_ROGUE_IGNORE_SSIDS,
+    CONF_ROGUE_IGNORE_APS: DEFAULT_ROGUE_IGNORE_APS,
 }
 
 BLANK_INPUT = {
@@ -847,7 +857,11 @@ BLANK_INPUT = {
         CONF_ENABLE_SPEEDTEST: True,
         CONF_ENABLE_WAN_USAGE: True,
         CONF_ENABLE_SECURITY_MONITORING: True,
+        CONF_ENABLE_DUAL_WAN: True,
+        CONF_ENABLE_LOGS_ALERTS: True,
     },
+    CONF_ROGUE_IGNORE_SSIDS: DEFAULT_ROGUE_IGNORE_SSIDS,
+    CONF_ROGUE_IGNORE_APS: DEFAULT_ROGUE_IGNORE_APS,
 }
 
 REAUTH_BLANK_INPUT = {

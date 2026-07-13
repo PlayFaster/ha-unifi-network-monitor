@@ -750,3 +750,44 @@ async def test_get_firewall_policies() -> None:
     with patch.object(api, "_get", AsyncMock(return_value={"data": []})):
         result = await api.get_firewall_policies("site-uuid-123")
     assert result == []
+
+
+# ------------------------------------------------------------------
+# get_system_logs coverage (lines 370-378)
+# ------------------------------------------------------------------
+
+
+async def test_get_system_logs_basic() -> None:
+    """get_system_logs calls _post with default page params and no severities."""
+    api = _make_api(api_key="k")
+    with patch.object(api, "_post", AsyncMock(return_value={"data": []})) as mock_post:
+        result = await api.get_system_logs()
+    assert result == []
+    mock_post.assert_awaited_once()
+    path = mock_post.call_args[0][0]
+    payload = mock_post.call_args[0][1]
+    assert "/system-log/all" in path
+    assert payload["pageNumber"] == 0
+    assert payload["pageSize"] == 100
+    assert "severities" not in payload
+
+
+async def test_get_system_logs_with_severities() -> None:
+    """get_system_logs includes severities filter when provided."""
+    api = _make_api(api_key="k")
+    with patch.object(api, "_post", AsyncMock(return_value={"data": []})) as mock_post:
+        result = await api.get_system_logs(severities=["HIGH", "VERY_HIGH"])
+    assert result == []
+    payload = mock_post.call_args[0][1]
+    assert payload["severities"] == ["HIGH", "VERY_HIGH"]
+
+
+async def test_get_system_logs_with_page_params() -> None:
+    """get_system_logs uses custom page_number and page_size."""
+    api = _make_api(api_key="k")
+    with patch.object(api, "_post", AsyncMock(return_value={"data": []})) as mock_post:
+        result = await api.get_system_logs(page_number=2, page_size=50)
+    assert result == []
+    payload = mock_post.call_args[0][1]
+    assert payload["pageNumber"] == 2
+    assert payload["pageSize"] == 50
