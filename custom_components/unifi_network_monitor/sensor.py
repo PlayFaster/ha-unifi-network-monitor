@@ -115,7 +115,8 @@ _ENDPOINT_BY_KEY: dict[str, str] = {
     "rules_configured": EP_FIREWALL,
     "rules_active": EP_FIREWALL,
     "rules_disabled": EP_FIREWALL,
-    "last_critical_alert": EP_SYSLOG,
+    "last_high": EP_SYSLOG,
+    "last_very_high": EP_SYSLOG,
     "alerts_high_24h": EP_SYSLOG,
     "alerts_very_high_24h": EP_SYSLOG,
 }
@@ -765,19 +766,18 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         value_fn=lambda d: d.get("wan2_interface_name"),
         device_key="internet",
     ),
-    # Alerts sub-device (system-log critical alerts)
+    # Alerts sub-device (system-log HIGH / VERY_HIGH alerts). "Sev3/Sev4" maps to
+    # the UniFi GUI 3-/4-dot severity levels (not an API field).
     UnifiSensorEntityDescription(
-        key="last_critical_alert",
-        translation_key="gateway_last_critical_alert",
-        value_fn=lambda d: d.get("last_critical_alert"),
+        key="last_high",
+        translation_key="gateway_last_high",
+        value_fn=lambda d: d.get("last_high"),
         device_key="alerts",
     ),
     UnifiSensorEntityDescription(
-        key="alerts_very_high_24h",
-        translation_key="gateway_alerts_very_high_24h",
-        state_class=SensorStateClass.MEASUREMENT,
-        min_limit=0.0,
-        value_fn=lambda d: d.get("alerts_very_high_24h"),
+        key="last_very_high",
+        translation_key="gateway_last_very_high",
+        value_fn=lambda d: d.get("last_very_high"),
         device_key="alerts",
     ),
     UnifiSensorEntityDescription(
@@ -786,6 +786,14 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         state_class=SensorStateClass.MEASUREMENT,
         min_limit=0.0,
         value_fn=lambda d: d.get("alerts_high_24h"),
+        device_key="alerts",
+    ),
+    UnifiSensorEntityDescription(
+        key="alerts_very_high_24h",
+        translation_key="gateway_alerts_very_high_24h",
+        state_class=SensorStateClass.MEASUREMENT,
+        min_limit=0.0,
+        value_fn=lambda d: d.get("alerts_very_high_24h"),
         device_key="alerts",
     ),
 )
@@ -1343,10 +1351,10 @@ class UnifiGatewaySensor(UnifiSensorBase):
             return {
                 "rogue_aps": gw.get("rogue_aps_list"),
             }
-        if self.entity_description.key == "last_critical_alert":
-            attrs = dict(gw.get("last_critical_alert_attrs") or {})
-            attrs["recent_alerts"] = gw.get("recent_alerts")
-            return attrs
+        if self.entity_description.key == "last_high":
+            return gw.get("last_high_attrs")
+        if self.entity_description.key == "last_very_high":
+            return gw.get("last_very_high_attrs")
         return None
 
 

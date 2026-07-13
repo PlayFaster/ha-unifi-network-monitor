@@ -7,6 +7,35 @@ DOMAIN = "unifi_network_monitor"
 DEFAULT_NAME = "UniFi Network"
 NAME = "UniFi Network Monitor"
 
+# Bus event fired once per newly-seen HIGH/VERY_HIGH alert (Alerts monitoring).
+# Only fires while Alerts monitoring is enabled (no EP_SYSLOG fetch => no parse
+# => no event); HA has no event-type registry, so nothing needs removing when
+# the Alerts group is off.
+EVENT_NEW_ALERT = f"{DOMAIN}_new_alert"
+
+# On-demand log-query action (response service). Domain-global, stays registered
+# regardless of the Alerts toggle.
+SERVICE_GET_ALERTS = "get_alerts"
+
+# HA sensor states cap at 255 chars; alert titles are short (~40) but substituted
+# parameters can push them over, so cap defensively.
+ALERT_TITLE_MAX = 255
+
+# get_alerts pagination bounds. page_size 100 is the verified API default; the
+# hard 5-page cap (<=500 records) avoids the ~25s call a 50-page sweep of the
+# high-volume LOW/MEDIUM log would incur.
+ALERT_PAGE_SIZE = 100
+ALERT_MAX_PAGES = 5
+
+# get_alerts quantity control.
+ALERT_QUANTITY_DEFAULT = 10
+ALERT_QUANTITY_MAX = 100
+
+# The four severity strings the v2 system-log emits (verified live). Sensors and
+# events use HIGH+VERY_HIGH; the action can reach all four on demand.
+ALERT_SEVERITIES = ("LOW", "MEDIUM", "HIGH", "VERY_HIGH")
+DEFAULT_ALERT_SEVERITIES = ("HIGH", "VERY_HIGH")
+
 # Config keys
 CONF_API_KEY = "api_key"
 CONF_SITE = "site"

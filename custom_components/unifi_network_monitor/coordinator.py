@@ -18,7 +18,7 @@ from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
-from .alerts import build_alert_attrs
+from .alerts import alert_title, build_alert_attrs, build_event_payload
 from .api import UnifiAuthError, UnifiConnectionError, UnifiNetworkAPI
 from .const import (
     CONF_ENABLE_LOGS_ALERTS,
@@ -62,6 +62,7 @@ from .const import (
     EP_VPN_TUNNELS,
     EP_WAN_IF,
     EP_WLAN,
+    EVENT_NEW_ALERT,
     FETCH_STRIKE_LIMIT,
     GATEWAY_MODELS,
     ROGUE_PERIOD_HOURS,
@@ -436,6 +437,14 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._force_refresh_once = False
         self._pending_refresh_unsub: Callable[[], None] | None = None
 
+        # New-alert event dedup. Seen ids are refreshed to the current log window
+        # each poll (dismissal changes an alert's status, not its id, so a fired
+        # alert won't re-fire; memory stays bounded to the fetched window). The
+        # first fetch after startup — or after Alerts is re-enabled — records the
+        # backlog silently so a restart/re-enable doesn't spam the bus.
+        self._seen_alert_ids: set[str] = set()
+        self._alert_baseline_done = False
+
         # "Flat Identity" — loaded from entry.data, stable without a network call
         self.gateway_mac: str = entry.data.get("mac", "")
         self.gateway_model: str = entry.data.get("model", "UDM Pro")
@@ -582,6 +591,33 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         await self.api.trigger_speedtest(interface_name)
 
     @callback
+    def _fire_new_alert_events(self, logs: list[dict[str, Any]]) -> None:
+        """Fire ``EVENT_NEW_ALERT`` once per newly-seen alert id.
+
+        ``logs`` is newest-first. The first fetch after startup (or after Alerts
+        is re-enabled) only records the backlog as a baseline — no events — so a
+        restart doesn't replay history. Seen ids are then reset to the current
+        window each poll, keeping memory bounded; a dismissed alert keeps its id
+        so it never re-fires.
+        """
+        current_ids = {
+            str(ev.get("id")) for ev in logs if ev.get("id") is not None
+        }
+        if not self._alert_baseline_done:
+            self._alert_baseline_done = True
+            self._seen_alert_ids = current_ids
+            return
+        # Fire oldest-first so listeners receive events in chronological order.
+        for ev in reversed(logs):
+            ev_id = ev.get("id")
+            if ev_id is None or str(ev_id) in self._seen_alert_ids:
+                continue
+            self.hass.bus.async_fire(
+                EVENT_NEW_ALERT, build_event_payload(self.entry.entry_id, ev)
+            )
+        self._seen_alert_ids = current_ids
+
+    @callback
     def _sync_site_issue(self) -> None:
         """Raise or clear a repair issue based on v3 site resolution.
 
@@ -662,6 +698,11 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """
         self._endpoint_state.pop(label, None)
         self._stale_endpoints.discard(label)
+        if label == EP_SYSLOG:
+            # Alerts is off — force the next fetch (on re-enable) to re-baseline
+            # so the backlog doesn't flood the bus with events.
+            self._alert_baseline_done = False
+            self._seen_alert_ids.clear()
         return []
 
     def _optional(
@@ -1365,10 +1406,17 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     if not wan2_interface_name and len(wan_interfaces_raw) > 1:
                         wan2_interface_name = wan_interfaces_raw[1].get("name")
 
-                # System-log alerts (HIGH / VERY_HIGH) — newest first
-                last_critical_alert: str | None = None
-                last_critical_alert_attrs: dict[str, Any] | None = None
-                recent_alerts: list[dict[str, Any]] = []
+                # System-log alerts (HIGH / VERY_HIGH) — newest first. Split the
+                # newest per severity for the "Last High/Very High" title
+                # sensors, keep 24h counts, and fire an event per newly-seen id.
+                # "None Detected" (not unknown) confirms the good steady-state of
+                # no alerts of that severity; see alerts_expanded.md.
+                last_high: str = "None Detected"
+                last_high_attrs: dict[str, Any] | None = None
+                last_very_high: str = "None Detected"
+                last_very_high_attrs: dict[str, Any] | None = None
+                recent_high: list[dict[str, Any]] = []
+                recent_very_high: list[dict[str, Any]] = []
                 alerts_high_24h = 0
                 alerts_very_high_24h = 0
                 try:
@@ -1381,16 +1429,29 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         int(dt_util.as_timestamp(update_time) - 24 * 3600) * 1000
                     )
                     for ev in logs:
-                        if (ev.get("timestamp") or 0) >= cutoff_ms:
-                            sev = ev.get("severity")
-                            if sev == "VERY_HIGH":
+                        sev = ev.get("severity")
+                        within_24h = (ev.get("timestamp") or 0) >= cutoff_ms
+                        if sev == "VERY_HIGH":
+                            if within_24h:
                                 alerts_very_high_24h += 1
-                            elif sev == "HIGH":
+                            if last_very_high_attrs is None:
+                                last_very_high = alert_title(ev)
+                                last_very_high_attrs = build_alert_attrs(ev)
+                            if len(recent_very_high) < 3:
+                                recent_very_high.append(build_alert_attrs(ev))
+                        elif sev == "HIGH":
+                            if within_24h:
                                 alerts_high_24h += 1
-                    if logs:
-                        last_critical_alert = logs[0].get("id")
-                        last_critical_alert_attrs = build_alert_attrs(logs[0])
-                        recent_alerts = [build_alert_attrs(e) for e in logs[:3]]
+                            if last_high_attrs is None:
+                                last_high = alert_title(ev)
+                                last_high_attrs = build_alert_attrs(ev)
+                            if len(recent_high) < 3:
+                                recent_high.append(build_alert_attrs(ev))
+                    if last_high_attrs is not None:
+                        last_high_attrs["recent_alerts"] = recent_high
+                    if last_very_high_attrs is not None:
+                        last_very_high_attrs["recent_alerts"] = recent_very_high
+                    self._fire_new_alert_events(logs)
                 except (
                     AttributeError,
                     KeyError,
@@ -1407,9 +1468,10 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     gateway_data.update(
                         {
                             "wan_mode": wan_mode,
-                            "last_critical_alert": last_critical_alert,
-                            "last_critical_alert_attrs": last_critical_alert_attrs,
-                            "recent_alerts": recent_alerts,
+                            "last_high": last_high,
+                            "last_high_attrs": last_high_attrs,
+                            "last_very_high": last_very_high,
+                            "last_very_high_attrs": last_very_high_attrs,
                             "alerts_high_24h": alerts_high_24h,
                             "alerts_very_high_24h": alerts_very_high_24h,
                             "wan1_weight": wan1_weight,

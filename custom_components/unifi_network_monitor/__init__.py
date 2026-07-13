@@ -35,6 +35,7 @@ from .const import (
     clamp_device_mode,
 )
 from .coordinator import UnifiNetworkDataUpdateCoordinator
+from .services import async_register_services
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -115,6 +116,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         schema=CLEANUP_SCHEMA,
         supports_response=SupportsResponse.OPTIONAL,
     )
+    async_register_services(hass)
     return True
 
 

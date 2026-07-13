@@ -406,14 +406,17 @@
       "device_model": {
         "name": "Model"
       },
-      "gateway_last_critical_alert": {
-        "name": "Last Critical Alert"
+      "gateway_last_high": {
+        "name": "Last High Sev3"
       },
-      "gateway_alerts_very_high_24h": {
-        "name": "Very High Alerts (24h)"
+      "gateway_last_very_high": {
+        "name": "Last Very High Sev4"
       },
       "gateway_alerts_high_24h": {
-        "name": "High Alerts (24h)"
+        "name": "High Sev3 Qty Last 24h"
+      },
+      "gateway_alerts_very_high_24h": {
+        "name": "Very High Sev4 Qty Last 24h"
       }
     },
     "binary_sensor": {
@@ -605,6 +608,32 @@
         "dry_run": {
           "name": "Dry run",
           "description": "When on (default), only reports what would be removed without changing anything."
+        }
+      }
+    },
+    "get_alerts": {
+      "name": "Get alerts",
+      "description": "Returns a capped, human-readable slice of the UniFi system log on demand. Results are limited to the newest ~500 records; LOW/MEDIUM can be very high-volume.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "The UniFi Network Monitor gateway to query. Optional when only one is configured."
+        },
+        "severity": {
+          "name": "Severity",
+          "description": "Which severity levels to include. Defaults to High and Very High."
+        },
+        "quantity": {
+          "name": "Quantity",
+          "description": "Maximum number of alerts to return (1–100, default 10)."
+        },
+        "age_days": {
+          "name": "Age (days)",
+          "description": "Only return alerts newer than this many days."
+        },
+        "keyword": {
+          "name": "Keyword",
+          "description": "Case-insensitive substring to match against the alert title and message."
         }
       }
     }
