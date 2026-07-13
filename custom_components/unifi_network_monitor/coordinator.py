@@ -762,9 +762,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         BSSID that drops out of the detection window and later reappears fires
         again (treated as "a rogue is back").
         """
-        current_bssids = {
-            ap["bssid"] for ap in rogue_aps if ap.get("bssid")
-        }
+        current_bssids = {ap["bssid"] for ap in rogue_aps if ap.get("bssid")}
         if not self._rogue_baseline_done:
             self._rogue_baseline_done = True
             self._seen_rogue_bssids = current_bssids
@@ -1209,12 +1207,17 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         show_24ghz=opts.get(
                             CONF_ROGUE_SHOW_24GHZ, DEFAULT_ROGUE_SHOW_24GHZ
                         ),
-                        show_5ghz=opts.get(CONF_ROGUE_SHOW_5GHZ, DEFAULT_ROGUE_SHOW_5GHZ),
+                        show_5ghz=opts.get(
+                            CONF_ROGUE_SHOW_5GHZ, DEFAULT_ROGUE_SHOW_5GHZ
+                        ),
                         ignore_ssids=_split_patterns(
-                            opts.get(CONF_ROGUE_IGNORE_SSIDS, DEFAULT_ROGUE_IGNORE_SSIDS)
+                            opts.get(
+                                CONF_ROGUE_IGNORE_SSIDS, DEFAULT_ROGUE_IGNORE_SSIDS
+                            )
                         ),
                         apply_ssid_ignore=opts.get(
-                            CONF_ROGUE_APPLY_SSID_IGNORE, DEFAULT_ROGUE_APPLY_SSID_IGNORE
+                            CONF_ROGUE_APPLY_SSID_IGNORE,
+                            DEFAULT_ROGUE_APPLY_SSID_IGNORE,
                         ),
                         ignore_aps=_split_patterns(
                             opts.get(CONF_ROGUE_IGNORE_APS, DEFAULT_ROGUE_IGNORE_APS)
