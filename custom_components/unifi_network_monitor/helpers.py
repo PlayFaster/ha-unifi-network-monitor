@@ -39,9 +39,7 @@ class UnifiAboutEntity:
         description = getattr(self, "entity_description", None)
         return getattr(description, "about", None) if description is not None else None
 
-    def _with_about(
-        self, attrs: dict[str, Any] | None
-    ) -> dict[str, Any] | None:
+    def _with_about(self, attrs: dict[str, Any] | None) -> dict[str, Any] | None:
         """Merge the ``about`` note into an entity's own attribute dict."""
         about = self._about_text
         if about is None:
