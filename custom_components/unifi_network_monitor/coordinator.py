@@ -600,9 +600,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         window each poll, keeping memory bounded; a dismissed alert keeps its id
         so it never re-fires.
         """
-        current_ids = {
-            str(ev.get("id")) for ev in logs if ev.get("id") is not None
-        }
+        current_ids = {str(ev.get("id")) for ev in logs if ev.get("id") is not None}
         if not self._alert_baseline_done:
             self._alert_baseline_done = True
             self._seen_alert_ids = current_ids

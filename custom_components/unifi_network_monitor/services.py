@@ -10,7 +10,7 @@ the passive Alerts card can still query on demand.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 import voluptuous as vol
 from homeassistant.core import (
@@ -42,9 +42,7 @@ _LOGGER = logging.getLogger(__name__)
 GET_ALERTS_SCHEMA = vol.Schema(
     {
         vol.Optional("device_id"): cv.string,
-        vol.Optional("severity"): vol.All(
-            cv.ensure_list, [vol.In(ALERT_SEVERITIES)]
-        ),
+        vol.Optional("severity"): vol.All(cv.ensure_list, [vol.In(ALERT_SEVERITIES)]),
         vol.Optional("quantity", default=ALERT_QUANTITY_DEFAULT): vol.All(
             vol.Coerce(int), vol.Range(min=1, max=ALERT_QUANTITY_MAX)
         ),
@@ -80,7 +78,7 @@ def _resolve_coordinator(
                 and entry.domain == DOMAIN
                 and getattr(entry, "runtime_data", None) is not None
             ):
-                return entry.runtime_data
+                return cast(UnifiNetworkDataUpdateCoordinator, entry.runtime_data)
         raise ServiceValidationError(
             f"Device {device_id} is not a UniFi Network Monitor device"
         )
@@ -91,7 +89,7 @@ def _resolve_coordinator(
         raise ServiceValidationError(
             "Multiple UniFi Network Monitor entries configured; specify a device"
         )
-    return entries[0].runtime_data
+    return cast(UnifiNetworkDataUpdateCoordinator, entries[0].runtime_data)
 
 
 async def _fetch_alerts(
@@ -141,14 +139,10 @@ async def _handle_get_alerts(hass: HomeAssistant, call: ServiceCall) -> ServiceR
     cutoff_ms: int | None = None
     age_days = call.data.get("age_days")
     if age_days:
-        cutoff_ms = int(
-            (dt_util.as_timestamp(dt_util.now()) - age_days * 86400) * 1000
-        )
+        cutoff_ms = int((dt_util.as_timestamp(dt_util.now()) - age_days * 86400) * 1000)
 
-    alerts = await _fetch_alerts(
-        coordinator, severities, quantity, cutoff_ms, keyword
-    )
-    return {"count": len(alerts), "alerts": alerts}
+    alerts = await _fetch_alerts(coordinator, severities, quantity, cutoff_ms, keyword)
+    return cast(ServiceResponse, {"count": len(alerts), "alerts": alerts})
 
 
 def async_register_services(hass: HomeAssistant) -> None:
