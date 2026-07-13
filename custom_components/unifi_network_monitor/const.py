@@ -29,6 +29,7 @@ CONF_ROGUE_PERIOD = "rogue_period"
 CONF_ROGUE_SHOW_24GHZ = "rogue_show_24ghz"
 CONF_ROGUE_SHOW_5GHZ = "rogue_show_5ghz"
 CONF_ROGUE_APPLY_AP_IGNORE = "rogue_apply_ap_ignore"
+CONF_ROGUE_APPLY_SSID_IGNORE = "rogue_apply_ssid_ignore"
 
 # unifi_device_mode values — which per-UniFi-device entities Monitor creates
 DEVICE_MODE_NONE = "none"
@@ -57,6 +58,9 @@ DEFAULT_ROGUE_PERIOD = "1h"
 DEFAULT_ROGUE_SHOW_24GHZ = True
 DEFAULT_ROGUE_SHOW_5GHZ = True
 DEFAULT_ROGUE_APPLY_AP_IGNORE = False
+# SSID ignore is a safe direct match, so it applies by default (unlike the
+# aggressive all-APs-match AP rule); the switch is a "show everything" override.
+DEFAULT_ROGUE_APPLY_SSID_IGNORE = True
 # Rogue detection period select value -> get_rogueaps(within_hours)
 ROGUE_PERIOD_HOURS = {"30m": 1, "1h": 1, "1d": 24, "1w": 168, "1m": 720}
 

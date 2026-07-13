@@ -20,6 +20,7 @@ from .cleanup import apply_cleanup, plan_device_cleanup
 from .const import (
     CONF_API_KEY,
     CONF_ROGUE_APPLY_AP_IGNORE,
+    CONF_ROGUE_APPLY_SSID_IGNORE,
     CONF_ROGUE_PERIOD,
     CONF_ROGUE_PROXIMITY_RSSI_THRESHOLD,
     CONF_ROGUE_SHOW_5GHZ,
@@ -53,6 +54,7 @@ _LIVE_OPTION_KEYS = frozenset(
         CONF_ROGUE_SHOW_24GHZ,
         CONF_ROGUE_SHOW_5GHZ,
         CONF_ROGUE_APPLY_AP_IGNORE,
+        CONF_ROGUE_APPLY_SSID_IGNORE,
     }
 )
 

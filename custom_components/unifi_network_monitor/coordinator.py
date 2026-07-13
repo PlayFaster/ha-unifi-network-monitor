@@ -26,6 +26,7 @@ from .const import (
     CONF_ENABLE_SPEEDTEST,
     CONF_ENABLE_WAN_USAGE,
     CONF_ROGUE_APPLY_AP_IGNORE,
+    CONF_ROGUE_APPLY_SSID_IGNORE,
     CONF_ROGUE_IGNORE_APS,
     CONF_ROGUE_IGNORE_SSIDS,
     CONF_ROGUE_PERIOD,
@@ -38,6 +39,7 @@ from .const import (
     DEFAULT_ENABLE_SPEEDTEST,
     DEFAULT_ENABLE_WAN_USAGE,
     DEFAULT_ROGUE_APPLY_AP_IGNORE,
+    DEFAULT_ROGUE_APPLY_SSID_IGNORE,
     DEFAULT_ROGUE_IGNORE_APS,
     DEFAULT_ROGUE_IGNORE_SSIDS,
     DEFAULT_ROGUE_PERIOD,
@@ -326,8 +328,9 @@ def _parse_health(
 
         if subsystem == "wan":
             health["wan_status"] = h.get("status", "unknown")
-            health["wan_isp_name"] = h.get("isp_name", "")
-            health["wan_isp_org"] = h.get("isp_organization", "")
+            # None (→ HA "unknown") when absent, rather than a blank "" state.
+            health["wan_isp_name"] = h.get("isp_name") or None
+            health["wan_isp_org"] = h.get("isp_organization") or None
             health["wan_gw_version"] = h.get("gw_version", "")
             health["wan_num_sta"] = _safe_int(h.get("num_sta"), 0)
             gw_stats = h.get("gw_system-stats") or {}
@@ -378,7 +381,7 @@ def _parse_health(
                 else _derive_boot_time(www_uptime, update_time)
             )
             health["www_drops"] = _safe_int(h.get("drops"), 0)
-            health["www_speedtest_status"] = h.get("speedtest_status", "")
+            health["www_speedtest_status"] = h.get("speedtest_status") or None
 
         elif subsystem == "wlan":
             health["wlan_status"] = h.get("status", "unknown")
@@ -1011,6 +1014,9 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     apply_ap_ignore = opts.get(
                         CONF_ROGUE_APPLY_AP_IGNORE, DEFAULT_ROGUE_APPLY_AP_IGNORE
                     )
+                    apply_ssid_ignore = opts.get(
+                        CONF_ROGUE_APPLY_SSID_IGNORE, DEFAULT_ROGUE_APPLY_SSID_IGNORE
+                    )
                     current_ts = int(dt_util.as_timestamp(update_time))
 
                     # Band filter + SSID ignore, then group by BSSID.
@@ -1022,7 +1028,9 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         if band == "na" and not show_5:
                             continue
                         essid = r.get("essid", "")
-                        if any(fnmatchcase(essid, pat) for pat in ignore_ssids):
+                        if apply_ssid_ignore and any(
+                            fnmatchcase(essid, pat) for pat in ignore_ssids
+                        ):
                             continue
                         bssid = r.get("bssid", "")
                         ap_mac = r.get("ap_mac", "")

@@ -16,10 +16,12 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
     CONF_ROGUE_APPLY_AP_IGNORE,
+    CONF_ROGUE_APPLY_SSID_IGNORE,
     CONF_ROGUE_SHOW_5GHZ,
     CONF_ROGUE_SHOW_24GHZ,
     CONF_STOP_POLLING,
     DEFAULT_ROGUE_APPLY_AP_IGNORE,
+    DEFAULT_ROGUE_APPLY_SSID_IGNORE,
     DEFAULT_ROGUE_SHOW_5GHZ,
     DEFAULT_ROGUE_SHOW_24GHZ,
     EP_ROGUE,
@@ -60,6 +62,13 @@ _ROGUE_SWITCHES: tuple[RogueSwitchDescription, ...] = (
         entity_category=EntityCategory.CONFIG,
         option_key=CONF_ROGUE_SHOW_5GHZ,
         option_default=DEFAULT_ROGUE_SHOW_5GHZ,
+    ),
+    RogueSwitchDescription(
+        key="rogue_apply_ssid_ignore",
+        translation_key="rogue_apply_ssid_ignore",
+        entity_category=EntityCategory.CONFIG,
+        option_key=CONF_ROGUE_APPLY_SSID_IGNORE,
+        option_default=DEFAULT_ROGUE_APPLY_SSID_IGNORE,
     ),
     RogueSwitchDescription(
         key="rogue_apply_ap_ignore",

@@ -145,7 +145,6 @@ async def test_switch_turn_off_resumes_polling() -> None:
     coordinator.async_request_refresh.assert_awaited_once()
 
 
-
 # ---------------------------------------------------------------------------
 # UnifiRogueControlSwitch tests (lines 194, 198, 201-207)
 # ---------------------------------------------------------------------------

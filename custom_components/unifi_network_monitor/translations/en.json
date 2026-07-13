@@ -506,6 +506,9 @@
       },
       "rogue_apply_ap_ignore": {
         "name": "Apply AP ignore list"
+      },
+      "rogue_apply_ssid_ignore": {
+        "name": "Apply SSID ignore list"
       }
     },
     "select": {
