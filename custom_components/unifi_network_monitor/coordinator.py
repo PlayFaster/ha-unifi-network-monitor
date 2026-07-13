@@ -1413,8 +1413,6 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 last_high_attrs: dict[str, Any] | None = None
                 last_very_high: str = "None Detected"
                 last_very_high_attrs: dict[str, Any] | None = None
-                recent_high: list[dict[str, Any]] = []
-                recent_very_high: list[dict[str, Any]] = []
                 alerts_high_24h = 0
                 alerts_very_high_24h = 0
                 try:
@@ -1435,20 +1433,12 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             if last_very_high_attrs is None:
                                 last_very_high = alert_title(ev)
                                 last_very_high_attrs = build_alert_attrs(ev)
-                            if len(recent_very_high) < 3:
-                                recent_very_high.append(build_alert_attrs(ev))
                         elif sev == "HIGH":
                             if within_24h:
                                 alerts_high_24h += 1
                             if last_high_attrs is None:
                                 last_high = alert_title(ev)
                                 last_high_attrs = build_alert_attrs(ev)
-                            if len(recent_high) < 3:
-                                recent_high.append(build_alert_attrs(ev))
-                    if last_high_attrs is not None:
-                        last_high_attrs["recent_alerts"] = recent_high
-                    if last_very_high_attrs is not None:
-                        last_very_high_attrs["recent_alerts"] = recent_very_high
                     self._fire_new_alert_events(logs)
                 except (
                     AttributeError,
