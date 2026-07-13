@@ -54,6 +54,7 @@ from .const import (
     EP_MONTHLY,
     EP_NETWORKCONF,
     EP_ROGUE,
+    EP_ROGUE_RAW,
     EP_SETTINGS,
     EP_SPEEDTEST,
     EP_SYSINFO,
@@ -67,6 +68,7 @@ from .const import (
     FETCH_STRIKE_LIMIT,
     GATEWAY_MODELS,
     ROGUE_PERIOD_HOURS,
+    ROGUE_RAW_WINDOW_HOURS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -88,7 +90,14 @@ def disabled_endpoints(options: Mapping[str, Any]) -> frozenset[str]:
         CONF_ENABLE_SECURITY_MONITORING, DEFAULT_ENABLE_SECURITY_MONITORING
     ):
         disabled.update(
-            {EP_ROGUE, EP_VPN_SERVERS, EP_VPN_TUNNELS, EP_FIREWALL, EP_SETTINGS}
+            {
+                EP_ROGUE,
+                EP_ROGUE_RAW,
+                EP_VPN_SERVERS,
+                EP_VPN_TUNNELS,
+                EP_FIREWALL,
+                EP_SETTINGS,
+            }
         )
     if not options.get(CONF_ENABLE_LOGS_ALERTS, DEFAULT_ENABLE_LOGS_ALERTS):
         disabled.add(EP_SYSLOG)
@@ -1008,6 +1017,13 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         ),
                         EP_SYSLOG,
                     ),
+                    self._optional(
+                        want_security,
+                        lambda: self.api.get_rogueaps(
+                            within_hours=ROGUE_RAW_WINDOW_HOURS
+                        ),
+                        EP_ROGUE_RAW,
+                    ),
                 ]
 
                 # Conditional v3 endpoint fetches
@@ -1060,6 +1076,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     speedtest_raw,
                     wlanconf_raw,
                     system_logs_raw,
+                    rogueaps_raw_24h,
                     wan_interfaces_raw,
                     _vpn_servers_raw,
                     vpn_tunnels_raw,
@@ -1247,6 +1264,12 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     _LOGGER.debug(
                         "%s: Failed to parse rogue AP data: %s", self.entry.title, err
                     )
+
+                # Raw rogue-detection volume over a fixed 24h window — a
+                # diagnostic long-term-trend metric, distinct from the clustered
+                # current count. Counts raw per-(BSSID x reporter) rows with no
+                # band/SSID/AP filtering, so a rogue seen by N APs counts N.
+                rogue_raw_24h = len(rogueaps_raw_24h) if rogueaps_raw_24h else 0
 
                 # Guest User Count
                 guest_user_count = 0
@@ -1572,6 +1595,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             "rogue_aps_list": rogue_aps_list,
                             "strongest_rogue_ssid": strongest_rogue_ssid,
                             "strongest_rogue_rssi": strongest_rogue_rssi,
+                            "rogue_raw_24h": rogue_raw_24h,
                             "guest_user_count": guest_user_count,
                             "last_backup": last_backup,
                             "configured_vlans": configured_vlans,

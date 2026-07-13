@@ -69,6 +69,17 @@ DEFAULT_ROGUE_ACTION_PERIOD = "24h"
 ROGUE_ACTION_BANDS = ("2.4", "5", "both")
 DEFAULT_ROGUE_ACTION_BAND = "both"
 
+# Max rogue-AP rows carried on the Strongest Rogue SSID sensor's rogue_aps
+# attribute. HA rejects a state whose attributes exceed 16 KB; capping at 25
+# strongest (~5-6 KB) stays well clear, and the full/filtered list is available
+# on demand via the get_rogue_aps action. rogue_ap_count holds the true total.
+ROGUE_ATTR_MAX = 25
+
+# Fixed window for the raw rogue-detection volume sensor (hours). Independent of
+# the user-tunable live Rogue Detection Period so the long-term trend stays
+# comparable over time.
+ROGUE_RAW_WINDOW_HOURS = 24
+
 # Config keys
 CONF_API_KEY = "api_key"
 CONF_SITE = "site"
@@ -157,6 +168,7 @@ EP_SETTINGS = "site settings"
 EP_DAILY = "daily gateway report"
 EP_MONTHLY = "monthly gateway report"
 EP_ROGUE = "rogue AP list"
+EP_ROGUE_RAW = "rogue AP raw 24h"
 EP_GUESTS = "guest list"
 EP_BACKUPS = "backup list"
 EP_SPEEDTEST = "speedtest results"

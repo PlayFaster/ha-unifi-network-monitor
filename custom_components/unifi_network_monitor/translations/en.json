@@ -217,6 +217,9 @@
       "gateway_strongest_rogue_rssi": {
         "name": "Strongest Rogue RSSI"
       },
+      "gateway_rogue_raw_24h": {
+        "name": "Rogue APs Raw 24h"
+      },
       "gateway_guest_user_count": {
         "name": "Guest Users"
       },
@@ -638,7 +641,7 @@
       }
     },
     "get_rogue_aps": {
-      "name": "Get rogue APs",
+      "name": "Get Rogue APs",
       "description": "Returns the current rogue-AP set on demand. Fetches fresh data, so it works even when Security monitoring is off, and does not apply the Security ignore lists.",
       "fields": {
         "device_id": {
@@ -647,7 +650,7 @@
         },
         "period": {
           "name": "Period",
-          "description": "How far back to look for rogue APs. 'All available' spans the controller's full retention."
+          "description": "How far back to look for rogue APs. 'All available' spans the controller's full retention. Defaults to Last 24 hours."
         },
         "band": {
           "name": "Band",

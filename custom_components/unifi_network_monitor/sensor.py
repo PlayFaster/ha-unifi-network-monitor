@@ -41,6 +41,7 @@ from .const import (
     EP_MONTHLY,
     EP_NETWORKCONF,
     EP_ROGUE,
+    EP_ROGUE_RAW,
     EP_SETTINGS,
     EP_SPEEDTEST,
     EP_SYSINFO,
@@ -48,6 +49,7 @@ from .const import (
     EP_VPN_TUNNELS,
     EP_WAN_IF,
     EP_WLAN,
+    ROGUE_ATTR_MAX,
     disabled_device_keys,
     dual_wan_enabled,
     single_wan_excluded_keys,
@@ -96,6 +98,7 @@ _ENDPOINT_BY_KEY: dict[str, str] = {
     "rogue_ap_count": EP_ROGUE,
     "strongest_rogue_ssid": EP_ROGUE,
     "strongest_rogue_rssi": EP_ROGUE,
+    "rogue_raw_24h": EP_ROGUE_RAW,
     "guest_user_count": EP_GUESTS,
     "last_backup": EP_BACKUPS,
     "wan1_speedtest_download": EP_SPEEDTEST,
@@ -557,6 +560,18 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         min_limit=-100.0,
         max_limit=0.0,
         value_fn=lambda d: d.get("strongest_rogue_rssi"),
+        device_key="security",
+    ),
+    # Raw (unfiltered) rogue detection volume over a fixed rolling 24h window.
+    # Diagnostic + MEASUREMENT for long-term trends; distinct from the clustered
+    # "Rogue Access Points" count (counts reporter duplicates — see README).
+    UnifiSensorEntityDescription(
+        key="rogue_raw_24h",
+        translation_key="gateway_rogue_raw_24h",
+        state_class=SensorStateClass.MEASUREMENT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        min_limit=0.0,
+        value_fn=lambda d: d.get("rogue_raw_24h"),
         device_key="security",
     ),
     UnifiSensorEntityDescription(
@@ -1348,8 +1363,18 @@ class UnifiGatewaySensor(UnifiSensorBase):
                 "udm_version": gw.get("udm_version"),
             }
         if self.entity_description.key == "strongest_rogue_ssid":
+            # Cap the attribute well below HA's 16 KB limit: expose the 25
+            # strongest, flag truncation, and defer the full list to the
+            # get_rogue_aps action. rogue_ap_count holds the true total.
+            rogues = gw.get("rogue_aps_list") or []
+            limited = sorted(
+                rogues,
+                key=lambda a: a["signal"] if a.get("signal") is not None else -9999,
+                reverse=True,
+            )[:ROGUE_ATTR_MAX]
             return {
-                "rogue_aps": gw.get("rogue_aps_list"),
+                "rogue_aps": limited,
+                "rogue_aps_truncated": len(rogues) > ROGUE_ATTR_MAX,
             }
         if self.entity_description.key == "last_high":
             return gw.get("last_high_attrs")
