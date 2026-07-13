@@ -63,6 +63,7 @@ from .const import (
     EP_WAN_IF,
     EP_WLAN,
     EVENT_NEW_ALERT,
+    EVENT_NEW_ROGUE_AP,
     FETCH_STRIKE_LIMIT,
     GATEWAY_MODELS,
     ROGUE_PERIOD_HOURS,
@@ -104,6 +105,137 @@ def _ap_matches(reporter: dict[str, str], patterns: list[str]) -> bool:
     mac = reporter.get("mac") or ""
     name = reporter.get("name") or ""
     return any(fnmatchcase(mac, pat) or fnmatchcase(name, pat) for pat in patterns)
+
+
+_ROGUE_BAND_LABELS = {"ng": "2.4 GHz", "na": "5 GHz"}
+
+
+def rogue_band_label(band: str | None) -> str | None:
+    """Map the UniFi band code (ng/na) to a readable label for events/actions."""
+    if band is None:
+        return None
+    return _ROGUE_BAND_LABELS.get(band, band)
+
+
+def build_ap_name_map(devices_raw: list[dict[str, Any]] | None) -> dict[str, str]:
+    """Map lowercased AP MAC -> friendly name (falls back to model, then MAC)."""
+    ap_name_map: dict[str, str] = {}
+    for device in devices_raw or []:
+        mac = device.get("mac")
+        if mac:
+            ap_name_map[mac.lower()] = device.get("name") or device.get("model") or mac
+    return ap_name_map
+
+
+def parse_rogue_aps(
+    rogueaps_raw: list[dict[str, Any]] | None,
+    ap_name_map: dict[str, str],
+    now_ts: int,
+    *,
+    show_24ghz: bool = True,
+    show_5ghz: bool = True,
+    ignore_ssids: list[str] | None = None,
+    apply_ssid_ignore: bool = False,
+    ignore_aps: list[str] | None = None,
+    apply_ap_ignore: bool = False,
+) -> list[dict[str, Any]]:
+    """Band-filter, optionally SSID/AP-ignore, and BSSID-cluster raw rogue APs.
+
+    Shared by the coordinator (curated sensor view, Security options applied) and
+    the ``get_rogue_aps`` action (self-contained, ignore-lists off). Each item
+    carries ``last_seen`` (epoch seconds) plus a derived human-readable ``age``.
+    """
+    ignore_ssids = ignore_ssids or []
+    ignore_aps = ignore_aps or []
+
+    # Band filter + SSID ignore, then group reporters by BSSID.
+    clusters: dict[str, dict[str, Any]] = {}
+    for r in rogueaps_raw or []:
+        band = r.get("band")  # "ng"=2.4GHz, "na"=5GHz
+        if band == "ng" and not show_24ghz:
+            continue
+        if band == "na" and not show_5ghz:
+            continue
+        essid = r.get("essid", "")
+        if apply_ssid_ignore and any(fnmatchcase(essid, pat) for pat in ignore_ssids):
+            continue
+        bssid = r.get("bssid", "")
+        ap_mac = r.get("ap_mac", "")
+        detected_by = ap_name_map.get(ap_mac.lower()) or ap_mac
+        signal = _safe_int(r.get("signal"))
+        last_seen = _safe_int(r.get("last_seen"))
+        cl = clusters.setdefault(
+            bssid,
+            {
+                "essid": essid,
+                "bssid": bssid,
+                "band": band,
+                "channel": _safe_int(r.get("channel")),
+                "signal": signal,
+                "oui": r.get("oui", ""),
+                "reporters": [],
+                "last_seen": last_seen,
+            },
+        )
+        cl["reporters"].append({"mac": ap_mac, "name": detected_by})
+        if signal is not None and (cl["signal"] is None or signal > cl["signal"]):
+            cl["signal"] = signal
+        if last_seen is not None and (
+            cl["last_seen"] is None or last_seen > cl["last_seen"]
+        ):
+            cl["last_seen"] = last_seen
+
+    rogue_aps_list: list[dict[str, Any]] = []
+    for cl in clusters.values():
+        # AP ignore: drop only if EVERY reporting AP matches the list.
+        if (
+            apply_ap_ignore
+            and ignore_aps
+            and cl["reporters"]
+            and all(_ap_matches(rep, ignore_aps) for rep in cl["reporters"])
+        ):
+            continue
+        last_seen = cl.get("last_seen")
+        if last_seen is not None:
+            true_age = max(0, now_ts - last_seen)
+            age_str = (
+                f"{true_age // 60}m" if true_age < 3600 else f"{true_age // 3600}h"
+            )
+        else:
+            age_str = None
+        names = list(dict.fromkeys(rep["name"] for rep in cl["reporters"]))
+        rogue_aps_list.append(
+            {
+                "essid": cl["essid"],
+                "bssid": cl["bssid"],
+                "band": cl["band"],
+                "channel": cl["channel"],
+                "signal": cl["signal"],
+                "oui": cl["oui"],
+                "last_seen": last_seen,
+                "age": age_str,
+                "detected_by": ", ".join(names),
+            }
+        )
+    return rogue_aps_list
+
+
+def build_rogue_event_payload(entry_id: str, ap: dict[str, Any]) -> dict[str, Any]:
+    """Build the ``unifi_network_monitor_new_rogue_ap`` bus-event payload."""
+    last_seen = ap.get("last_seen")
+    return {
+        "entry_id": entry_id,
+        "essid": ap.get("essid"),
+        "bssid": ap.get("bssid"),
+        "band": rogue_band_label(ap.get("band")),
+        "channel": ap.get("channel"),
+        "signal": ap.get("signal"),
+        "oui": ap.get("oui"),
+        "detected_by": ap.get("detected_by"),
+        "timestamp": (
+            datetime.fromtimestamp(last_seen, tz=UTC).isoformat() if last_seen else None
+        ),
+    }
 
 
 def _safe_float(val: Any, default: float | None = None) -> float | None:
@@ -445,6 +577,11 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._seen_alert_ids: set[str] = set()
         self._alert_baseline_done = False
 
+        # New-rogue-AP event dedup — same baseline/window machinery as alerts,
+        # keyed on BSSID instead of alert id.
+        self._seen_rogue_bssids: set[str] = set()
+        self._rogue_baseline_done = False
+
         # "Flat Identity" — loaded from entry.data, stable without a network call
         self.gateway_mac: str = entry.data.get("mac", "")
         self.gateway_model: str = entry.data.get("model", "UDM Pro")
@@ -616,6 +753,33 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._seen_alert_ids = current_ids
 
     @callback
+    def _fire_new_rogue_events(self, rogue_aps: list[dict[str, Any]]) -> None:
+        """Fire ``EVENT_NEW_ROGUE_AP`` once per newly-seen BSSID.
+
+        Mirrors ``_fire_new_alert_events``: the first fetch after startup (or
+        after Security is re-enabled) records the current set as a silent
+        baseline, then seen BSSIDs are reset to the current set each poll. A
+        BSSID that drops out of the detection window and later reappears fires
+        again (treated as "a rogue is back").
+        """
+        current_bssids = {
+            ap["bssid"] for ap in rogue_aps if ap.get("bssid")
+        }
+        if not self._rogue_baseline_done:
+            self._rogue_baseline_done = True
+            self._seen_rogue_bssids = current_bssids
+            return
+        for ap in rogue_aps:
+            bssid = ap.get("bssid")
+            if not bssid or bssid in self._seen_rogue_bssids:
+                continue
+            self.hass.bus.async_fire(
+                EVENT_NEW_ROGUE_AP,
+                build_rogue_event_payload(self.entry.entry_id, ap),
+            )
+        self._seen_rogue_bssids = current_bssids
+
+    @callback
     def _sync_site_issue(self) -> None:
         """Raise or clear a repair issue based on v3 site resolution.
 
@@ -701,6 +865,10 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # so the backlog doesn't flood the bus with events.
             self._alert_baseline_done = False
             self._seen_alert_ids.clear()
+        elif label == EP_ROGUE:
+            # Security is off — re-baseline rogue events on re-enable likewise.
+            self._rogue_baseline_done = False
+            self._seen_rogue_bssids.clear()
         return []
 
     def _optional(
@@ -1025,7 +1193,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         err,
                     )
 
-                # Rogue Access Points — band filter + SSID/AP ignore + BSSID cluster
+                # Rogue Access Points — curated view (Security options applied).
                 rogue_ap_count = 0
                 rogue_aps_list: list[dict[str, Any]] = []
                 # "None Detected" (not unknown) is preferred for the text sensor
@@ -1034,108 +1202,27 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 strongest_rogue_ssid: str = "None Detected"
                 strongest_rogue_rssi: int | None = None
                 try:
-                    ap_name_map = {}
-                    for device in devices_raw or []:
-                        mac = device.get("mac")
-                        if mac:
-                            ap_name_map[mac.lower()] = (
-                                device.get("name") or device.get("model") or mac
-                            )
-
-                    ignore_ssids = _split_patterns(
-                        opts.get(CONF_ROGUE_IGNORE_SSIDS, DEFAULT_ROGUE_IGNORE_SSIDS)
+                    rogue_aps_list = parse_rogue_aps(
+                        rogueaps_raw,
+                        build_ap_name_map(devices_raw),
+                        int(dt_util.as_timestamp(update_time)),
+                        show_24ghz=opts.get(
+                            CONF_ROGUE_SHOW_24GHZ, DEFAULT_ROGUE_SHOW_24GHZ
+                        ),
+                        show_5ghz=opts.get(CONF_ROGUE_SHOW_5GHZ, DEFAULT_ROGUE_SHOW_5GHZ),
+                        ignore_ssids=_split_patterns(
+                            opts.get(CONF_ROGUE_IGNORE_SSIDS, DEFAULT_ROGUE_IGNORE_SSIDS)
+                        ),
+                        apply_ssid_ignore=opts.get(
+                            CONF_ROGUE_APPLY_SSID_IGNORE, DEFAULT_ROGUE_APPLY_SSID_IGNORE
+                        ),
+                        ignore_aps=_split_patterns(
+                            opts.get(CONF_ROGUE_IGNORE_APS, DEFAULT_ROGUE_IGNORE_APS)
+                        ),
+                        apply_ap_ignore=opts.get(
+                            CONF_ROGUE_APPLY_AP_IGNORE, DEFAULT_ROGUE_APPLY_AP_IGNORE
+                        ),
                     )
-                    ignore_aps = _split_patterns(
-                        opts.get(CONF_ROGUE_IGNORE_APS, DEFAULT_ROGUE_IGNORE_APS)
-                    )
-                    show_24 = opts.get(CONF_ROGUE_SHOW_24GHZ, DEFAULT_ROGUE_SHOW_24GHZ)
-                    show_5 = opts.get(CONF_ROGUE_SHOW_5GHZ, DEFAULT_ROGUE_SHOW_5GHZ)
-                    apply_ap_ignore = opts.get(
-                        CONF_ROGUE_APPLY_AP_IGNORE, DEFAULT_ROGUE_APPLY_AP_IGNORE
-                    )
-                    apply_ssid_ignore = opts.get(
-                        CONF_ROGUE_APPLY_SSID_IGNORE, DEFAULT_ROGUE_APPLY_SSID_IGNORE
-                    )
-                    current_ts = int(dt_util.as_timestamp(update_time))
-
-                    # Band filter + SSID ignore, then group by BSSID.
-                    clusters: dict[str, dict[str, Any]] = {}
-                    for r in rogueaps_raw or []:
-                        band = r.get("band")  # "ng"=2.4GHz, "na"=5GHz
-                        if band == "ng" and not show_24:
-                            continue
-                        if band == "na" and not show_5:
-                            continue
-                        essid = r.get("essid", "")
-                        if apply_ssid_ignore and any(
-                            fnmatchcase(essid, pat) for pat in ignore_ssids
-                        ):
-                            continue
-                        bssid = r.get("bssid", "")
-                        ap_mac = r.get("ap_mac", "")
-                        detected_by = ap_name_map.get(ap_mac.lower()) or ap_mac
-                        signal = _safe_int(r.get("signal"))
-                        last_seen = _safe_int(r.get("last_seen"))
-                        cl = clusters.setdefault(
-                            bssid,
-                            {
-                                "essid": essid,
-                                "bssid": bssid,
-                                "band": band,
-                                "channel": _safe_int(r.get("channel")),
-                                "signal": signal,
-                                "oui": r.get("oui", ""),
-                                "reporters": [],
-                                "last_seen": last_seen,
-                            },
-                        )
-                        cl["reporters"].append({"mac": ap_mac, "name": detected_by})
-                        if signal is not None and (
-                            cl["signal"] is None or signal > cl["signal"]
-                        ):
-                            cl["signal"] = signal
-                        if last_seen is not None and (
-                            cl["last_seen"] is None or last_seen > cl["last_seen"]
-                        ):
-                            cl["last_seen"] = last_seen
-
-                    for cl in clusters.values():
-                        # AP ignore: drop only if EVERY reporting AP matches the list.
-                        if (
-                            apply_ap_ignore
-                            and ignore_aps
-                            and cl["reporters"]
-                            and all(
-                                _ap_matches(rep, ignore_aps) for rep in cl["reporters"]
-                            )
-                        ):
-                            continue
-                        last_seen = cl.get("last_seen")
-                        if last_seen is not None:
-                            true_age = max(0, current_ts - last_seen)
-                            age_str = (
-                                f"{true_age // 60}m"
-                                if true_age < 3600
-                                else f"{true_age // 3600}h"
-                            )
-                        else:
-                            age_str = None
-                        names = list(
-                            dict.fromkeys(rep["name"] for rep in cl["reporters"])
-                        )
-                        rogue_aps_list.append(
-                            {
-                                "essid": cl["essid"],
-                                "bssid": cl["bssid"],
-                                "band": cl["band"],
-                                "channel": cl["channel"],
-                                "signal": cl["signal"],
-                                "oui": cl["oui"],
-                                "age": age_str,
-                                "detected_by": ", ".join(names),
-                            }
-                        )
-
                     rogue_ap_count = len(rogue_aps_list)
                     # Strongest rogue = highest (least-negative) signal in dBm.
                     signalled = [
@@ -1145,6 +1232,8 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         strongest = max(signalled, key=lambda ap: ap["signal"])
                         strongest_rogue_ssid = strongest.get("essid") or "None Detected"
                         strongest_rogue_rssi = strongest.get("signal")
+                    if want_security:
+                        self._fire_new_rogue_events(rogue_aps_list)
                 except (
                     AttributeError,
                     KeyError,
@@ -1439,7 +1528,8 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             if last_high_attrs is None:
                                 last_high = alert_title(ev)
                                 last_high_attrs = build_alert_attrs(ev)
-                    self._fire_new_alert_events(logs)
+                    if want_logs:
+                        self._fire_new_alert_events(logs)
                 except (
                     AttributeError,
                     KeyError,

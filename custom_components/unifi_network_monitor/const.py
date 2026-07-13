@@ -36,6 +36,39 @@ ALERT_QUANTITY_MAX = 100
 ALERT_SEVERITIES = ("LOW", "MEDIUM", "HIGH", "VERY_HIGH")
 DEFAULT_ALERT_SEVERITIES = ("HIGH", "VERY_HIGH")
 
+# Bus event fired once per newly-seen rogue-AP BSSID (Security monitoring). Same
+# gating story as EVENT_NEW_ALERT: only fires while Security is enabled (no
+# EP_ROGUE fetch => no parse => no event).
+EVENT_NEW_ROGUE_AP = f"{DOMAIN}_new_rogue_ap"
+
+# On-demand rogue-AP query action (response service). Domain-global; fetches its
+# own data so it works regardless of the Security toggle (fully decoupled).
+SERVICE_GET_ROGUE_APS = "get_rogue_aps"
+
+# get_rogue_aps quantity control.
+ROGUE_QUANTITY_DEFAULT = 10
+ROGUE_QUANTITY_MAX = 100
+
+# get_rogue_aps age presets -> get_rogueaps(within_hours). Named buckets (a
+# select) so the user never converts hours<->days; "all" spans the controller's
+# full rogue retention (~3 months) with margin. The endpoint's granularity is
+# hourly, so sub-hour buckets map to 1h.
+ROGUE_ACTION_PERIOD_HOURS = {
+    "30m": 1,
+    "1h": 1,
+    "6h": 6,
+    "24h": 24,
+    "7d": 168,
+    "30d": 720,
+    "90d": 2160,
+    "all": 8760,
+}
+DEFAULT_ROGUE_ACTION_PERIOD = "24h"
+
+# get_rogue_aps band filter values.
+ROGUE_ACTION_BANDS = ("2.4", "5", "both")
+DEFAULT_ROGUE_ACTION_BAND = "both"
+
 # Config keys
 CONF_API_KEY = "api_key"
 CONF_SITE = "site"
