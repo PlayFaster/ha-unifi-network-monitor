@@ -16,6 +16,7 @@ def _make_coordinator() -> MagicMock:
     coord.gateway_model = "UDMPRO"
     coord.sw_version = "5.1.19.33549"
     coord.async_request_refresh = AsyncMock()
+    coord.async_force_refresh = AsyncMock()
     coord.async_add_listener = MagicMock()
     return coord
 
@@ -144,6 +145,7 @@ async def test_switch_turn_off_resumes_polling() -> None:
     coordinator.async_request_refresh.assert_awaited_once()
 
 
+
 # ---------------------------------------------------------------------------
 # UnifiRogueControlSwitch tests (lines 194, 198, 201-207)
 # ---------------------------------------------------------------------------
@@ -157,6 +159,7 @@ def _make_rogue_coordinator() -> MagicMock:
     coord.sw_version = "5.1.19.33549"
     coord.endpoint_available = MagicMock(return_value=True)
     coord.async_request_refresh = AsyncMock()
+    coord.async_force_refresh = AsyncMock()
     coord.async_add_listener = MagicMock()
     return coord
 
@@ -196,7 +199,7 @@ async def test_rogue_control_turn_on_updates_options_and_refresh() -> None:
     call_kwargs = hass.config_entries.async_update_entry.call_args[1]
     assert call_kwargs["options"]["rogue_show_5ghz"] is True
     switch.async_write_ha_state.assert_called_once()
-    coordinator.async_request_refresh.assert_awaited_once()
+    coordinator.async_force_refresh.assert_awaited_once()
 
 
 async def test_rogue_control_turn_off_updates_options_and_refresh() -> None:
@@ -220,7 +223,7 @@ async def test_rogue_control_turn_off_updates_options_and_refresh() -> None:
     call_kwargs = hass.config_entries.async_update_entry.call_args[1]
     assert call_kwargs["options"]["rogue_show_5ghz"] is False
     switch.async_write_ha_state.assert_called_once()
-    coordinator.async_request_refresh.assert_awaited_once()
+    coordinator.async_force_refresh.assert_awaited_once()
 
 
 async def test_rogue_control_available_when_endpoint_unavailable() -> None:

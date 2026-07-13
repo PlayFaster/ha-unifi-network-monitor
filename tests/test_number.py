@@ -20,6 +20,7 @@ def _make_coordinator(data: dict[str, Any] | None) -> MagicMock:
     coord.gateway_model = "UDMPRO"
     coord.sw_version = "5.1.19.33549"
     coord.async_request_refresh = AsyncMock()
+    coord.async_force_refresh = AsyncMock()
     coord.async_add_listener = MagicMock()
     return coord
 
@@ -156,7 +157,7 @@ async def test_apply_after_debounce_refreshes_coordinator(hass: Any) -> None:
     hass.config_entries.async_update_entry = MagicMock()
 
     await number._apply_after_debounce(60)
-    coordinator.async_request_refresh.assert_awaited_once()
+    coordinator.async_force_refresh.assert_awaited_once()
 
 
 async def test_apply_after_debounce_handles_exception(hass: Any) -> None:
@@ -213,6 +214,7 @@ def _make_wlb_coordinator(data: dict[str, Any] | None) -> MagicMock:
     coord.gateway_model = "UDMPRO"
     coord.sw_version = "5.1.19.33549"
     coord.async_request_refresh = AsyncMock()
+    coord.async_force_refresh = AsyncMock()
     coord.async_add_listener = MagicMock()
     coord.async_set_wan_weights = AsyncMock()
     return coord
@@ -461,7 +463,7 @@ async def test_rogue_threshold_set_value_persists_and_refreshes(hass: Any) -> No
     mock_write.assert_called_once()
     _, kwargs = hass.config_entries.async_update_entry.call_args
     assert kwargs["options"][CONF_ROGUE_PROXIMITY_RSSI_THRESHOLD] == -75
-    coordinator.async_request_refresh.assert_awaited_once()
+    coordinator.async_force_refresh.assert_awaited_once()
 
 
 def test_rogue_threshold_device_info() -> None:

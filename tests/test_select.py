@@ -19,6 +19,7 @@ def _make_coordinator() -> MagicMock:
     coord.sw_version = "5.1.19.33549"
     coord.endpoint_available = MagicMock(return_value=True)
     coord.async_request_refresh = AsyncMock()
+    coord.async_force_refresh = AsyncMock()
     coord.async_add_listener = MagicMock()
     return coord
 
@@ -115,7 +116,7 @@ async def test_async_select_option_valid() -> None:
     call_kwargs = hass.config_entries.async_update_entry.call_args[1]
     assert call_kwargs["options"][CONF_ROGUE_PERIOD] == "30m"
     select.async_write_ha_state.assert_called_once()
-    coordinator.async_request_refresh.assert_awaited_once()
+    coordinator.async_force_refresh.assert_awaited_once()
 
 
 async def test_async_select_option_invalid() -> None:
@@ -132,7 +133,7 @@ async def test_async_select_option_invalid() -> None:
     await select.async_select_option("invalid")
 
     hass.config_entries.async_update_entry.assert_not_called()
-    coordinator.async_request_refresh.assert_not_called()
+    coordinator.async_force_refresh.assert_not_called()
 
 
 def test_unique_id() -> None:

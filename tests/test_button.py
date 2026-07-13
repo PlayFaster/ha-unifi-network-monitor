@@ -26,6 +26,7 @@ def _make_coordinator(data: dict[str, Any] | None) -> MagicMock:
     coord.gateway_model = "UDMPRO"
     coord.sw_version = "5.1.19.33549"
     coord.async_request_refresh = AsyncMock()
+    coord.async_force_refresh = AsyncMock()
     coord.async_add_listener = MagicMock()
     coord.async_trigger_speedtest = AsyncMock()
     return coord
@@ -73,7 +74,7 @@ async def test_button_press_calls_refresh() -> None:
 
     button = UnifiRefreshButton(coordinator, entry)
     await button.async_press()
-    coordinator.async_request_refresh.assert_awaited_once()
+    coordinator.async_force_refresh.assert_awaited_once()
 
 
 def test_button_unique_id() -> None:

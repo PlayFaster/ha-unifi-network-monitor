@@ -556,9 +556,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         sooner anyway (and polling isn't paused). Reschedules on repeat calls.
         """
         paused = bool(self.entry.options.get(CONF_STOP_POLLING, False))
-        interval_s = (
-            self.update_interval.total_seconds() if self.update_interval else 0
-        )
+        interval_s = self.update_interval.total_seconds() if self.update_interval else 0
         if not paused and interval_s <= seconds:
             return  # the regular poll will pick it up soon enough
         self._cancel_scheduled_refresh()
