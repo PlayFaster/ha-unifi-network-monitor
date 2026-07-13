@@ -46,3 +46,65 @@ get_alerts:
       required: false
       selector:
         text:
+
+get_rogue_aps:
+  fields:
+    device_id:
+      required: false
+      selector:
+        device:
+          integration: unifi_network_monitor
+    period:
+      default: 24h
+      required: false
+      selector:
+        select:
+          options:
+            - value: 30m
+              label: Last 30 minutes
+            - value: 1h
+              label: Last hour
+            - value: 6h
+              label: Last 6 hours
+            - value: 24h
+              label: Last 24 hours
+            - value: 7d
+              label: Last 7 days
+            - value: 30d
+              label: Last 30 days
+            - value: 90d
+              label: Last 90 days
+            - value: all
+              label: All available
+    band:
+      default: both
+      required: false
+      selector:
+        select:
+          options:
+            - value: "2.4"
+              label: 2.4 GHz
+            - value: "5"
+              label: 5 GHz
+            - value: both
+              label: Both
+    min_signal:
+      required: false
+      selector:
+        number:
+          min: -100
+          max: 0
+          unit_of_measurement: dBm
+          mode: box
+    quantity:
+      default: 10
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 100
+          mode: box
+    keyword:
+      required: false
+      selector:
+        text:

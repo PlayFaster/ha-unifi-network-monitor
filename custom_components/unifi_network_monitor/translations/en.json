@@ -636,6 +636,36 @@
           "description": "Case-insensitive substring to match against the alert title and message."
         }
       }
+    },
+    "get_rogue_aps": {
+      "name": "Get rogue APs",
+      "description": "Returns the current rogue-AP set on demand. Fetches fresh data, so it works even when Security monitoring is off, and does not apply the Security ignore lists.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "The UniFi Network Monitor gateway to query. Optional when only one is configured."
+        },
+        "period": {
+          "name": "Period",
+          "description": "How far back to look for rogue APs. 'All available' spans the controller's full retention."
+        },
+        "band": {
+          "name": "Band",
+          "description": "Which Wi-Fi band(s) to include. Defaults to both."
+        },
+        "min_signal": {
+          "name": "Minimum signal",
+          "description": "Only return rogue APs at or above this signal strength in dBm (e.g. -70). Leave blank for all."
+        },
+        "quantity": {
+          "name": "Quantity",
+          "description": "Maximum number of rogue APs to return, strongest first (1–100, default 10)."
+        },
+        "keyword": {
+          "name": "Keyword",
+          "description": "Case-insensitive substring to match against the SSID and OUI (vendor)."
+        }
+      }
     }
   }
 }

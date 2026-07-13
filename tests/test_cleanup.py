@@ -815,9 +815,7 @@ def test_plan_sub_device_card_skips_already_planned() -> None:
     # Since plan is constructed fresh internally, we just ensure a dup check works.
     # The entity on the security card that was already added by endpoint check.
     ent_reg_entries = [
-        _make_reg_entry(
-            "sensor.rogue_count", f"{uid}_rogue_ap_count"
-        ),
+        _make_reg_entry("sensor.rogue_count", f"{uid}_rogue_ap_count"),
     ]
 
     with (

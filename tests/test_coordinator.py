@@ -2337,9 +2337,7 @@ async def test_system_log_alert_counts_and_attrs(
     assert gateway["last_very_high"] == "Critical Alert"
     assert gateway["last_very_high_attrs"] is not None
     assert gateway["last_very_high_attrs"]["severity"] == "VERY_HIGH"
-    assert (
-        gateway["last_very_high_attrs"]["message"] == "Critical error on UDM-Pro"
-    )
+    assert gateway["last_very_high_attrs"]["message"] == "Critical error on UDM-Pro"
     assert gateway["last_high"] == "Memory Alert"
     assert gateway["last_high_attrs"] is not None
     assert gateway["last_high_attrs"]["severity"] == "HIGH"
@@ -2594,8 +2592,6 @@ async def test_schedule_refresh_in_interval_sooner_returns_early(
     hass: Any, mock_config_entry: Any
 ) -> None:
     """async_schedule_refresh_in returns early when regular poll is sooner."""
-    from homeassistant.helpers.update_coordinator import UpdateFailed
-
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
     coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
@@ -2609,9 +2605,7 @@ async def test_schedule_refresh_in_interval_sooner_returns_early(
     mock_call_later.assert_not_called()
 
 
-async def test_schedule_refresh_in_schedules(
-    hass: Any, mock_config_entry: Any
-) -> None:
+async def test_schedule_refresh_in_schedules(hass: Any, mock_config_entry: Any) -> None:
     """async_schedule_refresh_in schedules a callback when applicable."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
@@ -2730,9 +2724,7 @@ async def test_fire_new_alert_events_skips_null_id(
     coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
     coordinator._alert_baseline_done = True
 
-    coordinator._fire_new_alert_events(
-        [{"title_raw": "No ID", "severity": "HIGH"}]
-    )
+    coordinator._fire_new_alert_events([{"title_raw": "No ID", "severity": "HIGH"}])
     assert coordinator._seen_alert_ids == set()
 
 

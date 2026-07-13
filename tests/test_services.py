@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from typing import Any
-from unittest.mock import ANY, AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import voluptuous as vol
@@ -14,11 +13,8 @@ from custom_components.unifi_network_monitor.const import (
     ALERT_PAGE_SIZE,
     ALERT_QUANTITY_DEFAULT,
     ALERT_QUANTITY_MAX,
-    ALERT_SEVERITIES,
-    DEFAULT_ALERT_SEVERITIES,
     DOMAIN,
     ROGUE_ACTION_PERIOD_HOURS,
-    ROGUE_QUANTITY_DEFAULT,
     ROGUE_QUANTITY_MAX,
     SERVICE_GET_ALERTS,
     SERVICE_GET_ROGUE_APS,
@@ -107,12 +103,14 @@ def test_resolve_coordinator_device_id_unknown() -> None:
     call = MagicMock()
     call.data = {"device_id": "unknown-dev"}
 
-    with patch(
-        "custom_components.unifi_network_monitor.services.dr.async_get",
-        return_value=mock_dev_reg,
+    with (
+        patch(
+            "custom_components.unifi_network_monitor.services.dr.async_get",
+            return_value=mock_dev_reg,
+        ),
+        pytest.raises(Exception, match="Unknown device id"),
     ):
-        with pytest.raises(Exception, match="Unknown device id"):
-            _resolve_coordinator(hass, call)
+        _resolve_coordinator(hass, call)
 
 
 def test_resolve_coordinator_device_id_not_monitor() -> None:
@@ -130,12 +128,14 @@ def test_resolve_coordinator_device_id_not_monitor() -> None:
     call = MagicMock()
     call.data = {"device_id": "dev-001"}
 
-    with patch(
-        "custom_components.unifi_network_monitor.services.dr.async_get",
-        return_value=mock_dev_reg,
+    with (
+        patch(
+            "custom_components.unifi_network_monitor.services.dr.async_get",
+            return_value=mock_dev_reg,
+        ),
+        pytest.raises(Exception, match="not a UniFi Network Monitor device"),
     ):
-        with pytest.raises(Exception, match="not a UniFi Network Monitor device"):
-            _resolve_coordinator(hass, call)
+        _resolve_coordinator(hass, call)
 
 
 def test_resolve_coordinator_device_id_success() -> None:
@@ -198,7 +198,12 @@ async def test_fetch_alerts_cutoff() -> None:
     coordinator = _make_coordinator()
     coordinator.api.get_system_logs = AsyncMock(
         return_value=[
-            {"id": "evt_1", "timestamp": 2000, "title_raw": "Recent", "severity": "HIGH"},
+            {
+                "id": "evt_1",
+                "timestamp": 2000,
+                "title_raw": "Recent",
+                "severity": "HIGH",
+            },
             {"id": "evt_2", "timestamp": 500, "title_raw": "Old", "severity": "HIGH"},
         ]
     )
@@ -213,8 +218,18 @@ async def test_fetch_alerts_keyword_filter() -> None:
     coordinator = _make_coordinator()
     coordinator.api.get_system_logs = AsyncMock(
         return_value=[
-            {"id": "evt_1", "title_raw": "CPU Alert", "message_raw": "", "severity": "HIGH"},
-            {"id": "evt_2", "title_raw": "Memory Alert", "message_raw": "", "severity": "HIGH"},
+            {
+                "id": "evt_1",
+                "title_raw": "CPU Alert",
+                "message_raw": "",
+                "severity": "HIGH",
+            },
+            {
+                "id": "evt_2",
+                "title_raw": "Memory Alert",
+                "message_raw": "",
+                "severity": "HIGH",
+            },
         ]
     )
 
@@ -227,9 +242,7 @@ async def test_fetch_alerts_short_page_ends_early() -> None:
     """_fetch_alerts stops when page has fewer records than page_size."""
     coordinator = _make_coordinator()
     coordinator.api.get_system_logs = AsyncMock(
-        return_value=[
-            {"id": "evt_1", "title_raw": "Only one", "severity": "HIGH"}
-        ]
+        return_value=[{"id": "evt_1", "title_raw": "Only one", "severity": "HIGH"}]
     )
 
     result = await _fetch_alerts(coordinator, ["HIGH"], 10, None, "")
@@ -247,7 +260,9 @@ async def test_fetch_alerts_stops_at_max_pages() -> None:
         ]
     )
 
-    result = await _fetch_alerts(coordinator, ["HIGH"], ALERT_PAGE_SIZE * ALERT_MAX_PAGES, None, "")
+    result = await _fetch_alerts(
+        coordinator, ["HIGH"], ALERT_PAGE_SIZE * ALERT_MAX_PAGES, None, ""
+    )
     assert len(result) == ALERT_PAGE_SIZE * ALERT_MAX_PAGES
     assert coordinator.api.get_system_logs.call_count == ALERT_MAX_PAGES
 
@@ -369,9 +384,7 @@ async def test_get_alerts_service_idempotent(hass: Any) -> None:
     hass.services.async_register.assert_not_called()
 
 
-async def test_get_alerts_service_call(
-    hass: Any, mock_config_entry: Any
-) -> None:
+async def test_get_alerts_service_call(hass: Any, mock_config_entry: Any) -> None:
     """End-to-end: get_alerts service call returns alerts."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
@@ -418,9 +431,7 @@ async def test_get_alerts_service_call(
     assert response["alerts"][0]["id"] == "evt_001"
 
 
-async def test_get_rogue_aps_service_call(
-    hass: Any, mock_config_entry: Any
-) -> None:
+async def test_get_rogue_aps_service_call(hass: Any, mock_config_entry: Any) -> None:
     """End-to-end: get_rogue_aps service call returns rogue APs."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
