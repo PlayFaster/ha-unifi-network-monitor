@@ -256,8 +256,9 @@ class UnifiRogueProximityThresholdNumber(
             CONF_ROGUE_PROXIMITY_RSSI_THRESHOLD: val_int,
         }
         self.hass.config_entries.async_update_entry(self._entry, options=new_options)
-        # Nudge the coordinator so the proximity binary sensor recomputes promptly.
-        await self.coordinator.async_request_refresh()
+        # Nudge the coordinator so the proximity binary sensor recomputes promptly
+        # (explicit user action: applies even if polling is paused).
+        await self.coordinator.async_force_refresh()
 
     @property
     def device_info(self) -> DeviceInfo:

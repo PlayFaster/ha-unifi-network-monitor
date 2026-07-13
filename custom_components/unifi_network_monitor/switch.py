@@ -204,4 +204,6 @@ class UnifiRogueControlSwitch(
         }
         self.hass.config_entries.async_update_entry(self._entry, options=new_options)
         self.async_write_ha_state()
-        await self.coordinator.async_request_refresh()
+        # Explicit user action: re-parse rogues with the new filter even if paused
+        # (the band/ignore filters apply in the coordinator parse path).
+        await self.coordinator.async_force_refresh()
