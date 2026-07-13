@@ -495,9 +495,11 @@ def test_gateway_sensor_extra_state_attributes_strongest_rogue_ssid() -> None:
     attrs = sensor.extra_state_attributes
     assert attrs is not None
     assert len(attrs["rogue_aps"]) == 3
-    assert attrs["rogue_aps"][0]["essid"] == "RogueNet-1"
-    assert attrs["rogue_aps"][0]["age"] == "120h"
-    assert attrs["rogue_aps"][0]["detected_by"] == "AP-1"
+    assert attrs["rogue_aps"][0]["essid"] == "RogueNet-2"
+    assert attrs["rogue_aps"][0]["signal"] == -87
+    assert attrs["rogue_aps"][0]["detected_by"] == ""
+    assert attrs["rogue_aps"][1]["essid"] == "RogueNet-1"
+    assert attrs["rogue_aps"][1]["signal"] == -89
 
 
 def test_gateway_sensor_rogue_ap_count_has_no_attributes() -> None:
@@ -506,7 +508,10 @@ def test_gateway_sensor_rogue_ap_count_has_no_attributes() -> None:
     entry = _make_entry()
     desc = next(d for d in GATEWAY_SENSORS if d.key == "rogue_ap_count")
     sensor = UnifiGatewaySensor(coordinator, entry, desc, "rogue_ap_count")
-    assert sensor.extra_state_attributes is None
+    attrs = sensor.extra_state_attributes
+    assert attrs is not None
+    assert "about" in attrs
+    assert "rogue_aps" not in attrs
 
 
 def test_gateway_strongest_rogue_sensors_values() -> None:

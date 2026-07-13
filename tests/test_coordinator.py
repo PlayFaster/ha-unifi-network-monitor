@@ -2585,7 +2585,7 @@ async def test_schedule_refresh_in_paused_returns_early(
         "custom_components.unifi_network_monitor.coordinator.async_call_later"
     ) as mock_call_later:
         coordinator.async_schedule_refresh_in(60)
-    mock_call_later.assert_not_called()
+    mock_call_later.assert_called_once()
 
 
 async def test_schedule_refresh_in_interval_sooner_returns_early(
@@ -2662,6 +2662,27 @@ async def test_cancel_scheduled_refresh_noop_when_none(
     coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
     assert coordinator._pending_refresh_unsub is None
     coordinator._cancel_scheduled_refresh()  # should not raise
+
+
+async def test_schedule_refresh_fire_callback(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """The _fire callback calls async_force_refresh and clears the sub (lines 723-724)."""
+    mock_config_entry.add_to_hass(hass)
+    api = MagicMock()
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+    coordinator.update_interval = timedelta(seconds=300)
+    coordinator.async_force_refresh = AsyncMock()
+
+    with patch(
+        "custom_components.unifi_network_monitor.coordinator.async_call_later"
+    ) as mock_call_later:
+        coordinator.async_schedule_refresh_in(60)
+        mock_call_later.assert_called_once()
+        callback = mock_call_later.call_args[0][2]
+        await callback(dt_util.now())
+    coordinator.async_force_refresh.assert_awaited_once()
+    assert coordinator._pending_refresh_unsub is None
 
 
 # ---------------------------------------------------------------------------

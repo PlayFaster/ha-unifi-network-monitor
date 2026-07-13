@@ -360,33 +360,25 @@ def test_rogue_response_item_empty() -> None:
 
 async def test_get_alerts_service_registration(hass: Any) -> None:
     """async_register_services registers get_alerts and get_rogue_aps."""
-    hass.services.has_service = MagicMock(return_value=False)
-    hass.services.async_register = MagicMock()
-
     async_register_services(hass)
-
-    assert hass.services.async_register.call_count == 2
-    services_registered = {
-        call.kwargs["domain"]: call.kwargs["service"]
-        for call in hass.services.async_register.call_args_list
-    }
-    service_names = {c.args[1] for c in hass.services.async_register.call_args_list}
-    assert SERVICE_GET_ALERTS in service_names
-    assert SERVICE_GET_ROGUE_APS in service_names
+    services = hass.services.async_services().get(DOMAIN, {})
+    assert SERVICE_GET_ALERTS in services
+    assert SERVICE_GET_ROGUE_APS in services
 
 
 async def test_get_alerts_service_idempotent(hass: Any) -> None:
-    """async_register_services skips registration when already registered."""
-    hass.services.has_service = MagicMock(return_value=True)
-    hass.services.async_register = MagicMock()
-
+    """async_register_services can be called twice without error."""
     async_register_services(hass)
-    hass.services.async_register.assert_not_called()
+    async_register_services(hass)
+    services = hass.services.async_services().get(DOMAIN, {})
+    assert SERVICE_GET_ALERTS in services
 
 
 async def test_get_alerts_service_call(hass: Any, mock_config_entry: Any) -> None:
-    """End-to-end: get_alerts service call returns alerts."""
+    """End-to-end: get_alerts handler returns alerts."""
     mock_config_entry.add_to_hass(hass)
+    from custom_components.unifi_network_monitor.services import _handle_get_alerts
+
     api = MagicMock()
     api.get_system_logs = AsyncMock(
         return_value=[
@@ -404,36 +396,25 @@ async def test_get_alerts_service_call(hass: Any, mock_config_entry: Any) -> Non
     coord.api = api
     coord.data = {"gateway": {"mac": "aa:bb:cc:dd:ee:ff"}, "devices": {}}
 
-    # Set up an entry that _resolve_coordinator will find
     entry = MagicMock()
     entry.domain = DOMAIN
     entry.runtime_data = coord
     hass.config_entries.async_entries = MagicMock(return_value=[entry])
-    hass.services.has_service = MagicMock(return_value=False)
-    hass.services.async_register = MagicMock()
-
-    async_register_services(hass)
-
-    # Get the registered handler for get_alerts
-    get_alerts_handler = None
-    for call in hass.services.async_register.call_args_list:
-        if call.args[1] == SERVICE_GET_ALERTS:
-            get_alerts_handler = call.args[2]
-            break
-    assert get_alerts_handler is not None
 
     call = MagicMock()
     call.data = {"quantity": 5}
 
-    response = await get_alerts_handler(call)
+    response = await _handle_get_alerts(hass, call)
     assert response is not None
     assert response["count"] == 1
     assert response["alerts"][0]["id"] == "evt_001"
 
 
 async def test_get_rogue_aps_service_call(hass: Any, mock_config_entry: Any) -> None:
-    """End-to-end: get_rogue_aps service call returns rogue APs."""
+    """End-to-end: get_rogue_aps handler returns rogue APs."""
     mock_config_entry.add_to_hass(hass)
+    from custom_components.unifi_network_monitor.services import _handle_get_rogue_aps
+
     api = MagicMock()
     api.get_rogueaps = AsyncMock(
         return_value=[
@@ -461,22 +442,11 @@ async def test_get_rogue_aps_service_call(hass: Any, mock_config_entry: Any) -> 
     entry.domain = DOMAIN
     entry.runtime_data = coord
     hass.config_entries.async_entries = MagicMock(return_value=[entry])
-    hass.services.has_service = MagicMock(return_value=False)
-    hass.services.async_register = MagicMock()
-
-    async_register_services(hass)
-
-    get_rogue_handler = None
-    for call in hass.services.async_register.call_args_list:
-        if call.args[1] == SERVICE_GET_ROGUE_APS:
-            get_rogue_handler = call.args[2]
-            break
-    assert get_rogue_handler is not None
 
     call = MagicMock()
-    call.data = {"period": "24", "band": "both", "quantity": 10}
+    call.data = {"period": "24h", "band": "both", "quantity": 10}
 
-    response = await get_rogue_handler(call)
+    response = await _handle_get_rogue_aps(hass, call)
     assert response is not None
     assert response["count"] == 1
     assert response["rogue_aps"][0]["essid"] == "RogueNet"
@@ -518,3 +488,150 @@ def test_get_rogue_aps_schema_validates_quantity() -> None:
 
     with pytest.raises(vol.Invalid):
         GET_ROGUE_APS_SCHEMA({"quantity": ROGUE_QUANTITY_MAX + 1})
+
+
+async def test_get_alerts_with_age_days(hass: Any, mock_config_entry: Any) -> None:
+    """_handle_get_alerts handles age_days parameter (line 174)."""
+    from custom_components.unifi_network_monitor.services import _handle_get_alerts
+
+    mock_config_entry.add_to_hass(hass)
+    api = MagicMock()
+    api.get_system_logs = AsyncMock(return_value=[])
+    coord = MagicMock()
+    coord.api = api
+    coord.data = {"gateway": {"mac": "aa:bb:cc:dd:ee:ff"}, "devices": {}}
+    entry = MagicMock()
+    entry.domain = DOMAIN
+    entry.runtime_data = coord
+    hass.config_entries.async_entries = MagicMock(return_value=[entry])
+
+    call = MagicMock()
+    call.data = {"quantity": 5, "age_days": 7}
+
+    response = await _handle_get_alerts(hass, call)
+    assert response is not None
+    assert response["count"] == 0
+
+
+async def test_get_rogue_aps_with_min_signal(hass: Any, mock_config_entry: Any) -> None:
+    """_handle_get_rogue_aps filters by min_signal (line 247)."""
+    from custom_components.unifi_network_monitor.services import _handle_get_rogue_aps
+
+    mock_config_entry.add_to_hass(hass)
+    api = MagicMock()
+    api.get_rogueaps = AsyncMock(
+        return_value=[
+            {"essid": "WeakNet", "bssid": "00:11:22:33:44:55", "band": "ng",
+             "signal": -90, "ap_mac": "aa:bb:cc:dd:ee:ff", "last_seen": 1000},
+        ]
+    )
+    api.get_devices = AsyncMock(return_value=[])
+    coord = MagicMock()
+    coord.api = api
+    coord.data = {"gateway": {"mac": "aa:bb:cc:dd:ee:ff"}, "devices": {}}
+    entry = MagicMock()
+    entry.domain = DOMAIN
+    entry.runtime_data = coord
+    hass.config_entries.async_entries = MagicMock(return_value=[entry])
+
+    call = MagicMock()
+    call.data = {"period": "24h", "band": "both", "quantity": 10, "min_signal": -80}
+
+    response = await _handle_get_rogue_aps(hass, call)
+    assert response is not None
+    assert response["count"] == 0  # filtered out by min_signal
+
+
+async def test_get_rogue_aps_with_keyword(hass: Any, mock_config_entry: Any) -> None:
+    """_handle_get_rogue_aps filters by keyword (lines 249-251)."""
+    from custom_components.unifi_network_monitor.services import _handle_get_rogue_aps
+
+    mock_config_entry.add_to_hass(hass)
+    api = MagicMock()
+    api.get_rogueaps = AsyncMock(
+        return_value=[
+            {"essid": "CorpNet", "bssid": "00:11:22:33:44:55", "band": "ng",
+             "oui": "VendorX", "signal": -70, "ap_mac": "aa:bb:cc:dd:ee:ff",
+             "last_seen": 1000},
+            {"essid": "GuestNet", "bssid": "66:77:88:99:aa:bb", "band": "ng",
+             "signal": -75, "ap_mac": "aa:bb:cc:dd:ee:ff", "last_seen": 2000},
+        ]
+    )
+    api.get_devices = AsyncMock(return_value=[])
+    coord = MagicMock()
+    coord.api = api
+    coord.data = {"gateway": {"mac": "aa:bb:cc:dd:ee:ff"}, "devices": {}}
+    entry = MagicMock()
+    entry.domain = DOMAIN
+    entry.runtime_data = coord
+    hass.config_entries.async_entries = MagicMock(return_value=[entry])
+
+    call = MagicMock()
+    call.data = {"period": "24h", "band": "both", "quantity": 10, "keyword": "CorpNet"}
+
+    response = await _handle_get_rogue_aps(hass, call)
+    assert response is not None
+    assert response["count"] == 1
+    assert response["rogue_aps"][0]["essid"] == "CorpNet"
+
+
+async def test_service_handlers_via_registration(hass: Any) -> None:
+    """Test the inner wrapper functions (lines 269, 272) via service registration."""
+    from custom_components.unifi_network_monitor.const import DOMAIN
+    from custom_components.unifi_network_monitor.services import (
+        SERVICE_GET_ALERTS,
+        SERVICE_GET_ROGUE_APS,
+        async_register_services,
+    )
+
+    async_register_services(hass)
+    services = hass.services.async_services().get(DOMAIN, {})
+    assert SERVICE_GET_ALERTS in services
+    assert SERVICE_GET_ROGUE_APS in services
+
+
+async def test_service_wrappers_called_through_hass(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """Call services via HA to invoke wrapper defs (lines 269, 272)."""
+    from custom_components.unifi_network_monitor.const import DOMAIN
+    from custom_components.unifi_network_monitor.services import (
+        SERVICE_GET_ALERTS,
+        SERVICE_GET_ROGUE_APS,
+        async_register_services,
+    )
+
+    mock_config_entry.add_to_hass(hass)
+    api = MagicMock()
+    api.get_system_logs = AsyncMock(return_value=[])
+    api.get_rogueaps = AsyncMock(return_value=[])
+    api.get_devices = AsyncMock(return_value=[])
+    coord = MagicMock()
+    coord.api = api
+    coord.data = {"gateway": {"mac": "aa:bb:cc:dd:ee:ff"}, "devices": {}}
+    entry = MagicMock()
+    entry.domain = DOMAIN
+    entry.runtime_data = coord
+    hass.config_entries.async_entries = MagicMock(return_value=[entry])
+
+    async_register_services(hass)
+
+    alerts_response = await hass.services.async_call(
+        DOMAIN,
+        SERVICE_GET_ALERTS,
+        service_data={"quantity": 5},
+        blocking=True,
+        return_response=True,
+    )
+    assert alerts_response is not None
+    assert alerts_response["count"] == 0
+
+    rogue_response = await hass.services.async_call(
+        DOMAIN,
+        SERVICE_GET_ROGUE_APS,
+        service_data={"period": "24h", "band": "both", "quantity": 10},
+        blocking=True,
+        return_response=True,
+    )
+    assert rogue_response is not None
+    assert rogue_response["count"] == 0

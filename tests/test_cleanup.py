@@ -817,6 +817,8 @@ def test_plan_sub_device_card_skips_already_planned() -> None:
     ent_reg_entries = [
         _make_reg_entry("sensor.rogue_count", f"{uid}_rogue_ap_count"),
     ]
+    # Set device_id on the entity so it matches the security card device
+    ent_reg_entries[0].device_id = "device_security_card"
 
     with (
         patch(
@@ -835,6 +837,11 @@ def test_plan_sub_device_card_skips_already_planned() -> None:
         patch(
             "custom_components.unifi_network_monitor.cleanup.disabled_endpoints",
             return_value={"rogue aps"},
+        ),
+        # Mock disabled_device_keys to return "security" so the card check runs
+        patch(
+            "custom_components.unifi_network_monitor.cleanup.disabled_device_keys",
+            return_value={"security"},
         ),
     ):
         plan = plan_device_cleanup(hass, entry, coordinator)
