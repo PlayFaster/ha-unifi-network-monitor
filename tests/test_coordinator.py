@@ -2334,14 +2334,15 @@ async def test_system_log_alert_counts_and_attrs(
     assert gateway["alerts_very_high_24h"] == 1
     assert gateway["alerts_high_24h"] == 1
     # LOW severity is not counted
-    assert gateway["last_critical_alert"] == "evt_001"
-    assert gateway["last_critical_alert_attrs"] is not None
-    assert gateway["last_critical_alert_attrs"]["severity"] == "VERY_HIGH"
+    assert gateway["last_very_high"] == "Critical Alert"
+    assert gateway["last_very_high_attrs"] is not None
+    assert gateway["last_very_high_attrs"]["severity"] == "VERY_HIGH"
     assert (
-        gateway["last_critical_alert_attrs"]["message"] == "Critical error on UDM-Pro"
+        gateway["last_very_high_attrs"]["message"] == "Critical error on UDM-Pro"
     )
-    # recent_alerts should have up to 3 entries
-    assert len(gateway["recent_alerts"]) == 3
+    assert gateway["last_high"] == "Memory Alert"
+    assert gateway["last_high_attrs"] is not None
+    assert gateway["last_high_attrs"]["severity"] == "HIGH"
 
 
 async def test_rogue_ap_2ghz_skipped_when_disabled(
@@ -2487,3 +2488,397 @@ async def test_system_log_parse_error_handled(
     result = await coordinator._async_update_data()
     assert result["gateway"]["alerts_very_high_24h"] == 0
     assert result["gateway"]["alerts_high_24h"] == 0
+
+
+# ---------------------------------------------------------------------------
+# rogue_band_label (lines 115-117)
+# ---------------------------------------------------------------------------
+
+
+def test_rogue_band_label_none() -> None:
+    """rogue_band_label returns None for None input."""
+    from custom_components.unifi_network_monitor.coordinator import rogue_band_label
+
+    assert rogue_band_label(None) is None
+
+
+def test_rogue_band_label_ng() -> None:
+    """rogue_band_label maps 'ng' to '2.4 GHz'."""
+    from custom_components.unifi_network_monitor.coordinator import rogue_band_label
+
+    assert rogue_band_label("ng") == "2.4 GHz"
+
+
+def test_rogue_band_label_na() -> None:
+    """rogue_band_label maps 'na' to '5 GHz'."""
+    from custom_components.unifi_network_monitor.coordinator import rogue_band_label
+
+    assert rogue_band_label("na") == "5 GHz"
+
+
+def test_rogue_band_label_unknown() -> None:
+    """rogue_band_label passes through unknown band as-is."""
+    from custom_components.unifi_network_monitor.coordinator import rogue_band_label
+
+    assert rogue_band_label("ax") == "ax"
+
+
+# ---------------------------------------------------------------------------
+# build_rogue_event_payload (lines 225-226)
+# ---------------------------------------------------------------------------
+
+
+def test_build_rogue_event_payload_with_last_seen() -> None:
+    """build_rogue_event_payload with last_seen produces ISO timestamp."""
+    from custom_components.unifi_network_monitor.coordinator import (
+        build_rogue_event_payload,
+    )
+
+    payload = build_rogue_event_payload(
+        "entry_001",
+        {"bssid": "00:11:22:33:44:55", "essid": "TestNet", "last_seen": 1700000000},
+    )
+    assert payload["entry_id"] == "entry_001"
+    assert payload["bssid"] == "00:11:22:33:44:55"
+    assert payload["essid"] == "TestNet"
+    assert payload["timestamp"] is not None
+
+
+def test_build_rogue_event_payload_without_last_seen() -> None:
+    """build_rogue_event_payload without last_seen yields None timestamp."""
+    from custom_components.unifi_network_monitor.coordinator import (
+        build_rogue_event_payload,
+    )
+
+    payload = build_rogue_event_payload("entry_001", {"bssid": "00:11:22:33:44:55"})
+    assert payload["timestamp"] is None
+
+
+def test_build_rogue_event_payload_empty() -> None:
+    """build_rogue_event_payload with empty event produces defaults."""
+    from custom_components.unifi_network_monitor.coordinator import (
+        build_rogue_event_payload,
+    )
+
+    payload = build_rogue_event_payload("entry_001", {})
+    assert payload["entry_id"] == "entry_001"
+    assert payload["bssid"] is None
+    assert payload["timestamp"] is None
+
+
+# ---------------------------------------------------------------------------
+# async_schedule_refresh_in (lines 707-717, 723-724)
+# ---------------------------------------------------------------------------
+
+
+async def test_schedule_refresh_in_paused_returns_early(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """async_schedule_refresh_in returns early when polling is paused."""
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_config_entry,
+        options={**mock_config_entry.options, "stop_polling": True},
+    )
+    api = MagicMock()
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+
+    with patch(
+        "custom_components.unifi_network_monitor.coordinator.async_call_later"
+    ) as mock_call_later:
+        coordinator.async_schedule_refresh_in(60)
+    mock_call_later.assert_not_called()
+
+
+async def test_schedule_refresh_in_interval_sooner_returns_early(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """async_schedule_refresh_in returns early when regular poll is sooner."""
+    from homeassistant.helpers.update_coordinator import UpdateFailed
+
+    mock_config_entry.add_to_hass(hass)
+    api = MagicMock()
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+    # Set update_interval to 30s, request 60s schedule
+    coordinator.update_interval = timedelta(seconds=30)
+
+    with patch(
+        "custom_components.unifi_network_monitor.coordinator.async_call_later"
+    ) as mock_call_later:
+        coordinator.async_schedule_refresh_in(60)
+    mock_call_later.assert_not_called()
+
+
+async def test_schedule_refresh_in_schedules(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """async_schedule_refresh_in schedules a callback when applicable."""
+    mock_config_entry.add_to_hass(hass)
+    api = MagicMock()
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+    coordinator.update_interval = timedelta(seconds=300)
+
+    with patch(
+        "custom_components.unifi_network_monitor.coordinator.async_call_later"
+    ) as mock_call_later:
+        coordinator.async_schedule_refresh_in(60)
+    mock_call_later.assert_called_once()
+
+
+async def test_schedule_refresh_in_cancels_previous(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """async_schedule_refresh_in cancels prior pending schedule."""
+    mock_config_entry.add_to_hass(hass)
+    api = MagicMock()
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+    coordinator.update_interval = timedelta(seconds=300)
+
+    mock_unsub = MagicMock()
+    coordinator._pending_refresh_unsub = mock_unsub
+
+    with patch(
+        "custom_components.unifi_network_monitor.coordinator.async_call_later"
+    ) as mock_call_later:
+        coordinator.async_schedule_refresh_in(60)
+    mock_unsub.assert_called_once()
+    mock_call_later.assert_called_once()
+
+
+async def test_cancel_scheduled_refresh(hass: Any, mock_config_entry: Any) -> None:
+    """_cancel_scheduled_refresh cancels and clears the pending subscription."""
+    mock_config_entry.add_to_hass(hass)
+    api = MagicMock()
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+
+    mock_unsub = MagicMock()
+    coordinator._pending_refresh_unsub = mock_unsub
+
+    coordinator._cancel_scheduled_refresh()
+    mock_unsub.assert_called_once()
+    assert coordinator._pending_refresh_unsub is None
+
+
+async def test_cancel_scheduled_refresh_noop_when_none(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """_cancel_scheduled_refresh is a no-op when no pending subscription."""
+    mock_config_entry.add_to_hass(hass)
+    api = MagicMock()
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+    assert coordinator._pending_refresh_unsub is None
+    coordinator._cancel_scheduled_refresh()  # should not raise
+
+
+# ---------------------------------------------------------------------------
+# _fire_new_alert_events (lines 746-753)
+# ---------------------------------------------------------------------------
+
+
+async def test_fire_new_alert_events_baseline(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """First call records baseline and does not fire events."""
+    mock_config_entry.add_to_hass(hass)
+    api = MagicMock()
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+
+    coordinator._fire_new_alert_events(
+        [{"id": "evt_001", "title_raw": "Test", "severity": "HIGH"}]
+    )
+    assert coordinator._alert_baseline_done is True
+    assert "evt_001" in coordinator._seen_alert_ids
+
+
+async def test_fire_new_alert_events_new_event(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """New alert id fires a bus event."""
+    mock_config_entry.add_to_hass(hass)
+    api = MagicMock()
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+    coordinator._alert_baseline_done = True
+
+    coordinator._fire_new_alert_events(
+        [{"id": "evt_002", "title_raw": "New Alert", "severity": "HIGH"}]
+    )
+    assert "evt_002" in coordinator._seen_alert_ids
+
+
+async def test_fire_new_alert_events_skips_seen(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """Already-seen alert id does not fire again."""
+    mock_config_entry.add_to_hass(hass)
+    api = MagicMock()
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+    coordinator._alert_baseline_done = True
+    coordinator._seen_alert_ids = {"evt_001"}
+
+    coordinator._fire_new_alert_events(
+        [{"id": "evt_001", "title_raw": "Seen", "severity": "HIGH"}]
+    )
+    assert coordinator._seen_alert_ids == {"evt_001"}
+
+
+async def test_fire_new_alert_events_skips_null_id(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """Event with no id is skipped."""
+    mock_config_entry.add_to_hass(hass)
+    api = MagicMock()
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+    coordinator._alert_baseline_done = True
+
+    coordinator._fire_new_alert_events(
+        [{"title_raw": "No ID", "severity": "HIGH"}]
+    )
+    assert coordinator._seen_alert_ids == set()
+
+
+# ---------------------------------------------------------------------------
+# _fire_new_rogue_events (lines 770-778)
+# ---------------------------------------------------------------------------
+
+
+async def test_fire_new_rogue_events_baseline(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """First call records baseline and does not fire events."""
+    mock_config_entry.add_to_hass(hass)
+    api = MagicMock()
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+
+    coordinator._fire_new_rogue_events(
+        [{"bssid": "00:11:22:33:44:55", "essid": "TestNet"}]
+    )
+    assert coordinator._rogue_baseline_done is True
+    assert "00:11:22:33:44:55" in coordinator._seen_rogue_bssids
+
+
+async def test_fire_new_rogue_events_new_bssid(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """New BSSID fires a bus event."""
+    mock_config_entry.add_to_hass(hass)
+    api = MagicMock()
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+    coordinator._rogue_baseline_done = True
+
+    coordinator._fire_new_rogue_events(
+        [{"bssid": "66:77:88:99:aa:bb", "essid": "NewRogue"}]
+    )
+    assert "66:77:88:99:aa:bb" in coordinator._seen_rogue_bssids
+
+
+async def test_fire_new_rogue_events_skips_seen(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """Already-seen BSSID does not fire again."""
+    mock_config_entry.add_to_hass(hass)
+    api = MagicMock()
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+    coordinator._rogue_baseline_done = True
+    coordinator._seen_rogue_bssids = {"00:11:22:33:44:55"}
+
+    coordinator._fire_new_rogue_events(
+        [{"bssid": "00:11:22:33:44:55", "essid": "Seen"}]
+    )
+    assert coordinator._seen_rogue_bssids == {"00:11:22:33:44:55"}
+
+
+async def test_fire_new_rogue_events_skips_missing_bssid(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """AP with no BSSID is skipped."""
+    mock_config_entry.add_to_hass(hass)
+    api = MagicMock()
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+    coordinator._rogue_baseline_done = True
+
+    coordinator._fire_new_rogue_events([{"essid": "NoBSSID"}])
+    assert coordinator._seen_rogue_bssids == set()
+
+
+# ---------------------------------------------------------------------------
+# _skip_fetch with EP_SYSLOG / EP_ROGUE (lines 864-865, 868-869)
+# ---------------------------------------------------------------------------
+
+
+async def test_skip_fetch_resets_alert_baseline(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """_skip_fetch with EP_SYSLOG resets alert baseline."""
+    from custom_components.unifi_network_monitor.const import EP_SYSLOG
+
+    mock_config_entry.add_to_hass(hass)
+    api = MagicMock()
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+    coordinator._alert_baseline_done = True
+    coordinator._seen_alert_ids = {"evt_001"}
+
+    await coordinator._skip_fetch(EP_SYSLOG)
+    assert coordinator._alert_baseline_done is False
+    assert coordinator._seen_alert_ids == set()
+
+
+async def test_skip_fetch_resets_rogue_baseline(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """_skip_fetch with EP_ROGUE resets rogue baseline."""
+    from custom_components.unifi_network_monitor.const import EP_ROGUE
+
+    mock_config_entry.add_to_hass(hass)
+    api = MagicMock()
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+    coordinator._rogue_baseline_done = True
+    coordinator._seen_rogue_bssids = {"00:11:22:33:44:55"}
+
+    await coordinator._skip_fetch(EP_ROGUE)
+    assert coordinator._rogue_baseline_done is False
+    assert coordinator._seen_rogue_bssids == set()
+
+
+async def test_skip_fetch_other_label_no_reset(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """_skip_fetch with other label does not reset baselines."""
+    mock_config_entry.add_to_hass(hass)
+    api = MagicMock()
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+    coordinator._alert_baseline_done = True
+    coordinator._rogue_baseline_done = True
+
+    await coordinator._skip_fetch("other_label")
+    assert coordinator._alert_baseline_done is True
+    assert coordinator._rogue_baseline_done is True
+
+
+# ---------------------------------------------------------------------------
+# _safe_int edge cases (lines 115-117)
+# ---------------------------------------------------------------------------
+
+
+def test_safe_int_float_value() -> None:
+    """_safe_int converts float to int."""
+    assert _safe_int(42.7) == 42
+
+
+def test_safe_int_float_string_value() -> None:
+    """_safe_int converts float string to int."""
+    assert _safe_int("42.7") == 42
+
+
+def test_safe_int_invalid_string() -> None:
+    """_safe_int returns default for invalid string."""
+    assert _safe_int("abc") is None
+
+
+def test_safe_int_zero() -> None:
+    """_safe_int handles zero."""
+    assert _safe_int(0) == 0
+
+
+def test_safe_int_negative() -> None:
+    """_safe_int handles negative values."""
+    assert _safe_int(-5) == -5

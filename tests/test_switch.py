@@ -43,7 +43,7 @@ async def test_async_setup_entry_creates_switch(hass) -> None:
     await async_setup_entry(hass, entry, async_add_entities)
     async_add_entities.assert_called_once()
     entities = async_add_entities.call_args[0][0]
-    assert len(entities) == 4
+    assert len(entities) == 5
     assert entities[0].unique_id == f"{MOCK_MAC}_pause_polling"
     assert entities[1].unique_id == f"{MOCK_MAC}_rogue_show_24ghz"
 

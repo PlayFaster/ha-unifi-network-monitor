@@ -692,3 +692,154 @@ def test_plan_dual_wan_disabled_skips_already_in_plan() -> None:
     ):
         plan = plan_device_cleanup(hass, entry, coordinator)
     assert plan.entity_ids.count("sensor.dup") == 1
+
+
+# ---------------------------------------------------------------------------
+# Sub-device card cleanup (lines 153, 157-159, 162)
+# ---------------------------------------------------------------------------
+
+
+def test_plan_sub_device_card_cleanup_skips_none_device() -> None:
+    """Sub-device card cleanup skips when no device exists (line 153)."""
+    hass = MagicMock()
+    entry = _make_entry(mode=DEVICE_MODE_ALL)
+    entry.options = {
+        "host": "192.168.1.1",
+        CONF_UNIFI_DEVICE_MODE: DEVICE_MODE_ALL,
+        CONF_ENABLE_SPEEDTEST: True,
+        CONF_ENABLE_WAN_USAGE: True,
+        CONF_ENABLE_SECURITY_MONITORING: False,
+        "enable_logs_alerts": False,
+    }
+    coordinator = _make_coordinator({"devices": {}})
+
+    mock_dev_reg = MagicMock()
+    mock_dev_reg.async_get_device = MagicMock(return_value=None)
+
+    with (
+        patch(
+            "custom_components.unifi_network_monitor.cleanup.er.async_get",
+            return_value=MagicMock(),
+        ),
+        patch(
+            "custom_components.unifi_network_monitor.cleanup.dr.async_get",
+            return_value=mock_dev_reg,
+        ),
+        patch(
+            "custom_components.unifi_network_monitor.cleanup.er.async_entries_for_config_entry",
+            return_value=[],
+        ),
+    ):
+        plan = plan_device_cleanup(hass, entry, coordinator)
+    assert plan.is_empty
+
+
+def test_plan_sub_device_card_adds_entities_and_device() -> None:
+    """Sub-device card cleanup adds matched entities and device id (lines 157-162)."""
+    hass = MagicMock()
+    entry = _make_entry(mode=DEVICE_MODE_ALL)
+    entry.options = {
+        "host": "192.168.1.1",
+        CONF_UNIFI_DEVICE_MODE: DEVICE_MODE_ALL,
+        CONF_ENABLE_SPEEDTEST: True,
+        CONF_ENABLE_WAN_USAGE: True,
+        CONF_ENABLE_SECURITY_MONITORING: False,
+        "enable_logs_alerts": False,
+    }
+    coordinator = _make_coordinator({"devices": {}})
+    coordinator.gateway_mac = "aa:bb:cc:dd:ee:ff"
+
+    uid = entry.unique_id or ""
+
+    # Create a device for the "security" card
+    device_obj = MagicMock()
+    device_obj.id = "device_security_card"
+    device_obj.config_entries = {"entry123"}
+
+    mock_dev_reg = MagicMock()
+    mock_dev_reg.async_get_device = MagicMock(return_value=device_obj)
+
+    # Entity on the security sub-device card
+    ent_reg_entries = [
+        _make_reg_entry("sensor.rogue_count", f"{uid}_rogue_ap_count"),
+    ]
+
+    with (
+        patch(
+            "custom_components.unifi_network_monitor.cleanup.er.async_get",
+            return_value=MagicMock(),
+        ),
+        patch(
+            "custom_components.unifi_network_monitor.cleanup.dr.async_get",
+            return_value=mock_dev_reg,
+        ),
+        patch(
+            "custom_components.unifi_network_monitor.cleanup.er.async_entries_for_config_entry",
+            return_value=ent_reg_entries,
+        ),
+    ):
+        plan = plan_device_cleanup(hass, entry, coordinator)
+
+    assert "sensor.rogue_count" in plan.entity_ids
+    assert "device_security_card" in plan.device_ids
+
+
+def test_plan_sub_device_card_skips_already_planned() -> None:
+    """Sub-device card skips entities already in plan (line 155-156)."""
+    hass = MagicMock()
+    entry = _make_entry(mode=DEVICE_MODE_ALL)
+    entry.options = {
+        "host": "192.168.1.1",
+        CONF_UNIFI_DEVICE_MODE: DEVICE_MODE_ALL,
+        CONF_ENABLE_SPEEDTEST: True,
+        CONF_ENABLE_WAN_USAGE: True,
+        CONF_ENABLE_SECURITY_MONITORING: False,
+        "enable_logs_alerts": False,
+    }
+    coordinator = _make_coordinator({"devices": {}})
+    coordinator.gateway_mac = "aa:bb:cc:dd:ee:ff"
+
+    uid = entry.unique_id or ""
+
+    device_obj = MagicMock()
+    device_obj.id = "device_security_card"
+    device_obj.config_entries = {"entry123"}
+
+    mock_dev_reg = MagicMock()
+    mock_dev_reg.async_get_device = MagicMock(return_value=device_obj)
+
+    # This entity would match the security card, but it also matches WAN2 exclusion
+    # and is already in plan via that path. We simulate this by using `_make_entry`
+    # with mode=NONE so the per-device cleanup adds it first.
+    # Actually, let's test differently: we manually seed the plan via the 'already' set.
+    # Since plan is constructed fresh internally, we just ensure a dup check works.
+    # The entity on the security card that was already added by endpoint check.
+    ent_reg_entries = [
+        _make_reg_entry(
+            "sensor.rogue_count", f"{uid}_rogue_ap_count"
+        ),
+    ]
+
+    with (
+        patch(
+            "custom_components.unifi_network_monitor.cleanup.er.async_get",
+            return_value=MagicMock(),
+        ),
+        patch(
+            "custom_components.unifi_network_monitor.cleanup.dr.async_get",
+            return_value=mock_dev_reg,
+        ),
+        patch(
+            "custom_components.unifi_network_monitor.cleanup.er.async_entries_for_config_entry",
+            return_value=ent_reg_entries,
+        ),
+        # Mock disabled_endpoints to return EP_ROGUE so the endpoint check runs first
+        patch(
+            "custom_components.unifi_network_monitor.cleanup.disabled_endpoints",
+            return_value={"rogue aps"},
+        ),
+    ):
+        plan = plan_device_cleanup(hass, entry, coordinator)
+
+    # Entity should appear only once in the plan
+    assert plan.entity_ids.count("sensor.rogue_count") == 1
