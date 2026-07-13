@@ -29,6 +29,7 @@ from .const import (
     EP_SETTINGS,
     EP_VPN_TUNNELS,
     EP_WLAN,
+    disabled_device_keys,
     dual_wan_enabled,
     single_wan_excluded_keys,
 )
@@ -538,6 +539,7 @@ async def async_setup_entry(
         == DEVICE_MODE_ALL
     )
     disabled_eps = disabled_endpoints(entry.options)
+    disabled_cards = disabled_device_keys(entry.options)
     excluded = set() if dual_wan_enabled(entry.options) else single_wan_excluded_keys()
 
     entities: list[BinarySensorEntity] = []
@@ -545,12 +547,13 @@ async def async_setup_entry(
     entities.extend(
         UnifiGatewayBinarySensor(coordinator, entry, desc, desc.key, standalone)
         for desc in GATEWAY_BINARY_SENSORS
-        if desc.key not in excluded
+        if desc.device_key not in disabled_cards and desc.key not in excluded
     )
     entities.extend(
         UnifiHealthBinarySensor(coordinator, entry, desc, f"health_{desc.key}")
         for desc in HEALTH_BINARY_SENSORS
-        if f"health_{desc.key}" not in excluded
+        if desc.device_key not in disabled_cards
+        and f"health_{desc.key}" not in excluded
     )
     if EP_ROGUE not in disabled_eps:
         entities.append(UnifiRogueProximityBinarySensor(coordinator, entry))

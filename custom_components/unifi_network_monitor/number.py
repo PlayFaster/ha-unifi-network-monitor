@@ -141,7 +141,7 @@ class UnifiScanIntervalNumber(
             self.hass.config_entries.async_update_entry(
                 self._entry, options=new_options
             )
-            await self.coordinator.async_request_refresh()
+            await self.coordinator.async_force_refresh()
         except asyncio.CancelledError:
             pass
         except (UnifiError, ValueError, HomeAssistantError) as err:

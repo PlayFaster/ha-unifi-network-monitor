@@ -26,6 +26,7 @@ from .const import (
     EP_ROGUE,
     EP_SPEEDTEST,
     EP_VPN_TUNNELS,
+    disabled_device_keys,
     dual_wan_enabled,
     single_wan_excluded_keys,
 )
@@ -137,6 +138,28 @@ def plan_device_cleanup(
                 continue
             if reg_entry.unique_id[len(prefix) :] in excluded:
                 plan.entity_ids.append(reg_entry.entity_id)
+
+    # Card-owned sub-devices whose feature toggle is off: remove EVERY entity on
+    # the card (regardless of source — catches health-fed entities that the
+    # endpoint branch misses) and detach the now-empty card device.
+    gateway_mac = coordinator.gateway_mac
+    if gateway_mac:
+        already = set(plan.entity_ids)
+        for card in disabled_device_keys(entry.options):
+            device = dev_reg.async_get_device(
+                identifiers={(DOMAIN, f"{gateway_mac}_{card}")}
+            )
+            if device is None:
+                continue
+            for reg_entry in registered:
+                if reg_entry.entity_id in already:
+                    continue
+                if reg_entry.device_id == device.id:
+                    plan.entity_ids.append(reg_entry.entity_id)
+                    already.add(reg_entry.entity_id)
+            # The card is Monitor-only; once emptied, detach it.
+            if entry.entry_id in device.config_entries:
+                plan.device_ids.append(device.id)
 
     return plan
 

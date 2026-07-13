@@ -162,6 +162,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.runtime_data = coordinator
     coordinator.reload_signature = _reload_signature(entry.options)
     entry.async_on_unload(entry.add_update_listener(_async_reload_on_settings_change))
+    entry.async_on_unload(coordinator._cancel_scheduled_refresh)
 
     # Register the gateway root device early so via_device links work when
     # platforms forward their sub-devices (Standard 3 — Early Root Registration)

@@ -124,6 +124,9 @@ WAN2_KEYS: frozenset[str] = frozenset(
         "wan2_speedtest_upload",
         "wan2_speedtest_ping",
         "wan2_speedtest_lastrun",
+        "wan2_sfp_vendor",
+        "wan2_sfp_part",
+        "wan2_sfp_serial",
         "health_wan2_availability",
         "health_wan2_latency_avg",
         "health_wan2_boot_time",
@@ -154,6 +157,24 @@ def single_wan_excluded_keys() -> frozenset[str]:
 def dual_wan_enabled(options: Mapping[str, Any]) -> bool:
     """Return True when dual-WAN monitoring (WAN2 + load-balance) is enabled."""
     return bool(options.get(CONF_ENABLE_DUAL_WAN, DEFAULT_ENABLE_DUAL_WAN))
+
+
+# Sub-device cards wholly owned by one feature toggle. When the toggle is off,
+# EVERY entity on that card is removed (regardless of which endpoint feeds it),
+# so the card ends up empty and is detached by cleanup. This card-ownership rule
+# is distinct from per-endpoint availability gating.
+def disabled_device_keys(options: Mapping[str, Any]) -> frozenset[str]:
+    """Return the ``device_key`` cards whose owning feature toggle is off."""
+    disabled: set[str] = set()
+    if not options.get(CONF_ENABLE_SPEEDTEST, DEFAULT_ENABLE_SPEEDTEST):
+        disabled.add("speedtest")
+    if not options.get(
+        CONF_ENABLE_SECURITY_MONITORING, DEFAULT_ENABLE_SECURITY_MONITORING
+    ):
+        disabled.add("security")
+    if not options.get(CONF_ENABLE_LOGS_ALERTS, DEFAULT_ENABLE_LOGS_ALERTS):
+        disabled.add("alerts")
+    return frozenset(disabled)
 
 
 # Gateway model identifiers from UniFi stat/device

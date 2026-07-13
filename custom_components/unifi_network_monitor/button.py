@@ -90,8 +90,8 @@ class UnifiRefreshButton(
         self._attr_unique_id = f"{entry.unique_id}_refresh"
 
     async def async_press(self) -> None:
-        """Trigger an immediate data refresh."""
-        await self.coordinator.async_request_refresh()
+        """Trigger an immediate data refresh (overrides Pause Polling)."""
+        await self.coordinator.async_force_refresh()
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -172,6 +172,10 @@ class UnifiSpeedtestButton(
                 translation_key="speedtest_failed",
                 translation_placeholders={"error": str(err)},
             ) from err
+        # The test runs on the gateway (~<1 min); poll once shortly after so the
+        # result shows without waiting for a possibly-distant scheduled poll.
+        # The helper self-guards on pause/interval.
+        self.coordinator.async_schedule_refresh_in(75)
 
     @property
     def device_info(self) -> DeviceInfo:

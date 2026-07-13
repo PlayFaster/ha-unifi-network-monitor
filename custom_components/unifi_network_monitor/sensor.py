@@ -48,6 +48,7 @@ from .const import (
     EP_VPN_TUNNELS,
     EP_WAN_IF,
     EP_WLAN,
+    disabled_device_keys,
     dual_wan_enabled,
     single_wan_excluded_keys,
 )
@@ -831,6 +832,7 @@ HEALTH_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         key="wan1_availability",
         translation_key="health_wan1_availability",
         native_unit_of_measurement=PERCENTAGE,
+        suggested_display_precision=1,
         entity_category=EntityCategory.DIAGNOSTIC,
         min_limit=0.0,
         max_limit=100.0,
@@ -884,6 +886,7 @@ HEALTH_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         key="wan2_availability",
         translation_key="health_wan2_availability",
         native_unit_of_measurement=PERCENTAGE,
+        suggested_display_precision=1,
         entity_category=EntityCategory.DIAGNOSTIC,
         min_limit=0.0,
         max_limit=100.0,
@@ -1480,16 +1483,19 @@ async def async_setup_entry(
     standalone = "unifi" not in hass.config_entries.async_domains()
     device_mode = entry.options.get(CONF_UNIFI_DEVICE_MODE, DEFAULT_UNIFI_DEVICE_MODE)
     disabled_eps = disabled_endpoints(entry.options)
+    disabled_cards = disabled_device_keys(entry.options)
     excluded = set() if dual_wan_enabled(entry.options) else single_wan_excluded_keys()
 
     entities: list[SensorEntity] = []
 
-    # Static gateway sensors (skip those whose feature toggle is off, or whose
-    # WAN2/load-balance key is excluded when dual-WAN monitoring is off)
+    # Static gateway sensors. Skip when: the source endpoint's toggle is off, the
+    # owning sub-device card is off (card-ownership rule — empties the card), or
+    # the WAN2/load-balance key is excluded with dual-WAN off.
     entities.extend(
         UnifiGatewaySensor(coordinator, entry, desc, desc.key, standalone)
         for desc in GATEWAY_SENSORS
         if _ENDPOINT_BY_KEY.get(desc.key) not in disabled_eps
+        and desc.device_key not in disabled_cards
         and desc.key not in excluded
     )
 
@@ -1497,7 +1503,8 @@ async def async_setup_entry(
     entities.extend(
         UnifiHealthSensor(coordinator, entry, desc, f"health_{desc.key}")
         for desc in HEALTH_SENSORS
-        if f"health_{desc.key}" not in excluded
+        if desc.device_key not in disabled_cards
+        and f"health_{desc.key}" not in excluded
     )
 
     # Dynamic device sensors from first coordinator data snapshot (per device mode)

@@ -119,14 +119,16 @@ def _sensor_groups_section(
     Shown only in the Configure/Reconfigure flow (initial setup is connection
     only). All five group toggles are presented, expanded.
     """
+    # Listed alphabetically by label: Alerts, Dual-WAN, Security, Speedtest,
+    # WAN Usage. Voluptuous preserves insertion order → this is the render order.
     fields: dict[Any, Any] = {
         vol.Required(
-            CONF_ENABLE_SPEEDTEST,
-            default=defaults.get(CONF_ENABLE_SPEEDTEST, DEFAULT_ENABLE_SPEEDTEST),
+            CONF_ENABLE_LOGS_ALERTS,
+            default=defaults.get(CONF_ENABLE_LOGS_ALERTS, DEFAULT_ENABLE_LOGS_ALERTS),
         ): bool,
         vol.Required(
-            CONF_ENABLE_WAN_USAGE,
-            default=defaults.get(CONF_ENABLE_WAN_USAGE, DEFAULT_ENABLE_WAN_USAGE),
+            CONF_ENABLE_DUAL_WAN,
+            default=defaults.get(CONF_ENABLE_DUAL_WAN, DEFAULT_ENABLE_DUAL_WAN),
         ): bool,
         vol.Required(
             CONF_ENABLE_SECURITY_MONITORING,
@@ -136,12 +138,12 @@ def _sensor_groups_section(
             ),
         ): bool,
         vol.Required(
-            CONF_ENABLE_DUAL_WAN,
-            default=defaults.get(CONF_ENABLE_DUAL_WAN, DEFAULT_ENABLE_DUAL_WAN),
+            CONF_ENABLE_SPEEDTEST,
+            default=defaults.get(CONF_ENABLE_SPEEDTEST, DEFAULT_ENABLE_SPEEDTEST),
         ): bool,
         vol.Required(
-            CONF_ENABLE_LOGS_ALERTS,
-            default=defaults.get(CONF_ENABLE_LOGS_ALERTS, DEFAULT_ENABLE_LOGS_ALERTS),
+            CONF_ENABLE_WAN_USAGE,
+            default=defaults.get(CONF_ENABLE_WAN_USAGE, DEFAULT_ENABLE_WAN_USAGE),
         ): bool,
     }
     return section(vol.Schema(fields), {"collapsed": False})

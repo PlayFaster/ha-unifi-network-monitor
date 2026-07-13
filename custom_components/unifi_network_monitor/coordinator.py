@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from datetime import UTC, datetime, timedelta
 from fnmatch import fnmatchcase
 from typing import Any
@@ -14,6 +14,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
@@ -31,6 +32,7 @@ from .const import (
     CONF_ROGUE_SHOW_5GHZ,
     CONF_ROGUE_SHOW_24GHZ,
     CONF_SCAN_INTERVAL,
+    CONF_STOP_POLLING,
     DEFAULT_ENABLE_LOGS_ALERTS,
     DEFAULT_ENABLE_SECURITY_MONITORING,
     DEFAULT_ENABLE_SPEEDTEST,
@@ -102,11 +104,16 @@ def _ap_matches(reporter: dict[str, str], patterns: list[str]) -> bool:
 
 
 def _safe_float(val: Any, default: float | None = None) -> float | None:
-    """Safely coerce to float."""
+    """Safely coerce to float, curtailed to 3 decimals.
+
+    Controller telemetry (e.g. WAN availability) can arrive with a dozen
+    decimals; capping to 3 keeps stored/history values clean. Per-sensor
+    ``suggested_display_precision`` controls how many are *shown*.
+    """
     if val in (None, ""):
         return default
     try:
-        return float(val)
+        return round(float(val), 3)
     except (TypeError, ValueError):
         return default
 
@@ -420,6 +427,12 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._endpoint_state: dict[str, dict[str, Any]] = {}
         self._stale_endpoints: set[str] = set()
 
+        # Explicit user actions (Refresh Now, speedtest run, weight change,
+        # scan-interval change) set this so the next update fetches even when
+        # polling is paused. Scheduled polls still respect the pause.
+        self._force_refresh_once = False
+        self._pending_refresh_unsub: Callable[[], None] | None = None
+
         # "Flat Identity" — loaded from entry.data, stable without a network call
         self.gateway_mac: str = entry.data.get("mac", "")
         self.gateway_model: str = entry.data.get("model", "UDM Pro")
@@ -527,7 +540,41 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
         # Brief pause to let the UDM Pro commit the change before re-polling
         await asyncio.sleep(1.5)
+        await self.async_force_refresh()
+
+    async def async_force_refresh(self) -> None:
+        """Refresh now, bypassing the pause guard (explicit user action)."""
+        self._force_refresh_once = True
         await self.async_request_refresh()
+
+    @callback
+    def async_schedule_refresh_in(self, seconds: float) -> None:
+        """Schedule a one-shot forced refresh after ``seconds``.
+
+        Used after a manual speedtest so the result shows without waiting for the
+        next scheduled poll. Skips scheduling when a normal poll will arrive
+        sooner anyway (and polling isn't paused). Reschedules on repeat calls.
+        """
+        paused = bool(self.entry.options.get(CONF_STOP_POLLING, False))
+        interval_s = (
+            self.update_interval.total_seconds() if self.update_interval else 0
+        )
+        if not paused and interval_s <= seconds:
+            return  # the regular poll will pick it up soon enough
+        self._cancel_scheduled_refresh()
+
+        async def _fire(_now: datetime) -> None:
+            self._pending_refresh_unsub = None
+            await self.async_force_refresh()
+
+        self._pending_refresh_unsub = async_call_later(self.hass, seconds, _fire)
+
+    @callback
+    def _cancel_scheduled_refresh(self) -> None:
+        """Cancel any pending scheduled refresh (on reschedule or unload)."""
+        if self._pending_refresh_unsub is not None:
+            self._pending_refresh_unsub()
+            self._pending_refresh_unsub = None
 
     async def async_trigger_speedtest(self, interface_name: str | None = None) -> None:
         """Trigger a manual speedtest on the gateway."""
@@ -654,12 +701,17 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch all data with 3-strike resilience."""
-        is_paused = self.entry.options.get("stop_polling", False)
-        if is_paused and self.data is not None:
+        is_paused = self.entry.options.get(CONF_STOP_POLLING, False)
+        # An explicit user action (Refresh Now, speedtest, weight/interval
+        # change) sets _force_refresh_once so pause is bypassed exactly once.
+        force = self._force_refresh_once
+        if is_paused and not force and self.data is not None:
             _LOGGER.debug(
                 "%s: Polling is paused; returning cached data.", self.entry.title
             )
             return self.data
+        # Consume the one-shot flag now that we're committing to a fetch.
+        self._force_refresh_once = False
 
         try:
             # Resolve Site UUID if using API Key and not resolved yet
