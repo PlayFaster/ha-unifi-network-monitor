@@ -59,6 +59,7 @@ from .coordinator import (
     disabled_endpoints,
 )
 from .helpers import (
+    UnifiAboutEntity,
     build_sub_device_info,
     build_unifi_device_info,
 )
@@ -134,6 +135,7 @@ class UnifiSensorEntityDescription(SensorEntityDescription):
     max_limit: float | None = None
     enable_in_standalone: bool = False
     device_key: str = "gateway"
+    about: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -189,6 +191,10 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         enable_in_standalone=True,
         min_limit=0.0,
         max_limit=120.0,
+        about=(
+            "Gateway mainboard temperature — the same reading as 'Phy "
+            "temperature' in the HA core UniFi Network integration."
+        ),
         value_fn=lambda d: d.get("board_temp"),
     ),
     UnifiSensorEntityDescription(
@@ -519,6 +525,10 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         suggested_display_precision=1,
         state_class=SensorStateClass.TOTAL_INCREASING,
         min_limit=0.0,
+        about=(
+            "Combined WAN internet usage (upload + download) for the current "
+            "calendar month; includes WAN2 when Dual-WAN is enabled."
+        ),
         value_fn=lambda d: (
             d.get("wan1_month_rx", 0)
             + d.get("wan1_month_tx", 0)
@@ -544,12 +554,21 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         min_limit=0.0,
         value_fn=lambda d: d.get("rogue_ap_count"),
         device_key="security",
+        about=(
+            "Filtered count of unique rogue APs after your band, SSID and UniFi "
+            "AP ignore settings are applied. See 'Rogue APs All 24h' for "
+            "unfiltered volume."
+        ),
     ),
     UnifiSensorEntityDescription(
         key="strongest_rogue_ssid",
         translation_key="gateway_strongest_rogue_ssid",
         value_fn=lambda d: d.get("strongest_rogue_ssid"),
         device_key="security",
+        about=(
+            "SSID of the strongest rogue AP after your inclusion/exclusion "
+            "settings. Full list via the Get Rogue APs action."
+        ),
     ),
     UnifiSensorEntityDescription(
         key="strongest_rogue_rssi",
@@ -561,6 +580,10 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         max_limit=0.0,
         value_fn=lambda d: d.get("strongest_rogue_rssi"),
         device_key="security",
+        about=(
+            "Signal (dBm) of the strongest rogue AP among those left after your "
+            "inclusion/exclusion settings."
+        ),
     ),
     # Raw (unfiltered) rogue detection volume over a fixed rolling 24h window.
     # Diagnostic + MEASUREMENT for long-term trends; distinct from the clustered
@@ -573,6 +596,12 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         min_limit=0.0,
         value_fn=lambda d: d.get("rogue_raw_24h"),
         device_key="security",
+        about=(
+            "Raw total rogue detections over a rolling 24-hour window, "
+            "unaffected by any settings or ignore lists. Counts every detection "
+            "by every UniFi AP — a gauge of background rogue noise/coverage, not "
+            "unique rogues."
+        ),
     ),
     UnifiSensorEntityDescription(
         key="guest_user_count",
@@ -583,6 +612,11 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         min_limit=0.0,
         value_fn=lambda d: d.get("guest_user_count"),
         device_key="status",
+        about=(
+            "Total active sessions tracked by the controller's Guest Portal / "
+            "Hotspot Manager (voucher, payment, social login, or pending "
+            "authorization) — may include wired and wireless."
+        ),
     ),
     UnifiSensorEntityDescription(
         key="last_backup",
@@ -788,12 +822,20 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         translation_key="gateway_last_high",
         value_fn=lambda d: d.get("last_high"),
         device_key="alerts",
+        about=(
+            "Title of the most recent HIGH (Sev 3) alert; 'None Detected' when "
+            "there are none. Full history via the Get Alerts action."
+        ),
     ),
     UnifiSensorEntityDescription(
         key="last_very_high",
         translation_key="gateway_last_very_high",
         value_fn=lambda d: d.get("last_very_high"),
         device_key="alerts",
+        about=(
+            "Title of the most recent VERY HIGH (Sev 4) alert; 'None Detected' "
+            "when there are none. Full history via the Get Alerts action."
+        ),
     ),
     UnifiSensorEntityDescription(
         key="alerts_high_24h",
@@ -802,6 +844,10 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         min_limit=0.0,
         value_fn=lambda d: d.get("alerts_high_24h"),
         device_key="alerts",
+        about=(
+            "Count of HIGH (Sev 3) alerts in the last 24 hours, from the UniFi "
+            "system log. See the Get Alerts action for full history."
+        ),
     ),
     UnifiSensorEntityDescription(
         key="alerts_very_high_24h",
@@ -810,6 +856,10 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         min_limit=0.0,
         value_fn=lambda d: d.get("alerts_very_high_24h"),
         device_key="alerts",
+        about=(
+            "Count of VERY HIGH (Sev 4) alerts in the last 24 hours, from the "
+            "UniFi system log. See the Get Alerts action for full history."
+        ),
     ),
 )
 
@@ -1022,6 +1072,7 @@ HEALTH_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         min_limit=0.0,
         value_fn=lambda d: d.get("wlan_num_guest"),
         device_key="status",
+        about="Guest-network clients currently connected over WiFi.",
     ),
     UnifiSensorEntityDescription(
         key="wlan_num_iot",
@@ -1249,6 +1300,7 @@ SWITCH_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
 
 
 class UnifiSensorBase(
+    UnifiAboutEntity,
     CoordinatorEntity[UnifiNetworkDataUpdateCoordinator],
     SensorEntity,
 ):
@@ -1316,6 +1368,14 @@ class UnifiSensorBase(
 class UnifiGatewaySensor(UnifiSensorBase):
     """Sensor entity bound to the UDM Pro gateway sub-dict."""
 
+    # Keep bulky / per-poll-changing attributes out of the recorder: the rogue
+    # list churns every poll, and parameters/udm_version add nothing to history
+    # (the get_alerts action and About note cover the intent). "about" is always
+    # excluded via the mixin; repeated here for clarity.
+    _unrecorded_attributes = frozenset(
+        {"about", "rogue_aps", "rogue_aps_truncated", "parameters", "udm_version"}
+    )
+
     def __init__(
         self,
         coordinator: UnifiNetworkDataUpdateCoordinator,
@@ -1351,17 +1411,19 @@ class UnifiGatewaySensor(UnifiSensorBase):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
-        """Return extra state attributes for gateway sensors."""
+        """Return extra state attributes for gateway sensors (+ About note)."""
         if not self.coordinator.data:
-            return None
+            return self._with_about(None)
         gw = self.coordinator.data.get("gateway") or {}
         if self.entity_description.key == "application_version":
-            return {
-                "application_version": gw.get("application_version"),
-                "application_build": gw.get("application_build"),
-                "device_type": gw.get("device_type"),
-                "udm_version": gw.get("udm_version"),
-            }
+            return self._with_about(
+                {
+                    "application_version": gw.get("application_version"),
+                    "application_build": gw.get("application_build"),
+                    "device_type": gw.get("device_type"),
+                    "udm_version": gw.get("udm_version"),
+                }
+            )
         if self.entity_description.key == "strongest_rogue_ssid":
             # Cap the attribute well below HA's 16 KB limit: expose the 25
             # strongest, flag truncation, and defer the full list to the
@@ -1372,15 +1434,17 @@ class UnifiGatewaySensor(UnifiSensorBase):
                 key=lambda a: a["signal"] if a.get("signal") is not None else -9999,
                 reverse=True,
             )[:ROGUE_ATTR_MAX]
-            return {
-                "rogue_aps": limited,
-                "rogue_aps_truncated": len(rogues) > ROGUE_ATTR_MAX,
-            }
+            return self._with_about(
+                {
+                    "rogue_aps": limited,
+                    "rogue_aps_truncated": len(rogues) > ROGUE_ATTR_MAX,
+                }
+            )
         if self.entity_description.key == "last_high":
-            return gw.get("last_high_attrs")
+            return self._with_about(gw.get("last_high_attrs"))
         if self.entity_description.key == "last_very_high":
-            return gw.get("last_very_high_attrs")
-        return None
+            return self._with_about(gw.get("last_very_high_attrs"))
+        return self._with_about(None)
 
 
 class UnifiHealthSensor(UnifiSensorBase):

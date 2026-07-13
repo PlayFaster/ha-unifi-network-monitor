@@ -20,7 +20,7 @@ from .const import (
     dual_wan_enabled,
 )
 from .coordinator import UnifiNetworkDataUpdateCoordinator
-from .helpers import build_sub_device_info
+from .helpers import UnifiAboutEntity, build_sub_device_info
 
 PARALLEL_UPDATES = 0
 
@@ -70,6 +70,7 @@ async def async_setup_entry(
 
 
 class UnifiRefreshButton(
+    UnifiAboutEntity,
     CoordinatorEntity[UnifiNetworkDataUpdateCoordinator],
     ButtonEntity,
 ):
@@ -78,6 +79,7 @@ class UnifiRefreshButton(
     _attr_has_entity_name = True
     _attr_should_poll = False
     entity_description = _REFRESH_DESCRIPTION
+    _attr_about = "Forces an immediate poll, even while Pause Polling is on."
 
     def __init__(
         self,
@@ -138,6 +140,7 @@ class UnifiCleanupButton(
 
 
 class UnifiSpeedtestButton(
+    UnifiAboutEntity,
     CoordinatorEntity[UnifiNetworkDataUpdateCoordinator],
     ButtonEntity,
 ):
@@ -145,6 +148,10 @@ class UnifiSpeedtestButton(
 
     _attr_has_entity_name = True
     _attr_should_poll = False
+    _attr_about = (
+        "Press to run an immediate speedtest on this WAN. Takes ~1 minute; "
+        "results refresh shortly after."
+    )
 
     def __init__(
         self,

@@ -30,7 +30,7 @@ from .const import (
     dual_wan_enabled,
 )
 from .coordinator import UnifiNetworkDataUpdateCoordinator, disabled_endpoints
-from .helpers import build_sub_device_info
+from .helpers import UnifiAboutEntity, build_sub_device_info
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -154,6 +154,7 @@ class UnifiScanIntervalNumber(
 
 
 class WanLoadBalanceNumber(
+    UnifiAboutEntity,
     CoordinatorEntity[UnifiNetworkDataUpdateCoordinator],
     NumberEntity,
 ):
@@ -163,6 +164,10 @@ class WanLoadBalanceNumber(
     _attr_should_poll = False
     _attr_mode = NumberMode.BOX
     entity_description = _WAN_LOAD_BALANCE_DESCRIPTION
+    _attr_about = (
+        "WAN1's share of load-balanced traffic; WAN2 automatically gets the "
+        "remainder (both sum to 100)."
+    )
 
     def __init__(
         self,
@@ -225,6 +230,7 @@ class WanLoadBalanceNumber(
 
 
 class UnifiRogueProximityThresholdNumber(
+    UnifiAboutEntity,
     CoordinatorEntity[UnifiNetworkDataUpdateCoordinator],
     NumberEntity,
 ):
@@ -233,6 +239,10 @@ class UnifiRogueProximityThresholdNumber(
     _attr_has_entity_name = True
     _attr_should_poll = False
     entity_description = _ROGUE_PROXIMITY_THRESHOLD_DESCRIPTION
+    _attr_about = (
+        "Signal cutoff (dBm) for 'nearby'. Always negative; closer to 0 = "
+        "stronger/closer. Feeds the Rogue AP Proximity Alert."
+    )
 
     def __init__(
         self,

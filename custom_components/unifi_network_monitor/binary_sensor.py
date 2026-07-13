@@ -38,6 +38,7 @@ from .coordinator import (
     disabled_endpoints,
 )
 from .helpers import (
+    UnifiAboutEntity,
     build_sub_device_info,
     build_unifi_device_info,
 )
@@ -419,6 +420,7 @@ class UnifiWifiBinarySensor(UnifiBinarySensorBase):
 
 
 class UnifiRogueProximityBinarySensor(
+    UnifiAboutEntity,
     CoordinatorEntity[UnifiNetworkDataUpdateCoordinator],
     BinarySensorEntity,
 ):
@@ -429,6 +431,10 @@ class UnifiRogueProximityBinarySensor(
     _attr_device_class = BinarySensorDeviceClass.PROBLEM
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_translation_key = "gateway_rogue_proximity_alert"
+    _attr_about = (
+        "On when a rogue AP at or above the Proximity Threshold survives your "
+        "band/SSID/AP ignore settings."
+    )
 
     def __init__(
         self,
@@ -467,13 +473,15 @@ class UnifiRogueProximityBinarySensor(
         return self.coordinator.endpoint_available(EP_ROGUE)
 
     @property
-    def extra_state_attributes(self) -> dict[str, int | None]:
-        """Expose the strongest rogue RSSI and the configured threshold."""
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Expose the strongest rogue RSSI, the threshold, and the About note."""
         gw = (self.coordinator.data or {}).get("gateway") or {}
-        return {
-            "strongest_rogue_rssi": gw.get("strongest_rogue_rssi"),
-            "threshold": self._threshold(),
-        }
+        return self._with_about(
+            {
+                "strongest_rogue_rssi": gw.get("strongest_rogue_rssi"),
+                "threshold": self._threshold(),
+            }
+        )
 
     @property
     def device_info(self) -> DeviceInfo:

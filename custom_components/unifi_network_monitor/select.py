@@ -17,7 +17,7 @@ from .const import (
     ROGUE_PERIOD_HOURS,
 )
 from .coordinator import UnifiNetworkDataUpdateCoordinator, disabled_endpoints
-from .helpers import build_sub_device_info
+from .helpers import UnifiAboutEntity, build_sub_device_info
 
 PARALLEL_UPDATES = 0
 
@@ -34,6 +34,7 @@ async def async_setup_entry(
 
 
 class UnifiRoguePeriodSelect(
+    UnifiAboutEntity,
     CoordinatorEntity[UnifiNetworkDataUpdateCoordinator],
     SelectEntity,
 ):
@@ -44,6 +45,10 @@ class UnifiRoguePeriodSelect(
     _attr_entity_category = EntityCategory.CONFIG
     _attr_translation_key = "rogue_period"
     _attr_options = list(ROGUE_PERIOD_HOURS)
+    _attr_about = (
+        "How far back each poll looks when counting current rogues. Separate "
+        "from the on-demand Get Rogue APs action."
+    )
 
     def __init__(
         self,

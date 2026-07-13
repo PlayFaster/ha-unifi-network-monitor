@@ -27,7 +27,7 @@ from .const import (
     EP_ROGUE,
 )
 from .coordinator import UnifiNetworkDataUpdateCoordinator, disabled_endpoints
-from .helpers import build_sub_device_info
+from .helpers import UnifiAboutEntity, build_sub_device_info
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -46,6 +46,7 @@ class RogueSwitchDescription(SwitchEntityDescription):
 
     option_key: str
     option_default: bool
+    about: str | None = None
 
 
 _ROGUE_SWITCHES: tuple[RogueSwitchDescription, ...] = (
@@ -55,6 +56,10 @@ _ROGUE_SWITCHES: tuple[RogueSwitchDescription, ...] = (
         entity_category=EntityCategory.CONFIG,
         option_key=CONF_ROGUE_SHOW_24GHZ,
         option_default=DEFAULT_ROGUE_SHOW_24GHZ,
+        about=(
+            "On: include 2.4 GHz rogue APs in detection. Off: drop them from "
+            "all rogue sensors."
+        ),
     ),
     RogueSwitchDescription(
         key="rogue_show_5ghz",
@@ -62,6 +67,10 @@ _ROGUE_SWITCHES: tuple[RogueSwitchDescription, ...] = (
         entity_category=EntityCategory.CONFIG,
         option_key=CONF_ROGUE_SHOW_5GHZ,
         option_default=DEFAULT_ROGUE_SHOW_5GHZ,
+        about=(
+            "On: include 5 GHz rogue APs in detection. Off: drop them from all "
+            "rogue sensors."
+        ),
     ),
     RogueSwitchDescription(
         key="rogue_apply_ssid_ignore",
@@ -69,6 +78,10 @@ _ROGUE_SWITCHES: tuple[RogueSwitchDescription, ...] = (
         entity_category=EntityCategory.CONFIG,
         option_key=CONF_ROGUE_APPLY_SSID_IGNORE,
         option_default=DEFAULT_ROGUE_APPLY_SSID_IGNORE,
+        about=(
+            "When on, rogue APs whose SSID matches the SSID ignore list are "
+            "hidden. Edit the list in Configure."
+        ),
     ),
     RogueSwitchDescription(
         key="rogue_apply_ap_ignore",
@@ -76,6 +89,10 @@ _ROGUE_SWITCHES: tuple[RogueSwitchDescription, ...] = (
         entity_category=EntityCategory.CONFIG,
         option_key=CONF_ROGUE_APPLY_AP_IGNORE,
         option_default=DEFAULT_ROGUE_APPLY_AP_IGNORE,
+        about=(
+            "When on, a rogue is hidden only when every UniFi AP that reports "
+            "it matches the AP ignore list. Edit the list in Configure."
+        ),
     ),
 )
 
@@ -101,6 +118,7 @@ async def async_setup_entry(
 
 
 class UnifiPausePollingSwitch(
+    UnifiAboutEntity,
     CoordinatorEntity[UnifiNetworkDataUpdateCoordinator],
     SwitchEntity,
 ):
@@ -109,6 +127,10 @@ class UnifiPausePollingSwitch(
     _attr_has_entity_name = True
     _attr_should_poll = False
     entity_description = _PAUSE_POLLING_DESCRIPTION
+    _attr_about = (
+        "Stops scheduled polling. Manual actions (Refresh Now, speedtest, "
+        "control changes) still fetch."
+    )
 
     def __init__(
         self,
@@ -149,6 +171,7 @@ class UnifiPausePollingSwitch(
 
 
 class UnifiRogueControlSwitch(
+    UnifiAboutEntity,
     CoordinatorEntity[UnifiNetworkDataUpdateCoordinator],
     SwitchEntity,
 ):

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, DeviceInfo
 
@@ -12,6 +12,46 @@ if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
 
     from .coordinator import UnifiNetworkDataUpdateCoordinator
+
+
+class UnifiAboutEntity:
+    """Mixin exposing a static, human-facing ``about`` note as an attribute.
+
+    Set the text via ``_attr_about`` (class-level for single-instance entities)
+    or an ``about`` field on the entity description (for description-driven
+    entities). The note shows in Developer Tools / the More Info dialog but is
+    listed in ``_unrecorded_attributes`` so the recorder never writes it to
+    history — zero cost no matter how often the state changes.
+
+    List this mixin FIRST in an entity's bases so its ``extra_state_attributes``
+    wins over the platform default. Entities that define their own
+    ``extra_state_attributes`` should route the result through ``_with_about``.
+    """
+
+    _unrecorded_attributes = frozenset({"about"})
+    _attr_about: str | None = None
+
+    @property
+    def _about_text(self) -> str | None:
+        """Resolve the note from ``_attr_about`` or the entity description."""
+        if self._attr_about is not None:
+            return self._attr_about
+        description = getattr(self, "entity_description", None)
+        return getattr(description, "about", None) if description is not None else None
+
+    def _with_about(
+        self, attrs: dict[str, Any] | None
+    ) -> dict[str, Any] | None:
+        """Merge the ``about`` note into an entity's own attribute dict."""
+        about = self._about_text
+        if about is None:
+            return attrs
+        return {"about": about, **(attrs or {})}
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Default: expose only the ``about`` note when one is set."""
+        return self._with_about(None)
 
 
 def build_gateway_device_info(

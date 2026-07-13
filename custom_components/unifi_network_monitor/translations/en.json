@@ -218,7 +218,7 @@
         "name": "Strongest Rogue RSSI"
       },
       "gateway_rogue_raw_24h": {
-        "name": "Rogue APs Raw 24h"
+        "name": "Rogue APs All 24h"
       },
       "gateway_guest_user_count": {
         "name": "Guest Users"
