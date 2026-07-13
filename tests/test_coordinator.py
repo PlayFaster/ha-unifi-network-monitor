@@ -2667,7 +2667,7 @@ async def test_cancel_scheduled_refresh_noop_when_none(
 async def test_schedule_refresh_fire_callback(
     hass: Any, mock_config_entry: Any
 ) -> None:
-    """The _fire callback calls async_force_refresh and clears the sub (lines 723-724)."""
+    """The _fire callback calls async_force_refresh + clears sub (lines 723-724)."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
     coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)

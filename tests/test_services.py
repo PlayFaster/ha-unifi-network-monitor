@@ -521,8 +521,14 @@ async def test_get_rogue_aps_with_min_signal(hass: Any, mock_config_entry: Any) 
     api = MagicMock()
     api.get_rogueaps = AsyncMock(
         return_value=[
-            {"essid": "WeakNet", "bssid": "00:11:22:33:44:55", "band": "ng",
-             "signal": -90, "ap_mac": "aa:bb:cc:dd:ee:ff", "last_seen": 1000},
+            {
+                "essid": "WeakNet",
+                "bssid": "00:11:22:33:44:55",
+                "band": "ng",
+                "signal": -90,
+                "ap_mac": "aa:bb:cc:dd:ee:ff",
+                "last_seen": 1000,
+            },
         ]
     )
     api.get_devices = AsyncMock(return_value=[])
@@ -550,11 +556,23 @@ async def test_get_rogue_aps_with_keyword(hass: Any, mock_config_entry: Any) -> 
     api = MagicMock()
     api.get_rogueaps = AsyncMock(
         return_value=[
-            {"essid": "CorpNet", "bssid": "00:11:22:33:44:55", "band": "ng",
-             "oui": "VendorX", "signal": -70, "ap_mac": "aa:bb:cc:dd:ee:ff",
-             "last_seen": 1000},
-            {"essid": "GuestNet", "bssid": "66:77:88:99:aa:bb", "band": "ng",
-             "signal": -75, "ap_mac": "aa:bb:cc:dd:ee:ff", "last_seen": 2000},
+            {
+                "essid": "CorpNet",
+                "bssid": "00:11:22:33:44:55",
+                "band": "ng",
+                "oui": "VendorX",
+                "signal": -70,
+                "ap_mac": "aa:bb:cc:dd:ee:ff",
+                "last_seen": 1000,
+            },
+            {
+                "essid": "GuestNet",
+                "bssid": "66:77:88:99:aa:bb",
+                "band": "ng",
+                "signal": -75,
+                "ap_mac": "aa:bb:cc:dd:ee:ff",
+                "last_seen": 2000,
+            },
         ]
     )
     api.get_devices = AsyncMock(return_value=[])
