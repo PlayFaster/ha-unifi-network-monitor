@@ -34,7 +34,7 @@ if desc.max_limit is not None and isinstance(val, (int, float)) and val > desc.m
 
 Non-numeric values (strings, timestamps) pass through unchanged.
 
-**Rounding (complementary):** guard bands reject impossible values; a single `_safe_float` / `_safe_int` coercion helper additionally rounds all numeric telemetry to **3 dp at parse time**, curtailing the dozen-decimal noise the controller can emit (e.g. `99.930600002408 %`) so stored history / LTS stay clean. This is distinct from display: per-sensor `suggested_display_precision` controls how many decimals are *shown*.
+**Rounding (complementary):** guard bands reject impossible values; a single `_safe_float` / `_safe_int` coercion helper additionally rounds all numeric telemetry to **3 dp at parse time**, curtailing the dozen-decimal noise the controller can emit (e.g. `99.930600002408 %`) so stored history / LTS stay clean. This is distinct from display: per-sensor `suggested_display_precision` controls how many decimals are _shown_.
 
 ---
 

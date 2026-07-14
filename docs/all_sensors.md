@@ -30,10 +30,10 @@ _Group: `alerts`_
 
 | Name | Key | Type | Unit | Category | Notes |
 | :-- | :-- | :-- | :-- | :-- | :-- |
-| High Sev3 Qty Last 24h | `gateway_alerts_high_24h` | Sensor | — | — |   |
-| Last High Sev3 | `gateway_last_high` | Sensor | — | — |   |
-| Last Very High Sev4 | `gateway_last_very_high` | Sensor | — | — |   |
-| Very High Sev4 Qty Last 24h | `gateway_alerts_very_high_24h` | Sensor | — | — |   |
+| High Sev3 Qty Last 24h | `gateway_alerts_high_24h` | Sensor | — | — |  |
+| Last High Sev3 | `gateway_last_high` | Sensor | — | — |  |
+| Last Very High Sev4 | `gateway_last_very_high` | Sensor | — | — |  |
+| Very High Sev4 Qty Last 24h | `gateway_alerts_very_high_24h` | Sensor | — | — |  |
 
 ### 2. Gateway Sub-Device (18 Entities)
 
@@ -45,12 +45,12 @@ _Group: `gateway`_
 | Board Temperature | `gateway_board_temp` | Sensor | °C | Diagnostic | _Standalone-only enabled_ (disabled by default when Core UniFi present). |
 | CPU temperature | `gateway_cpu_temp` | Sensor | °C | Diagnostic | _Standalone-only enabled_ (disabled by default when Core UniFi present). |
 | CPU utilization | `gateway_cpu` | Sensor | % | Diagnostic | _Standalone-only enabled_ (disabled by default when Core UniFi present). |
-| Last Backup | `gateway_last_backup` | Sensor | — | Diagnostic |   |
+| Last Backup | `gateway_last_backup` | Sensor | — | Diagnostic |  |
 | Memory utilization | `gateway_ram` | Sensor | % | Diagnostic | _Standalone-only enabled_ (disabled by default when Core UniFi present). |
 | Storage Total | `gateway_storage_size` | Sensor | GB | Diagnostic | **Disabled by default.** No LTS (no state_class). |
-| Storage Used | `gateway_storage_used` | Sensor | GB | Diagnostic |   |
+| Storage Used | `gateway_storage_used` | Sensor | GB | Diagnostic |  |
 | Storage Utilization | `gateway_storage_used_pct` | Sensor | % | Diagnostic | Storage used as a percentage of total. |
-| UniFi OS Version | `health_wan_gw_version` | Sensor | — | Diagnostic |   |
+| UniFi OS Version | `health_wan_gw_version` | Sensor | — | Diagnostic |  |
 | Update Available | `gateway_update_available` | Binary Sensor | — | Diagnostic | _Standalone-only enabled_ (disabled by default when Core UniFi present). |
 | Uptime | `gateway_uptime` | Sensor | — | Diagnostic | _Standalone-only enabled_ (disabled by default when Core UniFi present). |
 | WAN1 SFP Part Number | `gateway_wan1_sfp_part` | Sensor | — | Diagnostic | **Disabled by default.** Data may not be available in all configurations. |
@@ -66,41 +66,41 @@ _Group: `internet`_
 
 | Name | Key | Type | Unit | Category | Notes |
 | :-- | :-- | :-- | :-- | :-- | :-- |
-| ISP Name | `health_wan_isp_name` | Sensor | — | Diagnostic |   |
+| ISP Name | `health_wan_isp_name` | Sensor | — | Diagnostic |  |
 | ISP Organization | `health_wan_isp_org` | Sensor | — | — | **Disabled by default.** |
-| Internet Connected | `gateway_internet` | Binary Sensor | — | Diagnostic |   |
-| Internet Drops | `health_www_drops` | Sensor | — | Diagnostic |   |
-| Internet Latency | `health_www_latency` | Sensor | ms | Diagnostic |   |
+| Internet Connected | `gateway_internet` | Binary Sensor | — | Diagnostic |  |
+| Internet Drops | `health_www_drops` | Sensor | — | Diagnostic |  |
+| Internet Latency | `health_www_latency` | Sensor | ms | Diagnostic |  |
 | Internet OK | `health_www_ok` | Binary Sensor | — | Diagnostic | **Disabled by default.** |
-| Internet Online Since | `health_www_boot_time` | Sensor | — | Diagnostic |   |
+| Internet Online Since | `health_www_boot_time` | Sensor | — | Diagnostic |  |
 | Internet Uptime Duration | `health_www_uptime` | Sensor | s | Diagnostic | **Disabled by default.** Other display units may be used (e.g. s). No LTS (no state_class). |
-| Month Total | `gateway_month_total` | Sensor | GB | — |   |
-| WAN1 Active Uplink | `gateway_wan1_active` | Binary Sensor | — | Diagnostic |   |
-| WAN1 Availability | `health_wan1_availability` | Sensor | % | Diagnostic |   |
-| WAN1 Last Restart | `health_wan1_boot_time` | Sensor | — | Diagnostic |   |
-| WAN1 Latency | `health_wan1_latency_avg` | Sensor | ms | Diagnostic |   |
-| WAN1 Link Connected | `gateway_wan1_up` | Binary Sensor | — | Diagnostic |   |
-| WAN1 Local IP Address | `gateway_wan1_local_ip` | Sensor | — | Diagnostic |   |
-| WAN1 Month Download | `gateway_wan1_month_rx` | Sensor | GB | — |   |
-| WAN1 Month Total | `gateway_wan1_month_total` | Sensor | GB | — |   |
-| WAN1 Month Upload | `gateway_wan1_month_tx` | Sensor | GB | — |   |
+| Month Total | `gateway_month_total` | Sensor | GB | — |  |
+| WAN1 Active Uplink | `gateway_wan1_active` | Binary Sensor | — | Diagnostic |  |
+| WAN1 Availability | `health_wan1_availability` | Sensor | % | Diagnostic |  |
+| WAN1 Last Restart | `health_wan1_boot_time` | Sensor | — | Diagnostic |  |
+| WAN1 Latency | `health_wan1_latency_avg` | Sensor | ms | Diagnostic |  |
+| WAN1 Link Connected | `gateway_wan1_up` | Binary Sensor | — | Diagnostic |  |
+| WAN1 Local IP Address | `gateway_wan1_local_ip` | Sensor | — | Diagnostic |  |
+| WAN1 Month Download | `gateway_wan1_month_rx` | Sensor | GB | — |  |
+| WAN1 Month Total | `gateway_wan1_month_total` | Sensor | GB | — |  |
+| WAN1 Month Upload | `gateway_wan1_month_tx` | Sensor | GB | — |  |
 | WAN1 Name | `gateway_wan1_interface_name` | Sensor | — | Diagnostic | **_API-key only_** (v3 API; `unknown` under username/password). |
-| WAN1 Public IP Address | `gateway_wan1_public_ip` | Sensor | — | Diagnostic |   |
+| WAN1 Public IP Address | `gateway_wan1_public_ip` | Sensor | — | Diagnostic |  |
 | WAN1 Today Download | `gateway_wan1_today_rx` | Sensor | GB | — | No LTS (no state_class). |
 | WAN1 Today Total | `gateway_wan1_today_total` | Sensor | GB | — | No LTS (no state_class). |
 | WAN1 Today Upload | `gateway_wan1_today_tx` | Sensor | GB | — | No LTS (no state_class). |
 | WAN1 Uptime Duration | `health_wan1_uptime` | Sensor | s | Diagnostic | **Disabled by default.** Other display units may be used (e.g. s). No LTS (no state_class). |
-| WAN2 Active Uplink | `gateway_wan2_active` | Binary Sensor | — | Diagnostic |   |
-| WAN2 Availability | `health_wan2_availability` | Sensor | % | Diagnostic |   |
-| WAN2 Last Restart | `health_wan2_boot_time` | Sensor | — | Diagnostic |   |
-| WAN2 Latency | `health_wan2_latency_avg` | Sensor | ms | Diagnostic |   |
-| WAN2 Link Connected | `gateway_wan2_up` | Binary Sensor | — | Diagnostic |   |
-| WAN2 Local IP Address | `gateway_wan2_local_ip` | Sensor | — | Diagnostic |   |
-| WAN2 Month Download | `gateway_wan2_month_rx` | Sensor | GB | — |   |
-| WAN2 Month Total | `gateway_wan2_month_total` | Sensor | GB | — |   |
-| WAN2 Month Upload | `gateway_wan2_month_tx` | Sensor | GB | — |   |
+| WAN2 Active Uplink | `gateway_wan2_active` | Binary Sensor | — | Diagnostic |  |
+| WAN2 Availability | `health_wan2_availability` | Sensor | % | Diagnostic |  |
+| WAN2 Last Restart | `health_wan2_boot_time` | Sensor | — | Diagnostic |  |
+| WAN2 Latency | `health_wan2_latency_avg` | Sensor | ms | Diagnostic |  |
+| WAN2 Link Connected | `gateway_wan2_up` | Binary Sensor | — | Diagnostic |  |
+| WAN2 Local IP Address | `gateway_wan2_local_ip` | Sensor | — | Diagnostic |  |
+| WAN2 Month Download | `gateway_wan2_month_rx` | Sensor | GB | — |  |
+| WAN2 Month Total | `gateway_wan2_month_total` | Sensor | GB | — |  |
+| WAN2 Month Upload | `gateway_wan2_month_tx` | Sensor | GB | — |  |
 | WAN2 Name | `gateway_wan2_interface_name` | Sensor | — | Diagnostic | **_API-key only_** (v3 API; `unknown` under username/password). |
-| WAN2 Public IP Address | `gateway_wan2_public_ip` | Sensor | — | Diagnostic |   |
+| WAN2 Public IP Address | `gateway_wan2_public_ip` | Sensor | — | Diagnostic |  |
 | WAN2 Today Download | `gateway_wan2_today_rx` | Sensor | GB | — | No LTS (no state_class). |
 | WAN2 Today Total | `gateway_wan2_today_total` | Sensor | GB | — | No LTS (no state_class). |
 | WAN2 Today Upload | `gateway_wan2_today_tx` | Sensor | GB | — | No LTS (no state_class). |
@@ -112,23 +112,23 @@ _Group: `security`_
 
 | Name | Key | Type | Unit | Category | Notes |
 | :-- | :-- | :-- | :-- | :-- | :-- |
-| Ad Blocking | `gateway_ad_blocking` | Binary Sensor | — | Diagnostic |   |
-| Apply AP ignore list | `rogue_apply_ap_ignore` | Switch | — | Config |   |
-| Apply SSID ignore list | `rogue_apply_ssid_ignore` | Switch | — | Config |   |
-| Honeypot | `gateway_honeypot` | Binary Sensor | — | Diagnostic |   |
-| Rogue AP Proximity Alert | `gateway_rogue_proximity_alert` | Binary Sensor | — | Diagnostic |   |
-| Rogue APs All 24h | `gateway_rogue_raw_24h` | Sensor | — | Diagnostic |   |
-| Rogue Access Points | `gateway_rogue_ap_count` | Sensor | — | — |   |
-| Rogue Detection Period | `rogue_period` | Select | — | Config |   |
-| Rogue Proximity Threshold | `gateway_rogue_proximity_threshold` | Number | dBm | Config |   |
+| Ad Blocking | `gateway_ad_blocking` | Binary Sensor | — | Diagnostic |  |
+| Apply AP ignore list | `rogue_apply_ap_ignore` | Switch | — | Config |  |
+| Apply SSID ignore list | `rogue_apply_ssid_ignore` | Switch | — | Config |  |
+| Honeypot | `gateway_honeypot` | Binary Sensor | — | Diagnostic |  |
+| Rogue AP Proximity Alert | `gateway_rogue_proximity_alert` | Binary Sensor | — | Diagnostic |  |
+| Rogue APs All 24h | `gateway_rogue_raw_24h` | Sensor | — | Diagnostic |  |
+| Rogue Access Points | `gateway_rogue_ap_count` | Sensor | — | — |  |
+| Rogue Detection Period | `rogue_period` | Select | — | Config |  |
+| Rogue Proximity Threshold | `gateway_rogue_proximity_threshold` | Number | dBm | Config |  |
 | Rules Active | `gateway_rules_active` | Sensor | — | — | **_API-key only_** (v3 API; `unknown` under username/password). |
 | Rules Configured | `gateway_rules_configured` | Sensor | — | Diagnostic | **_API-key only_** (v3 API; `unknown` under username/password). |
 | Rules Disabled | `gateway_rules_disabled` | Sensor | — | — | **_API-key only_** (v3 API; `unknown` under username/password). |
-| Show 2.4 GHz rogues | `rogue_show_24ghz` | Switch | — | Config |   |
-| Show 5 GHz rogues | `rogue_show_5ghz` | Switch | — | Config |   |
-| Strongest Rogue RSSI | `gateway_strongest_rogue_rssi` | Sensor | dBm | — |   |
+| Show 2.4 GHz rogues | `rogue_show_24ghz` | Switch | — | Config |  |
+| Show 5 GHz rogues | `rogue_show_5ghz` | Switch | — | Config |  |
+| Strongest Rogue RSSI | `gateway_strongest_rogue_rssi` | Sensor | dBm | — |  |
 | Strongest Rogue SSID | `gateway_strongest_rogue_ssid` | Sensor | — | — | `rogue_aps` attribute carries the full rogue-AP list. |
-| Threat Management Mode | `gateway_ips_mode` | Sensor | — | Diagnostic |   |
+| Threat Management Mode | `gateway_ips_mode` | Sensor | — | Diagnostic |  |
 | VPN Connections Active | `gateway_vpn_connections_active` | Sensor | — | — | **_API-key only_** (v3 API; `unknown` under username/password). |
 | VPN Connections Total | `gateway_vpn_connections_total` | Sensor | — | Diagnostic | **_API-key only_** (v3 API; `unknown` under username/password). |
 
@@ -138,20 +138,20 @@ _Group: `speedtest`_
 
 | Name | Key | Type | Unit | Category | Notes |
 | :-- | :-- | :-- | :-- | :-- | :-- |
-| Last Run Problem | `health_speedtest_pass` | Binary Sensor | — | Diagnostic |   |
-| Last Run Status | `health_www_speedtest_status` | Sensor | — | Diagnostic |   |
-| WAN1 Download | `gateway_wan1_speedtest_download` | Sensor | Mbit/s | — |   |
-| WAN1 Last Run | `gateway_wan1_speedtest_lastrun` | Sensor | — | Diagnostic |   |
+| Last Run Problem | `health_speedtest_pass` | Binary Sensor | — | Diagnostic |  |
+| Last Run Status | `health_www_speedtest_status` | Sensor | — | Diagnostic |  |
+| WAN1 Download | `gateway_wan1_speedtest_download` | Sensor | Mbit/s | — |  |
+| WAN1 Last Run | `gateway_wan1_speedtest_lastrun` | Sensor | — | Diagnostic |  |
 | WAN1 Monitoring Period | `health_wan1_time_period` | Sensor | h | Diagnostic | No LTS (no state_class). |
 | WAN1 Ping | `gateway_wan1_speedtest_ping` | Sensor | ms | Diagnostic | No LTS (no state_class). |
 | WAN1 Run | `gateway_wan1_speedtest` | Button | — | — | Data may not be available in all configurations. |
-| WAN1 Upload | `gateway_wan1_speedtest_upload` | Sensor | Mbit/s | — |   |
-| WAN2 Download | `gateway_wan2_speedtest_download` | Sensor | Mbit/s | — |   |
-| WAN2 Last Run | `gateway_wan2_speedtest_lastrun` | Sensor | — | Diagnostic |   |
+| WAN1 Upload | `gateway_wan1_speedtest_upload` | Sensor | Mbit/s | — |  |
+| WAN2 Download | `gateway_wan2_speedtest_download` | Sensor | Mbit/s | — |  |
+| WAN2 Last Run | `gateway_wan2_speedtest_lastrun` | Sensor | — | Diagnostic |  |
 | WAN2 Monitoring Period | `health_wan2_time_period` | Sensor | h | Diagnostic | No LTS (no state_class). |
 | WAN2 Ping | `gateway_wan2_speedtest_ping` | Sensor | ms | Diagnostic | No LTS (no state_class). |
 | WAN2 Run | `gateway_wan2_speedtest` | Button | — | — | Data may not be available in all configurations. |
-| WAN2 Upload | `gateway_wan2_speedtest_upload` | Sensor | Mbit/s | — |   |
+| WAN2 Upload | `gateway_wan2_speedtest_upload` | Sensor | Mbit/s | — |  |
 
 ### 6. Status Sub-Device (23 Entities)
 
@@ -163,25 +163,25 @@ _Group: `status`_
 | Adopted Devices | `health_lan_num_adopted` | Sensor | — | Diagnostic | **Disabled by default.** |
 | Configured VLANs | `gateway_configured_vlans` | Sensor | — | Diagnostic | **Disabled by default.** |
 | Guest Users | `gateway_guest_user_count` | Sensor | — | — | **Disabled by default.** |
-| House WiFi Status | `gateway_wifi_ssid_status` | Binary Sensor | — | Diagnostic |   |
-| IoT-Secure WiFi Status | `gateway_wifi_ssid_status` | Binary Sensor | — | Diagnostic |   |
+| House WiFi Status | `gateway_wifi_ssid_status` | Binary Sensor | — | Diagnostic |  |
+| IoT-Secure WiFi Status | `gateway_wifi_ssid_status` | Binary Sensor | — | Diagnostic |  |
 | LAN IoT Devices | `health_lan_num_iot` | Sensor | — | Diagnostic | **Disabled by default.** |
 | LAN OK | `health_lan_ok` | Binary Sensor | — | Diagnostic | **Disabled by default.** |
-| NetCentral WiFi Status | `gateway_wifi_ssid_status` | Binary Sensor | — | Diagnostic |   |
-| Network Problem | `health_all_ok` | Binary Sensor | — | Diagnostic |   |
+| NetCentral WiFi Status | `gateway_wifi_ssid_status` | Binary Sensor | — | Diagnostic |  |
+| Network Problem | `health_all_ok` | Binary Sensor | — | Diagnostic |  |
 | Switches | `health_lan_num_sw` | Sensor | — | Diagnostic | **Disabled by default.** |
-| Total Devices | `health_wan_num_sta` | Sensor | — | — |   |
-| VLANs Active | `gateway_vlans_active` | Sensor | — | — |   |
-| VLANs Total | `gateway_vlans_total` | Sensor | — | Diagnostic |   |
+| Total Devices | `health_wan_num_sta` | Sensor | — | — |  |
+| VLANs Active | `gateway_vlans_active` | Sensor | — | — |  |
+| VLANs Total | `gateway_vlans_total` | Sensor | — | Diagnostic |  |
 | VPN Status | `health_vpn_status` | Sensor | — | Diagnostic | **Disabled by default.** Data may not be available in all configurations. |
 | WAN OK | `health_wan_ok` | Binary Sensor | — | Diagnostic | **Disabled by default.** |
-| WiFi Devices | `health_wlan_num_user` | Sensor | — | — |   |
-| WiFi Guests | `health_wlan_num_guest` | Sensor | — | Diagnostic |   |
+| WiFi Devices | `health_wlan_num_user` | Sensor | — | — |  |
+| WiFi Guests | `health_wlan_num_guest` | Sensor | — | Diagnostic |  |
 | WiFi IoT Devices | `health_wlan_num_iot` | Sensor | — | Diagnostic | **Disabled by default.** |
-| WiFi Networks Active | `gateway_wifi_networks_active` | Sensor | — | — |   |
-| WiFi Networks Total | `gateway_wifi_networks_total` | Sensor | — | Diagnostic |   |
+| WiFi Networks Active | `gateway_wifi_networks_active` | Sensor | — | — |  |
+| WiFi Networks Total | `gateway_wifi_networks_total` | Sensor | — | Diagnostic |  |
 | WiFi OK | `health_wlan_ok` | Binary Sensor | — | Diagnostic | **Disabled by default.** |
-| Wired Devices | `health_lan_num_user` | Sensor | — | — |   |
+| Wired Devices | `health_lan_num_user` | Sensor | — | — |  |
 
 ### 7. System Sub-Device (9 Entities)
 
@@ -189,15 +189,15 @@ _Group: `system`_
 
 | Name | Key | Type | Unit | Category | Notes |
 | :-- | :-- | :-- | :-- | :-- | :-- |
-| Clean Up Unused Entities | `cleanup_unused_entities` | Button | — | Config |   |
-| Last Updated | `gateway_last_updated` | Sensor | — | Diagnostic |   |
-| Multi-WAN Mode | `gateway_wan_mode` | Sensor | — | Diagnostic |   |
-| Pause polling | `pause_polling` | Switch | — | Config |   |
-| Polling Interval | `gateway_scan_interval` | Number | s | Config |   |
-| Refresh Now | `gateway_refresh` | Button | — | Config |   |
-| WAN1 Load Balance | `gateway_wan1_weight` | Sensor | % | — |   |
-| WAN1 Load Balance Weight | `wan1_load_balance_weight` | Number | % | Config |   |
-| WAN2 Load Balance | `gateway_wan2_weight` | Sensor | % | — |   |
+| Clean Up Unused Entities | `cleanup_unused_entities` | Button | — | Config |  |
+| Last Updated | `gateway_last_updated` | Sensor | — | Diagnostic |  |
+| Multi-WAN Mode | `gateway_wan_mode` | Sensor | — | Diagnostic |  |
+| Pause polling | `pause_polling` | Switch | — | Config |  |
+| Polling Interval | `gateway_scan_interval` | Number | s | Config |  |
+| Refresh Now | `gateway_refresh` | Button | — | Config |  |
+| WAN1 Load Balance | `gateway_wan1_weight` | Sensor | % | — |  |
+| WAN1 Load Balance Weight | `wan1_load_balance_weight` | Number | % | Config |  |
+| WAN2 Load Balance | `gateway_wan2_weight` | Sensor | % | — |  |
 
 > **Actions (not entities):** three registered services are **not** part of the 126 entity count — `unifi_network_monitor.cleanup_unused_entities` (the `dry_run` counterpart to the **Clean Up Unused Entities** button), `unifi_network_monitor.get_alerts` (on-demand system-log query — Alerts group), and `unifi_network_monitor.get_rogue_aps` (on-demand rogue-AP query — Security group). Both `get_*` actions fetch their own data, so they work even when the matching sensor group is off.
 >

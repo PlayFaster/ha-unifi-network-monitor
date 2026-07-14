@@ -4,7 +4,7 @@
 
 A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via your UniFi Gateway (e.g. UDM Pro or similar), designed to run in conjunction with and be complementary to, the official Home Assistant [UniFi Network Integration](https://www.home-assistant.io/integrations/unifi/), but it does not require it.
 
-- The focus is on providing information that the core integration does not, such as: Internet data usage, Speedtest data, WAN latency and IP address, Rogue Access Point insights and summary stats.
+- The focus is on providing information that the core integration does not, such as: Internet data usage, Speedtest data, WAN latency and IP address, Rogue Access Point insights and summary stats, and UniFi system-log **alerts**.
 - It works in single or dual WAN mode. In dual WAN mode, it provides per WAN (WAN1, WAN2) info for Internet data usage; Speedtest results; latency; IP addresses and load-balancing status, and if set, balance-weight, plus the ability to change load balancing weight.
   - In single WAN mode, the WAN2 sensors will be unknown.
 - This integration does not provide any client tracking (i.e. device trackers) beyond summary counts, as that is handled by the core Integration.
@@ -20,7 +20,8 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
 >   - **Speedtest tracking** — per-WAN download/upload/ping history, plus one-click manual runs.
 >   - **Load Balancing** - Status, weights and weight setting
 >   - **WAN Stats** - Per WAN latency, status, assigned name, internal and external IP address and uptime.
->   - **Rogue AP Info** — rogue access-point detection with a configurable proximity alert.
+>   - **Rogue AP Info** — rogue access-point detection with a configurable proximity alert, band / ignore-list filtering, and an on-demand query action.
+>   - **Alerts** — UniFi system-log alerts (High / Very High), with an event and a query action for automations.
 >   - **Gateway diagnostics** — OS and Application version, last backup, and storage use.
 >
 > This project is developed and tested on the **UDM Pro** but is expected to work with other UniFi OS gateways.
