@@ -34,6 +34,8 @@ if desc.max_limit is not None and isinstance(val, (int, float)) and val > desc.m
 
 Non-numeric values (strings, timestamps) pass through unchanged.
 
+**Rounding (complementary):** guard bands reject impossible values; a single `_safe_float` / `_safe_int` coercion helper additionally rounds all numeric telemetry to **3 dp at parse time**, curtailing the dozen-decimal noise the controller can emit (e.g. `99.930600002408 %`) so stored history / LTS stay clean. This is distinct from display: per-sensor `suggested_display_precision` controls how many decimals are *shown*.
+
 ---
 
 ## Part I: Base Gateway & Network Entities
@@ -124,6 +126,22 @@ Source: `/stat/health` — network subsystem health data.
 
 ---
 
+### Security & Alerts Sensors
+
+Source: `stat/rogueap` (rogue), `system-log/all` (alerts). These live in the `GATEWAY_SENSORS` tuple with `device_key` `security` / `alerts`.
+
+| Sensor Key | Translation Key | Min | Max | Rationale |
+| :-- | :-- | :-- | :-- | :-- |
+| `rogue_ap_count` | `gateway_rogue_ap_count` | 0 | — | Count cannot be negative |
+| `rogue_raw_24h` | `gateway_rogue_raw_24h` | 0 | — | Raw 24h detection count cannot be negative |
+| `strongest_rogue_rssi` | `gateway_strongest_rogue_rssi` | -100 | 0 | dBm — RSSI is negative; `None` (→ `unknown`) when no rogues |
+| `strongest_rogue_ssid` | `gateway_strongest_rogue_ssid` | — | — | String — sentinel `"None Detected"` when none |
+| `alerts_high_24h` | `gateway_alerts_high_24h` | 0 | — | Count cannot be negative |
+| `alerts_very_high_24h` | `gateway_alerts_very_high_24h` | 0 | — | Count cannot be negative |
+| `last_high` / `last_very_high` | `gateway_last_high` / `gateway_last_very_high` | — | — | Text (title) — sentinel `"None Detected"` when none |
+
+---
+
 ## Part II: Dynamic UniFi Devices (APs & Switches)
 
 ### Per-AP Sensors (`AP_SENSORS`)
@@ -175,3 +193,4 @@ Source: `/stat/device` — one set of entities per discovered switch.
 - **[2026-06-22]** — Initial document. Guard bands audited across all four sensor tuples.
 - **[2026-06-22]** — Added guard bands for new Multi-WAN modes/weights/latencies, storage partition used percentages, and Threat Management.
 - **[2026-07-08]** — Restructured into Part I and Part II split structure. Corrected translation and sensor keys to match those present in the manifest.
+- **[2026-07-14]** — Added the **Security & Alerts** guard-band table (rogue count / raw-24h / RSSI, alert counts) for the new sub-devices, and documented the `_safe_float` 3-dp rounding helper alongside guard bands.

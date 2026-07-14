@@ -77,11 +77,11 @@ These endpoints are called during regular polling cycles or user actions.
 - **Purpose**: Requests historical monthly gateway usage statistics over a given date range.
 - **Use Case**: Provides aggregated volume stats for monthly billing-cycle tracking.
 
-### `GET /proxy/network/api/s/{site}/stat/rogueap`
+### `POST /proxy/network/api/s/{site}/stat/rogueap`
 
 - **Used**: Yes
-- **Purpose**: Identifies nearby rogue or interference-causing access points.
-- **Use Case**: Exposes wireless security and environmental noise sensors.
+- **Purpose**: Identifies nearby rogue or interference-causing access points. `POST` with `{"within": <hours>}` scopes the look-back window.
+- **Use Case**: Exposes wireless security and environmental noise sensors (Security sub-device). Queried **twice per cycle**: once at the user-selected **Rogue Detection Period** (`within` = 1/1/6/24/… hours) for the filtered rogue view, and once at a fixed `within=24` (`EP_ROGUE_RAW`) for the **Rogue APs All 24h** raw-volume sensor. The `get_rogue_aps` action also queries it on demand at the caller's chosen period.
 
 ### `GET /proxy/network/api/s/{site}/stat/guest`
 
@@ -112,6 +112,12 @@ These endpoints are called during regular polling cycles or user actions.
 - **Used**: Yes
 - **Purpose**: Fetches WiFi/WLAN configuration details (such as SSID names and enabled states).
 - **Use Case**: Used to calculate the total and active WiFi network counts, and the broadcast status of individual SSIDs.
+
+### `POST /proxy/network/v2/api/site/{site}/system-log/all`
+
+- **Used**: Yes (v2 API path; Alerts group)
+- **Purpose**: Fetches the UniFi system log / alerts. `POST` body: `{"pageNumber", "pageSize", "severities": [...]}`. Records carry `id`, `event`, `key`, `category`/`subcategory`, `severity` (`LOW`/`MEDIUM`/`HIGH`/`VERY_HIGH`), `status`, `message_raw`/`title_raw`, `timestamp` (ms epoch), and `parameters` (for substitution). Newest-first.
+- **Use Case**: Powers the **Alerts** sub-device (polled filtered to `HIGH`/`VERY_HIGH`, `EP_SYSLOG`) — the Last High/Very High title sensors, the 24h counts, and the `unifi_network_monitor_new_alert` event. The `get_alerts` action queries it on demand across all four severities, paginated with a hard 5-page / 500-record cap (LOW/MEDIUM are high-volume). Gated by `enable_logs_alerts`.
 
 ### Official API v3 Endpoints (API Key / Integration v1 paths)
 

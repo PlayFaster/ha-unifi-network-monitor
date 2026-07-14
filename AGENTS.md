@@ -4,9 +4,11 @@ This file provides guidance to AI coding agents when working with code in this r
 
 ## What This Integration Does
 
-A Home Assistant custom integration (`unifi_network_monitor`) for Ubiquiti UniFi networks anchored by a UDM Pro (or similar gateway). It is a `local_polling` `hub` integration distributed via HACS. It replaces a previous shell-command + 20+ template sensor setup, exposing ~40 sensors and binary sensors across the gateway, network health, access points, and switches. Auth supports both API key (`X-API-Key` header — preferred) and username/password (TOKEN cookie + X-CSRF-Token). There are no external `requirements` beyond `aiohttp` and HA core.
+A Home Assistant custom integration (`unifi_network_monitor`) for Ubiquiti UniFi networks anchored by a UDM Pro (or similar gateway). It is a `local_polling` `hub` integration distributed via HACS. It replaces a previous shell-command + 20+ template sensor setup, exposing **126 base entities** (sensors, binary sensors, buttons, numbers, switches, and a select) across **seven** sub-devices — Gateway, Internet, Speedtest, **Security**, **Alerts**, Status, System — plus optional per-AP/switch sensors. Auth supports both API key (`X-API-Key` header — preferred) and username/password (TOKEN cookie + X-CSRF-Token). There are no external `requirements` beyond `aiohttp` and HA core.
 
 Setup/reconfigure options let users scope which per-device sensors and gateway sensor groups are created (a disabled group also skips its API calls), with per-endpoint hold-then-`unavailable` resilience, an explicit cleanup button/service, and the UI device-delete hook. See **Setup Options, Sensor-Group Scoping & Cleanup** below.
+
+Beyond passive entities it also exposes two **on-demand response actions** (`get_alerts`, `get_rogue_aps`) and two **bus events** (`unifi_network_monitor_new_alert`, `unifi_network_monitor_new_rogue_ap`) for automations. See **Architecture** and the section below.
 
 ## Commands
 
@@ -83,7 +85,9 @@ Data flows in one direction: **`api.py` → `coordinator.py` → platform entiti
   - `build_network_device_info`: virtual "Network Health" sub-device (`identifiers={(DOMAIN, f"{mac}_network")}`), linked `via_device=(DOMAIN, mac)`.
   - `build_unifi_device_info`: per-AP/switch device, also uses `connections` + `identifiers`, linked `via_device=(DOMAIN, gateway_mac)`.
 
-- **Platforms** (`sensor`, `binary_sensor`, `button`, `number`, `switch`) — read `coordinator.data` only.
+- **`alerts.py` / `services.py` / `select.py`** — Alerts helpers (parameter substitution, title cap, attr/response/event payload builders); the two `SupportsResponse.ONLY` actions `get_alerts` + `get_rogue_aps` (domain-global, target-resolving, self-contained fetch, decoupled from feature toggles); and the **Rogue Detection Period** select. The two bus events (`EVENT_NEW_ALERT` / `EVENT_NEW_ROGUE_AP`) fire from the coordinator parse with a first-poll/re-enable baseline + bounded dedup, gated on the feature flag. Shared rogue parsing lives in `coordinator.parse_rogue_aps` (used by both the sensor view and `get_rogue_aps`). `helpers.UnifiAboutEntity` adds an unrecorded `about:` attribute; the gateway sensor also unrecords `rogue_aps`/`rogue_aps_truncated`/`parameters`/`udm_version`.
+
+- **Platforms** (`sensor`, `binary_sensor`, `button`, `number`, `switch`, `select`) — read `coordinator.data` only.
   - All platforms set `PARALLEL_UPDATES = 0`.
   - All entity descriptions use `translation_key=` (never `name=`); `_attr_has_entity_name = True`.
   - **Guard bands** — `UnifiSensorEntityDescription` carries `min_limit`/`max_limit`; `native_value` returns `None` for out-of-range numeric values.
@@ -98,7 +102,7 @@ Hardware metadata (`mac`, `model`, `sw_version`) is discovered once at config fl
 ### Config Entry Data vs. Options
 
 - **`entry.data`** — discovered hardware metadata: `mac`, `model`, `sw_version` (plus persisted `boot_times`).
-- **`entry.options`** — live, user-editable settings: `host`, `api_key`, `username`, `password`, `site`, `scan_interval`, `stop_polling`, `rogue_proximity_rssi_threshold`, and the scoping options `unifi_device_mode` (`none`/`satisfaction_only`/`all`), `enable_speedtest`, `enable_wan_usage`, `enable_security_monitoring` (all default to preserve prior behavior: mode `none`, toggles `True`).
+- **`entry.options`** — live, user-editable settings: `host`, `api_key`, `username`, `password`, `site`, `scan_interval`, `stop_polling`, `rogue_proximity_rssi_threshold`, the scoping options `unifi_device_mode` (`none`/`satisfaction_only`/`all`) + `enable_speedtest` / `enable_wan_usage` / `enable_security_monitoring` / `enable_logs_alerts` / `enable_dual_wan`, and the live rogue controls `rogue_period`, `rogue_show_24ghz`/`rogue_show_5ghz`, `rogue_apply_ap_ignore`/`rogue_apply_ssid_ignore`, `rogue_ignore_ssids`/`rogue_ignore_aps` (all default to preserve prior behavior: mode `none`, toggles `True`). The rogue-control keys are **live keys** (read each poll, applied via force-refresh) so they don't trigger a reload.
 
 Read credentials from `entry.options`, not `entry.data`. Config flow is `VERSION = 1`.
 
@@ -111,7 +115,7 @@ Using `connections={(CONNECTION_NETWORK_MAC, mac)}` in `DeviceInfo` for all phys
 Full design: `.notes/design_monitor_setup_options.md`. Cross-project porting guide: `shared/SharedNotes/issues/setup_cleanup_options.md`.
 
 - **Per-UniFi-device sensors** (`unifi_device_mode`): `none` (default — create nothing per-device), `satisfaction_only` (AP Satisfaction Score keys only), `all` (everything). Core-detected setup offers all three; core-absent offers `none`/`all`. `sensor.py`'s `_device_descs(dev_type, mode)` returns the descriptions to create; both the static loop and the dynamic listener use it. Superseded the old "always create disabled" behavior (the `standalone` flag now only affects `entity_registry_enabled_default`).
-- **Feature toggles** each map to a _sensor group_ **and** its endpoint(s): `enable_speedtest`→`get_speedtest_results`; `enable_wan_usage`→daily/monthly gateway; `enable_security_monitoring`→rogue APs + VPN + firewall. Off = sensors not created **and** the fetch skipped.
+- **Feature toggles** each map to a _sensor group_ **and** its endpoint(s): `enable_speedtest`→`get_speedtest_results`; `enable_wan_usage`→daily/monthly gateway; `enable_security_monitoring`→rogue APs + VPN + firewall + settings; `enable_logs_alerts`→`system-log/all` (Alerts). Off = sensors not created **and** the fetch skipped. `enable_dual_wan` is the exception — WAN2 rides the *shared* endpoints, so it's a creation/cleanup **key-set** filter (removes WAN2 + load-balance entities), never routed through `disabled_endpoints`.
 - **Config flow**: setup + reconfigure + options share schema builders; the feature toggles live in a collapsible **section** (`from homeassistant.data_entry_flow import section`, key `sensor_groups`). Sectioned input comes back nested, so `_flatten_sections()` lifts it before validation. Reauth still uses the credentials-only `_edit_schema`. Reconfigure does `async_update_entry` + `async_abort` (no self-reload) — the update listener owns the single reload for both reconfigure and options.
 - **Duplicate-entity `_mon` id**: per-device sensors that duplicate core (`clients`, `cpu`, `ram`, `uptime` in `_DUPLICATES_CORE_KEYS`) keep their display name but get a deterministic `_mon` entity_id (`async_generate_entity_id`) instead of HA's `_2`. AP Satisfaction Score is not suffixed.
 - **`unknown` vs `unavailable`**: a value legitimately absent while the source is healthy returns `None` → `unknown` (e.g. Strongest Rogue RSSI with no rogues; SSID uses the sentinel `"None Detected"`). A stale/unreachable endpoint returns `unavailable` (via the `available` override).
@@ -176,16 +180,18 @@ Three reusable prompts are available via `.shared/prompts/` for working within t
 | `GET /proxy/network/api/s/{site}/stat/device` | All adopted devices (UDM, APs, switches) with live stats |
 | `GET /proxy/network/api/s/{site}/stat/health` | Network health subsystems (wan, www, wlan, lan, vpn) |
 | `GET /proxy/network/api/s/{site}/stat/sysinfo` | System info including firmware version |
+| `POST /proxy/network/api/s/{site}/stat/rogueap` | Rogue APs within `{within}` hours (Security; queried at the live period + a fixed 24h for the raw sensor) |
+| `POST /proxy/network/v2/api/site/{site}/system-log/all` | System-log alerts (Alerts group; `EP_SYSLOG` polls HIGH/VERY_HIGH; `get_alerts` queries all four severities) |
 | `POST /api/auth/login` | Obtain TOKEN cookie + X-CSRF-Token (username/password auth only) |
 | `POST /api/auth/logout` | Invalidate session |
 
-## Phase B (Future — Separate Session)
+Full endpoint reference (incl. speedtest, reports, config, v3): `docs/api_endpoints.md`.
 
-Planned additions not in the current implementation:
+## Remaining Work (Future — Separate Session)
 
-- ISP data usage sensors (WAN1/WAN2 GB used/remaining from `/proxy/network/api/s/{site}/stat/daily`)
-- Load-sharing read sensors (active WAN, load-sharing mode)
-- Load-sharing write capability (`select` entity + HA service to switch between WAN failover modes)
-- GitHub CI wiring (`.github/workflows/`)
+Most of the original Phase B has shipped — ISP data-usage sensors, load-balance read (active WAN, mode/weights) and write (WAN1 weight number). Still outstanding:
 
-Note: the test suite reached 100% coverage before the 2026-07 setup-options/resilience/cleanup rework; that rework's new code (options gating, per-endpoint resilience, `cleanup.py`, service/hook, config-flow sections) still needs test updates.
+- GitHub CI wiring (`.github/workflows/` — `validate.yaml` still has a placeholder `CHANGEME` gist_id).
+- **Rogue-AP action/event fast-follow refinements** and any further alerts polish.
+
+Note: the test suite is at **100% coverage**, including the 2026-07 work — options gating, per-endpoint resilience, `cleanup.py`, service/hook, config-flow sections, the Security/Alerts sub-devices, the `get_alerts`/`get_rogue_aps` actions + `new_alert`/`new_rogue_ap` events, `select.py`, and the `about`/unrecorded-attribute layer. Source is ruff/mypy-clean.
