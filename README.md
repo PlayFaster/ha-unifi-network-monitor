@@ -34,7 +34,7 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
   - [🎯 Use Cases](#-use-cases)
   - [✅ Features](#-features)
   - [🔍 What You Get](#-what-you-get)
-  - [✂️ Tailoring What's Monitored](#-tailoring-whats-monitored)
+  - [✂️ Tailoring What's Monitored](#️-tailoring-whats-monitored)
   - [📸 Screenshots](#-screenshots)
   - [📡 Rogue Access Point Monitoring](#-rogue-access-point-monitoring)
   - [💡 Example Automations](#-example-automations)
@@ -144,6 +144,8 @@ This integration exposes its entities across several sub-devices — **Gateway**
 >
 > **Entity Visibility:** To keep your Home Assistant UI clean, many secondary/diagnostic entities are **disabled by default**. Enable them via the Entities tab in the device settings. Per-device (AP/switch) sensors are **not created at all by default** — opt in via [Configuration](#-configuration).
 
+---
+
 > [!TIP]
 >
 > **Not sure what a sensor does?** Many entities carry a short built-in **About** note. Click the sensor to open it, use the **⋮ (three-dots) menu → Details**, and look for the **`about`** attribute — a one-line explanation of that sensor.
@@ -187,8 +189,8 @@ Below is a quick reference showing how entities are default-enabled depending on
 > [!TIP]
 >
 > **Duplicate-of-core entities:** the per-device Clients / CPU / Memory / Uptime sensors keep their display name but get a `_mon` suffix on their entity ID (e.g. `sensor.<device>_clients_mon`), so when the official UniFi integration is also present you can tell Monitor's copy apart from Core's — on both APs and switches. Per-device entity IDs are prefixed with the **device name**, not `unifi_network_`.
-
-> _Not sure you want everything you see here? See [Tailoring What's Monitored](#-tailoring-whats-monitored) for how to disable individual sensors, whole sub-devices, or entire feature groups._
+>
+> _Not sure you want everything you see here? See [Tailoring What's Monitored](#️-tailoring-whats-monitored) for how to disable individual sensors, whole sub-devices, or entire feature groups._
 
 ### 📊 Long Term Statistics (LTS)
 
@@ -455,6 +457,8 @@ actions:
       title: "UniFi: {{ alerts.count }} alert(s) in the last 24h"
       message: >-
         • {{ alerts.alerts | map(attribute='title') | join('\n• ') }}
+
+
     note: |
       One bulleted line per alert title. To include severity, swap the message for a loop:
       {% for a in alerts.alerts %}• {{ a.severity }} — {{ a.title }}
@@ -888,6 +892,8 @@ Setup is handled entirely via the UI. Provide connection details for your gatewa
 >
 > **An API key is strongly preferred.** The UniFi Integration (v3) API endpoints are only reachable with an API key. If you authenticate with **username / password**, seven sensors covering **firewall rules, VPN connections, and WAN interface names** will be permanently unavailable (`unknown`). This is a UniFi API limitation, not a fault in the integration. The affected sensors are: **Rules Active**, **Rules Configured**, **Rules Disabled**, **VPN Connections Active**, **VPN Connections Total**, **WAN1 Name**, and **WAN2 Name**. Everything else works normally under either auth mode. See [FAQ](#-why-are-my-firewall-vpn-or-wan-name-sensors-unknown).
 
+---
+
 > [!NOTE]
 >
 > Setup asks for **connection details only**. Which **sensor groups** and **per-device (AP / Switch) sensors** are created is chosen **after** setup, in **Runtime Options (Configure)** just below — everything defaults sensibly, so you can finish setup and adjust later if you wish.
@@ -1033,7 +1039,7 @@ A custom `DataUpdateCoordinator` fetches everything per cycle and applies two re
 ### 🔄 Dynamic Polling & Standard System Options
 
 - **Both Available**: The integration provides dynamic polling controls, to pause polling or change polling interval. It also functions normally with the standard Home Assistant **System options** > **Enable polling for changes** toggle.
-- **Force-refresh on user actions**: any explicit action — Refresh Now, a speedtest run, or changing a control (interval, weight, threshold, rogue period/filters) — triggers an immediate fetch **even while Pause Polling is on**. Only *scheduled* polling is paused.
+- **Force-refresh on user actions**: any explicit action — Refresh Now, a speedtest run, or changing a control (interval, weight, threshold, rogue period/filters) — triggers an immediate fetch **even while Pause Polling is on**. Only _scheduled_ polling is paused.
 
 ### 🎬 Actions & Events (for automations)
 
