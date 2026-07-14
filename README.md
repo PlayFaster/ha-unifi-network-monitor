@@ -143,6 +143,12 @@ This integration exposes its entities across several sub-devices — **Gateway**
 >
 > **Entity Visibility:** To keep your Home Assistant UI clean, many secondary/diagnostic entities are **disabled by default**. Enable them via the Entities tab in the device settings. Per-device (AP/switch) sensors are **not created at all by default** — opt in via [Configuration](#-configuration).
 
+> [!TIP]
+>
+> **Not sure what a sensor does?** Many entities carry a short built-in **About** note. Click the sensor to open it, use the **⋮ (three-dots) menu → Details**, and look for the **`about`** attribute — a one-line explanation of that sensor.
+>
+> **What "unrecorded" means:** the **About** notes — and a few intentionally large attributes, such as the rogue-AP list on **Strongest Rogue SSID** — are marked **unrecorded**. Home Assistant still shows them live in the entity's details, but **never writes them to the history/recorder database**. That keeps these bulky or purely-informational values from bloating your database, with no downside to what you see day-to-day.
+
 The counts below are from a **base install** on a UDM Pro — **no per-device (AP/switch) sensors**, with all feature groups **on**. That registers **126 base entities** regardless of anything else; only the enabled-by-default count changes:
 
 - **Without the official HA Core UniFi integration:** **103 enabled / 23 disabled**. The `Enabled / Total` column below reflects this case.
@@ -383,9 +389,80 @@ actions:
       severity, category, event, id, timestamp, and status.
 ```
 
-> [!TIP]
->
-> Prefer a periodic digest over per-alert notifications? Call the **`unifi_network_monitor.get_alerts`** action on a schedule with a `response_variable` and format the returned list into one message — see [Actions](#-actions-services).
+#### 📋 Scheduled Alert Digest
+
+Prefer one summary a day over a notification per alert? This calls the **`get_alerts`** action on a schedule and formats the returned list into a single message — a worked example of turning the action's JSON response into a readable notification.
+
+```yaml
+alias: "UniFi: Daily Alert Digest"
+description: |
+  Once a day, fetches recent High/Very High alerts and sends them as one summary
+  notification (only if there are any).
+triggers:
+  - trigger: time
+    at: "08:00:00"
+    note: Morning digest — adjust the time to suit.
+actions:
+  - action: unifi_network_monitor.get_alerts
+    data:
+      severity: [HIGH, VERY_HIGH]
+      quantity: 10
+      age_days: 1
+    response_variable: alerts
+    note: |
+      Fetches up to 10 High/Very High alerts from the last day. The result lands in the
+      `alerts` variable as {count, alerts: [{title, severity, message, timestamp, ...}]}.
+  - condition: template
+    value_template: "{{ alerts.count > 0 }}"
+    note: Stop here (no notification) when there were no alerts.
+  - action: notify.mobile_app_your_phone
+    data:
+      title: "UniFi: {{ alerts.count }} alert(s) in the last 24h"
+      message: >-
+        • {{ alerts.alerts | map(attribute='title') | join('\n• ') }}
+    note: |
+      One bulleted line per alert title. To include severity, swap the message for a loop:
+      {% for a in alerts.alerts %}• {{ a.severity }} — {{ a.title }}
+      {% endfor %}
+```
+
+#### 📡 Daily Rogue AP Digest
+
+Each morning, send the **top 3 strongest rogue APs** seen in the last 24 hours. The `get_rogue_aps` action already returns results strongest-first, so `quantity: 3` gives the top three.
+
+```yaml
+alias: "UniFi: Daily Rogue AP Digest"
+description: |
+  Each morning, fetches the strongest rogue APs seen in the last 24 hours and sends
+  the top 3 as a single notification (only if any were detected).
+triggers:
+  - trigger: time
+    at: "08:00:00"
+    note: Morning digest — adjust the time to suit.
+actions:
+  - action: unifi_network_monitor.get_rogue_aps
+    data:
+      period: "24h"
+      band: both
+      quantity: 3
+    response_variable: rogues
+    note: |
+      Returns the 3 strongest rogue APs from the last 24h (the action sorts strongest-first),
+      as {count, rogue_aps: [{essid, signal, band, bssid, detected_by, ...}]}.
+  - condition: template
+    value_template: "{{ rogues.count > 0 }}"
+    note: Stop here (no notification) when no rogues were detected.
+  - action: notify.mobile_app_your_phone
+    data:
+      title: "UniFi: top {{ rogues.count }} rogue AP(s) — last 24h"
+      message: |-
+        {% for r in rogues.rogue_aps -%}
+        • {{ r.essid or '(hidden SSID)' }} — {{ r.signal }} dBm, {{ r.band }}
+        {% endfor -%}
+    note: |
+      One bulleted line per rogue: SSID, signal strength, and band. Each `r` also carries
+      bssid, channel, oui (vendor), age, and detected_by (the UniFi AP that saw it).
+```
 
 #### 👥 Guest Network in Use
 
@@ -922,6 +999,14 @@ A custom `DataUpdateCoordinator` fetches everything per cycle and applies two re
 ### 🔄 Dynamic Polling & Standard System Options
 
 - **Both Available**: The integration provides dynamic polling controls, to pause polling or change polling interval. It also functions normally with the standard Home Assistant **System options** > **Enable polling for changes** toggle.
+- **Force-refresh on user actions**: any explicit action — Refresh Now, a speedtest run, or changing a control (interval, weight, threshold, rogue period/filters) — triggers an immediate fetch **even while Pause Polling is on**. Only *scheduled* polling is paused.
+
+### 🎬 Actions & Events (for automations)
+
+Beyond passive entities, the integration exposes on-demand **actions** and fire-and-forget **events**:
+
+- **Actions** (`get_alerts`, `get_rogue_aps`) are response services — they perform their own fresh, capped fetch and return data, so they work even when the matching passive group is disabled. See [Actions](#-actions-services).
+- **Events** (`unifi_network_monitor_new_alert`, `unifi_network_monitor_new_rogue_ap`) fire once per newly-seen alert / rogue BSSID. They record the existing backlog silently on startup or re-enable (no replay), and only fire while the owning group (Alerts / Security) is enabled.
 
 ### 🤝 Coexistence with the Official UniFi Integration
 
@@ -974,6 +1059,17 @@ The gateway and all physical devices use `connections={(CONNECTION_NETWORK_MAC, 
 #### 🧹 **I turned a sensor group off but the entities are still there (Unavailable)**
 
 - By design, options never delete automatically. Use the **Clean Up Unused Entities** button, or run `unifi_network_monitor.cleanup_unused_entities` with `dry_run: false`.
+
+#### 🚨 **What do "Sev3" and "Sev4" mean on the Alerts sensors?**
+
+- UniFi grades system-log entries by severity. This integration surfaces the **top two** — **High (Sev3)** and **Very High (Sev4)** — which match the **3-yellow-dot** and **4-red-dot** levels in the UniFi GUI. ("Sev3/Sev4" is a GUI dot-count label, not an API field.) Low (Sev1) and Medium (Sev2) are very high-volume and are **not** exposed as sensors, but the `get_alerts` action can query them on demand.
+- The **Last High Sev3 / Last Very High Sev4** sensors read `None Detected` when there's no alert of that severity — that's normal, not an error.
+
+#### 📡 **What's the difference between "Rogue Access Points" and "Rogue APs All 24h"?**
+
+- **Rogue Access Points** is the **curated** count: unique rogue APs after your band and ignore-list filtering, over the **Rogue Detection Period** you set. This is "what counts as a rogue right now".
+- **Rogue APs All 24h** is the **raw, unfiltered** detection volume over a rolling 24 hours — every detection by every UniFi AP, ignoring all your settings and lists, and counting reporter duplicates. It's a background-**noise / coverage gauge** for trending, not a unique-rogue count.
+- So All 24h is normally **much higher** than the filtered count — that's expected, they measure different things.
 
 ## ❗ Known Limitations /❔ What's Missing?
 
