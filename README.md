@@ -34,6 +34,7 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
   - [🎯 Use Cases](#-use-cases)
   - [✅ Features](#-features)
   - [🔍 What You Get](#-what-you-get)
+  - [✂️ Tailoring What's Monitored](#-tailoring-whats-monitored)
   - [📸 Screenshots](#-screenshots)
   - [📡 Rogue Access Point Monitoring](#-rogue-access-point-monitoring)
   - [💡 Example Automations](#-example-automations)
@@ -97,7 +98,7 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
 ### 🛡️ Network Security & Health
 
 - **Rogue AP Detection**: Count of rogue access points (unknown APs) detected by your UniFi APs, plus the **Strongest Rogue SSID** and **Strongest Rogue RSSI**, with the full rogue-AP list as an attribute. Also **Rogue APs All 24h** — the raw, unfiltered detection volume over a rolling 24 hours (a background-noise gauge).
-- **Rogue Controls**: A **Rogue Detection Period** selector (how far back to look), **Show 2.4 / 5 GHz Rogues** switches, and **Apply AP / SSID Ignore List** switches (ignore lists set at setup) to tune what counts as a rogue.
+- **Rogue Controls**: A **Rogue Detection Period** selector (how far back to look), **Show 2.4 / 5 GHz Rogues** switches, and **Apply AP / SSID Ignore List** switches (ignore lists set in Configure) to tune what counts as a rogue.
 - **Proximity Alert**: A `PROBLEM` binary sensor that fires when the strongest rogue signal is at or above a user-set **Rogue Proximity Threshold** (dBm).
 - **On-demand Rogue Query**: A `get_rogue_aps` action returns the current rogue set on demand (filter by band / signal / keyword) — see [Actions](#-actions-services).
 - **Subsystem Health**: Aggregated **Network Problem** indicator plus per-subsystem OK sensors (WAN, Internet/WWW, WiFi/WLAN, LAN).
@@ -123,7 +124,7 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
 
 ### 🎛️ Scoped Setup (Sensor Groups)
 
-Choose at setup — and change any time via **Configure** — which groups of sensors are created. A disabled group both hides its sensors **and skips its API calls**:
+Via **Configure**, choose which groups of sensors are created (all default to **on**). A disabled group both hides its sensors **and skips its API calls**:
 
 - **Alerts monitoring** (system-log High/Very High), **Dual-WAN monitoring** (WAN2 + load-balance entities), **Security monitoring** (rogue APs / VPN / firewall), **Speedtest monitoring**, and **WAN data-usage statistics**.
   - These entities are specific to this integration and do not overlap with the official HA UniFi Network integration. However, if you don't want or need this info, turning a group off removes its entities from the UI and (except Dual-WAN, which shares WAN1's fetch) saves an API call.
@@ -187,15 +188,7 @@ Below is a quick reference showing how entities are default-enabled depending on
 >
 > **Duplicate-of-core entities:** the per-device Clients / CPU / Memory / Uptime sensors keep their display name but get a `_mon` suffix on their entity ID (e.g. `sensor.<device>_clients_mon`), so when the official UniFi integration is also present you can tell Monitor's copy apart from Core's — on both APs and switches. Per-device entity IDs are prefixed with the **device name**, not `unifi_network_`.
 
----
-
-> [!TIP]
->
-> **Clean up your UI: Disable Unnecessary Devices or Entities**
->
-> - If you never use the Status information, you may not need the Status sub-device.
-> - Devices can be disabled from the main device page: (⋮ menu) > **Disable Device** which also disables all the device entities.
-> - Individual entities can be disabled via their properties, or in bulk on the entities list page.
+> _Not sure you want everything you see here? See [Tailoring What's Monitored](#-tailoring-whats-monitored) for how to disable individual sensors, whole sub-devices, or entire feature groups._
 
 ### 📊 Long Term Statistics (LTS)
 
@@ -228,6 +221,48 @@ The exceptions — **17** numeric sensors (14 base + 3 per-AP) that currently ha
 > ```
 >
 > Restart Home Assistant after saving. The sensor will begin accumulating LTS from that point forward.
+
+## ✂️ Tailoring What's Monitored
+
+**Installed with its defaults, this integration needs no adjustment** — everything just works out of the box. But it exposes a lot, and you may not want all of it. You have options.
+
+Typical cases:
+
+- Running a **single WAN** (or failover only)? You may not care about the **WAN2** sensors.
+- Not interested in the gateway's **speedtests**? You may not need the **Speedtest** sub-device.
+- Not monitoring **rogue APs / threats**? You may have no use for the **Security** sub-device.
+- Don't need **system-log alerts**? Skip the **Alerts** sub-device. …and so on.
+
+### 1. Do nothing (the easy option)
+
+If you're simply not interested in some sensors, **you don't need to do anything — just ignore them.** The overhead is minimal (a disabled entity costs nothing; even an enabled one is just a row on a card). If in doubt, leave everything as-is.
+
+### 2. Disable sensors or sub-devices (standard Home Assistant)
+
+Use Home Assistant's built-in visibility controls — nothing specific to this integration:
+
+- **One sensor:** click the entity → **⚙️ (settings)** → turn **Enabled** off.
+- **A whole sub-device:** open its device page (e.g. _UniFi Network Speedtest_) → **⋮ menu → Disable device** — this disables every entity on that card at once.
+
+Disabled entities stay in the registry (greyed out) and can be re-enabled any time. This hides them from your UI; the integration still polls as normal.
+
+### 3. Turn off whole feature groups (also stops polling)
+
+Open **Settings → Devices & Services → UniFi Network Monitor → Configure** (⚙️ gear). Here you can enable/disable whole **feature groups**. Unlike option 2, turning a group off both **removes its sensors _and_ skips its API calls**. All default to **on**:
+
+| Feature group | What it removes |
+| :-- | :-- |
+| **Alerts monitoring** | The **Alerts** sub-device (system-log High/Very High) |
+| **Dual-WAN monitoring** | The **WAN2** + load-balance entities (turn off for single-WAN) |
+| **Security monitoring** | The **Security** sub-device (rogue APs, VPN, firewall, threat management) |
+| **Speedtest monitoring** | The **Speedtest** sub-device + run buttons |
+| **WAN data-usage statistics** | The daily/monthly data-usage sensors |
+
+The same screen also sets the **UniFi device (AP & Switch) sensors** scope (none / satisfaction-only / all). Full detail in [Configuration](#-configuration).
+
+> [!IMPORTANT]
+>
+> Turning a group off with **Configure stops creating** its sensors, but Home Assistant never auto-deletes — the old entities linger as `unavailable` orphans. Remove them with the **Clean Up Unused Entities** button or the `unifi_network_monitor.cleanup_unused_entities` action → see [Actions](#-actions-services).
 
 ## 📸 Screenshots
 
@@ -294,7 +329,7 @@ This integration surfaces those detections through the **Security** sub-device. 
 
 - **Rogue Detection Period** — how far back to look (30 min … 1 month).
 - **Show 2.4 GHz / 5 GHz Rogues** — include or drop each band.
-- **Apply SSID / AP Ignore List** — hide known-friendly networks/APs (lists set at setup; SSID matching applies by default, AP matching is opt-in).
+- **Apply SSID / AP Ignore List** — hide known-friendly networks/APs (lists set in Configure; SSID matching applies by default, AP matching is opt-in).
 - **Rogue Proximity Threshold** — the "close" cut-off in dBm (default `-60`).
 
 **On-demand & automations:**
@@ -343,7 +378,7 @@ description: |
   polls to filter out transient signals.
 triggers:
   - trigger: state
-    entity_id: binary_sensor.unifi_network_status_rogue_ap_proximity_alert
+    entity_id: binary_sensor.unifi_network_security_rogue_ap_proximity_alert
     to: "on"
     for:
       seconds: |
@@ -356,7 +391,7 @@ actions:
     data:
       title: "Rogue AP detected nearby"
       message: |
-        Strongest rogue: {{ states('sensor.unifi_network_status_strongest_rogue_ssid') }} at {{ states('sensor.unifi_network_status_strongest_rogue_rssi') }} dBm.
+        Strongest rogue: {{ states('sensor.unifi_network_security_strongest_rogue_ssid') }} at {{ states('sensor.unifi_network_security_strongest_rogue_rssi') }} dBm.
     note: |
       Sends a phone notification containing the SSID and RSSI signal level of the closest rogue AP.
 ```
@@ -437,8 +472,8 @@ description: |
   the top 3 as a single notification (only if any were detected).
 triggers:
   - trigger: time
-    at: "08:00:00"
-    note: Morning digest — adjust the time to suit.
+    at: "08:10:00"
+    note: Morning digest — adjust the time to suit (staggered from the alert digest).
 actions:
   - action: unifi_network_monitor.get_rogue_aps
     data:
@@ -475,7 +510,7 @@ description: |
   two polling periods (or 2 minutes, whichever is longer).
 triggers:
   - trigger: numeric_state
-    entity_id: sensor.unifi_network_status_guest_users
+    entity_id: sensor.unifi_network_status_wifi_guests
     above: 0
     for:
       seconds: |
@@ -488,13 +523,13 @@ actions:
   - action: notify.mobile_app_your_phone
     data:
       title: "Guest Network Active"
-      message: "There are currently {{ states('sensor.unifi_network_status_guest_users') }} active guest(s) on your Wi-Fi."
+      message: "There are currently {{ states('sensor.unifi_network_status_wifi_guests') }} active guest(s) on your Wi-Fi."
     note: Sends a push notification indicating active guest count.
 ```
 
 ### 🌐 Internet Status and Alert Automations
 
-Get notified if the internet is down, if its performing slowly, if you are operating in failover mode, if you internet data usage is high, and, if in dual WAN load-balancing mode, change the balance weight on poor performance.
+Get notified if the internet is down, if it's performing slowly, if you are operating in failover mode, if your internet data usage is high, and, if in dual WAN load-balancing mode, change the balance weight on poor performance.
 
 #### ⚡ High Internet / WAN Latency
 
@@ -853,24 +888,23 @@ Setup is handled entirely via the UI. Provide connection details for your gatewa
 >
 > **An API key is strongly preferred.** The UniFi Integration (v3) API endpoints are only reachable with an API key. If you authenticate with **username / password**, seven sensors covering **firewall rules, VPN connections, and WAN interface names** will be permanently unavailable (`unknown`). This is a UniFi API limitation, not a fault in the integration. The affected sensors are: **Rules Active**, **Rules Configured**, **Rules Disabled**, **VPN Connections Active**, **VPN Connections Total**, **WAN1 Name**, and **WAN2 Name**. Everything else works normally under either auth mode. See [FAQ](#-why-are-my-firewall-vpn-or-wan-name-sensors-unknown).
 
-At setup you also choose:
-
-- **UniFi device (Access Point & Switch) sensors** — `Don't add` (default), `AP Satisfaction Score only`, or `Add all device sensors` (duplicates disabled).
-  - Leave at `Don't add` (default) unless you **know** that you are interested in additional UniFi Access Point and Switch information
-  - Case 1: You **have** core HA UniFi Networks installed as well, but you particularly want the AP Satisfaction Score that this integration provides
-  - Case 2: You do **NOT** have core HA UniFi Networks installed, and want detailed info (CPU, Memory, Uptime, Clients) on your UniFi devices e.g. Access Points and Switches
-- **Speedtest monitoring** — on/off (default on).
-  - Leave `ON` (default) unless you **know** that you are not interested in data on the speedtests that the UniFi gateway regularly runs.
-
 > [!NOTE]
 >
-> If the official Home Assistant **UniFi** integration is not installed, the device-sensor choice offers `Don't add` (default) or `Add all device sensors`.
+> Setup asks for **connection details only**. Which **sensor groups** and **per-device (AP / Switch) sensors** are created is chosen **after** setup, in **Runtime Options (Configure)** just below — everything defaults sensibly, so you can finish setup and adjust later if you wish.
 
 ### 🔨 Runtime Options (Reconfigure / Configure)
 
-Open **Settings > Devices & Services > UniFi Network Monitor > Configure** (gear), or **⋮ → Reconfigure**, to change connection details and the scoping options. Both screens present the same fields; changes take effect on submit (the entry reloads automatically).
+Open **Settings > Devices & Services > UniFi Network Monitor > Configure** (gear), or **⋮ → Reconfigure**, to set the scoping options and change connection details. Both screens present the same fields; changes take effect on submit (the entry reloads automatically). To change **Host, API Key, Username or Password**, edit them here — leaving a credential field blank means **no change**.
 
-Use this to change any of the [initial set-up](#-initial-setup) options above, change Host Address, API Key, Username or Password if required. Leaving them blank means **no change**.
+**UniFi device (Access Point & Switch) sensors** — `Don't add` (default), `AP Satisfaction Score only`, or `Add all device sensors` (duplicates disabled).
+
+- Leave at `Don't add` (default) unless you **know** you want additional UniFi Access Point / Switch information.
+- Case 1: You **have** the core HA UniFi Network integration installed as well, but particularly want the AP Satisfaction Score that this integration provides.
+- Case 2: You do **NOT** have the core HA UniFi Network integration, and want detailed info (CPU, Memory, Uptime, Clients) on your UniFi devices (e.g. Access Points and Switches).
+
+> [!NOTE]
+>
+> If the official Home Assistant **UniFi Network** integration is not installed, the device-sensor choice offers only `Don't add` (default) or `Add all device sensors` (satisfaction-only requires Core present).
 
 **Sensor groups (enable or disable):**
 
@@ -897,7 +931,7 @@ Several settings are exposed as control entities so you can drive them from dash
 - **Clean Up Unused Entities** (`button`, System) — remove orphaned entities (see [Actions](#-actions-services)).
 - **Rogue Detection Period** (`select`, Security) — how far back the rogue poll looks (30 min … 1 month). Shown only when Security monitoring is on.
 - **Show 2.4 GHz / 5 GHz Rogues** (`switch`, Security) — include or drop each band from the rogue sensors.
-- **Apply AP / SSID Ignore List** (`switch`, Security) — apply the ignore lists you set at setup (SSID applied by default; AP opt-in).
+- **Apply AP / SSID Ignore List** (`switch`, Security) — apply the ignore lists you set in Configure (SSID applied by default; AP opt-in).
 - **Rogue Proximity Threshold** (`number`, Security) — dBm at or above which a rogue AP triggers the Proximity Alert (default `-60`; kept negative to match how RSSI is measured). Shown only when Security monitoring is on.
 
 > All of these control changes apply **immediately** — even while Pause Polling is on, an explicit change triggers a fresh fetch.
@@ -938,7 +972,7 @@ Returns recent UniFi **system-log alerts** on demand — the history the passive
 | Parameter | Required | Default | Description |
 | :-- | :-- | :-- | :-- |
 | `device_id` | No | sole entry | Which gateway to query (only needed with more than one configured). |
-| `severity` | No | High + Very High | Any of Low / Medium / High / Very High. Low/Medium can be very high-volume. |
+| `severity` | No | High + Very High | Any of Low / Medium / High / Very High. **YAML values:** `LOW`, `MEDIUM`, `HIGH`, `VERY_HIGH`. Low/Medium can be very high-volume. |
 | `quantity` | No | `10` | Max alerts to return (1–100). |
 | `age_days` | No | — | Only alerts newer than this many days. |
 | `keyword` | No | — | Case-insensitive match on the alert title/message. |
@@ -958,8 +992,8 @@ Returns the current **rogue-AP set** on demand (fresh fetch, works even if Secur
 | Parameter | Required | Default | Description |
 | :-- | :-- | :-- | :-- |
 | `device_id` | No | sole entry | Which gateway to query. |
-| `period` | No | `Last 24 hours` | How far back to look (30 min … 90 days / All available). |
-| `band` | No | Both | 2.4 GHz / 5 GHz / Both. |
+| `period` | No | `24h` | How far back to look. **YAML values:** `30m`, `1h`, `6h`, `24h`, `7d`, `30d`, `90d`, `all`. |
+| `band` | No | `both` | Which band(s). **YAML values:** `2.4`, `5`, `both`. |
 | `min_signal` | No | — | Only APs at or above this signal (dBm, e.g. `-70`). |
 | `quantity` | No | `10` | Max rogue APs to return, strongest first (1–100). |
 | `keyword` | No | — | Case-insensitive match on the SSID / vendor (OUI). |
