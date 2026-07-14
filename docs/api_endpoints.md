@@ -82,6 +82,7 @@ These endpoints are called during regular polling cycles or user actions.
 - **Used**: Yes
 - **Purpose**: Identifies nearby rogue or interference-causing access points. `POST` with `{"within": <hours>}` scopes the look-back window.
 - **Use Case**: Exposes wireless security and environmental noise sensors (Security sub-device). Queried **twice per cycle**: once at the user-selected **Rogue Detection Period** (`within` = 1/1/6/24/… hours) for the filtered rogue view, and once at a fixed `within=24` (`EP_ROGUE_RAW`) for the **Rogue APs All 24h** raw-volume sensor. The `get_rogue_aps` action also queries it on demand at the caller's chosen period.
+- **Parsed fields** (per BSSID, after clustering the per-reporter rows): `essid`, `ssid_anomaly`, `bssid`, `band`, `channel`, `channel_width` (from raw `bw`, MHz), `signal`, `security`, `oui`, `wired_rogue` (from raw `is_rogue` — true only when the AP is physically bridged to your LAN, so `any()` across reporters wins), `is_adhoc`, `last_seen`, `age`, `detected_by`. A blank/whitespace-only `essid` is normalized to `<Hidden>` and control/zero-width characters to `·`, with `ssid_anomaly: true` set in either case.
 
 ### `GET /proxy/network/api/s/{site}/stat/guest`
 

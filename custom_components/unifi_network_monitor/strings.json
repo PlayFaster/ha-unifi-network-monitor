@@ -658,6 +658,10 @@
         "keyword": {
           "name": "Keyword",
           "description": "Case-insensitive substring to match against the alert title and message."
+        },
+        "exclude": {
+          "name": "Exclude",
+          "description": "Comma-separated terms; drop any alert whose title or message contains one of them. Applied after Keyword."
         }
       }
     },
@@ -687,7 +691,11 @@
         },
         "keyword": {
           "name": "Keyword",
-          "description": "Case-insensitive substring to match against the SSID and OUI (vendor)."
+          "description": "Case-insensitive substring to match against the SSID, OUI (vendor), and security."
+        },
+        "exclude": {
+          "name": "Exclude",
+          "description": "Comma-separated terms; drop any rogue AP whose SSID, OUI, or security contains one of them. Applied after Keyword."
         }
       }
     }

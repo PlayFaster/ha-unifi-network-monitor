@@ -100,7 +100,7 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
 - **Rogue AP Detection**: Count of rogue access points (unknown APs) detected by your UniFi APs, plus the **Strongest Rogue SSID** and **Strongest Rogue RSSI**, with the full rogue-AP list as an attribute. Also **Rogue APs All 24h** — the raw, unfiltered detection volume over a rolling 24 hours (a background-noise gauge).
 - **Rogue Controls**: A **Rogue Detection Period** selector (how far back to look), **Show 2.4 / 5 GHz Rogues** switches, and **Apply AP / SSID Ignore List** switches (ignore lists set in Configure) to tune what counts as a rogue.
 - **Proximity Alert**: A `PROBLEM` binary sensor that fires when the strongest rogue signal is at or above a user-set **Rogue Proximity Threshold** (dBm).
-- **On-demand Rogue Query**: A `get_rogue_aps` action returns the current rogue set on demand (filter by band / signal / keyword) — see [Actions](#-actions-services).
+- **On-demand Rogue Query**: A `get_rogue_aps` action returns the current rogue set on demand (filter by band / signal / keyword / exclude) — see [Actions](#-actions-services).
 - **Subsystem Health**: Aggregated **Network Problem** indicator plus per-subsystem OK sensors (WAN, Internet/WWW, WiFi/WLAN, LAN).
 - **WiFi, VLAN, VPN & Firewall**: Per-SSID broadcast status, per-VPN-tunnel status, VLAN and firewall-rule counts.
 
@@ -108,7 +108,7 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
 
 - **Per-severity sensors**: **Last High Sev3** and **Last Very High Sev4** (the title of the most recent alert of each severity), plus **High Sev3 / Very High Sev4 Qty Last 24h** counts, drawn from the UniFi system log. ("Sev3 / Sev4" = the UniFi GUI 3-/4-dot severity levels.)
 - **New-alert event**: A `unifi_network_monitor_new_alert` bus event fires for each newly-seen High/Very High alert — trigger notifications or automations on it.
-- **On-demand query**: A `get_alerts` action returns recent alerts on demand (choose severity, quantity, age, keyword) — see [Actions](#-actions-services).
+- **On-demand query**: A `get_alerts` action returns recent alerts on demand (choose severity, quantity, age, keyword, exclude) — see [Actions](#-actions-services).
 
 ### 🖥️ Gateway & System Diagnostics
 
@@ -322,7 +322,7 @@ This integration surfaces those detections through the **Security** sub-device. 
 
 - **Rogue Access Points (`sensor.*_rogue_access_points`)**: Count of unique rogue APs, after your band and ignore-list filtering.
 - **Strongest Rogue SSID (`sensor.*_strongest_rogue_ssid`)**: The SSID of the rogue network with the strongest (least-negative) signal.
-  - _Attributes_: a `rogue_aps` list (the 25 strongest) with each rogue's BSSID (MAC), band, channel, signal (RSSI), vendor (OUI), age, last-seen, and the friendly name of the UniFi AP that detected it. `rogue_aps_truncated` flags if the list was capped — use the `get_rogue_aps` action for the complete set.
+  - _Attributes_: a `rogue_aps` list (the 25 strongest) with each rogue's SSID, BSSID (MAC), band, channel, channel width, signal (RSSI), security, vendor (OUI), age, last-seen, `wired_rogue`, `is_adhoc`, `ssid_anomaly`, and the friendly name of the UniFi AP that detected it. A hidden SSID shows as `<Hidden>`. `rogue_aps_truncated` flags if the list was capped — use the `get_rogue_aps` action for the complete set.
 - **Strongest Rogue RSSI (`sensor.*_strongest_rogue_rssi`)**: The signal strength (in dBm) of the strongest rogue network.
 - **Rogue APs All 24h (`sensor.*_rogue_aps_all_24h`)**: The **raw, unfiltered** total detection count over a rolling 24 hours — every detection by every UniFi AP, ignoring all your settings and lists. A gauge of background rogue "noise", distinct from the filtered count above.
 - **Rogue AP Proximity Alert (`binary_sensor.*_rogue_ap_proximity_alert`)**: A `PROBLEM` binary sensor that turns `on` when the strongest rogue's RSSI is at or above your **Rogue Proximity Threshold** (e.g. `-50` dBm is higher/closer than `-60` dBm).
@@ -336,7 +336,7 @@ This integration surfaces those detections through the **Security** sub-device. 
 
 **On-demand & automations:**
 
-- **`get_rogue_aps` action** — query the current rogue set on demand with your own band / signal / keyword filters (see [Actions](#-actions-services)).
+- **`get_rogue_aps` action** — query the current rogue set on demand with your own band / signal / keyword / exclude filters (see [Actions](#-actions-services)).
 - **`unifi_network_monitor_new_rogue_ap` event** — fires when a new rogue BSSID first appears, for triggering automations.
 
 ### ❓ Why is this useful?
@@ -496,11 +496,12 @@ actions:
       title: "UniFi: top {{ rogues.count }} rogue AP(s) — last 24h"
       message: |-
         {% for r in rogues.rogue_aps -%}
-        • {{ r.essid or '(hidden SSID)' }} — {{ r.signal }} dBm, {{ r.band }}
+        • {{ r.essid }} — {{ r.signal }} dBm, {{ r.band }}{{ ' ⚠ WIRED ROGUE' if r.wired_rogue else '' }}
         {% endfor -%}
     note: |
-      One bulleted line per rogue: SSID, signal strength, and band. Each `r` also carries
-      bssid, channel, oui (vendor), age, and detected_by (the UniFi AP that saw it).
+      One bulleted line per rogue: SSID, signal strength, and band. A hidden SSID shows as
+      `<Hidden>` (no fallback needed). Each `r` also carries bssid, channel, channel_width,
+      security, oui (vendor), age, detected_by, is_adhoc, and wired_rogue (flagged above).
 ```
 
 #### 👥 Guest Network in Use
@@ -977,11 +978,12 @@ Returns recent UniFi **system-log alerts** on demand — the history the passive
 
 | Parameter | Required | Default | Description |
 | :-- | :-- | :-- | :-- |
-| `device_id` | No | sole entry | Which gateway to query (only needed with more than one configured). |
+| `device_id` | No | sole entry | Which gateway to query (only needed with more than one configured — see the note below). |
 | `severity` | No | High + Very High | Any of Low / Medium / High / Very High. **YAML values:** `LOW`, `MEDIUM`, `HIGH`, `VERY_HIGH`. Low/Medium can be very high-volume. |
 | `quantity` | No | `10` | Max alerts to return (1–100). |
 | `age_days` | No | — | Only alerts newer than this many days. |
-| `keyword` | No | — | Case-insensitive match on the alert title/message. |
+| `keyword` | No | — | Case-insensitive substring match on the alert title/message (include). |
+| `exclude` | No | — | Comma-separated terms; drop any alert whose title/message contains one of them. Applied **after** `keyword`. |
 
 ```yaml
 action: unifi_network_monitor.get_alerts
@@ -997,20 +999,29 @@ Returns the current **rogue-AP set** on demand (fresh fetch, works even if Secur
 
 | Parameter | Required | Default | Description |
 | :-- | :-- | :-- | :-- |
-| `device_id` | No | sole entry | Which gateway to query. |
+| `device_id` | No | sole entry | Which gateway to query (see the note below). |
 | `period` | No | `24h` | How far back to look. **YAML values:** `30m`, `1h`, `6h`, `24h`, `7d`, `30d`, `90d`, `all`. |
 | `band` | No | `both` | Which band(s). **YAML values:** `2.4`, `5`, `both`. |
 | `min_signal` | No | — | Only APs at or above this signal (dBm, e.g. `-70`). |
 | `quantity` | No | `10` | Max rogue APs to return, strongest first (1–100). |
-| `keyword` | No | — | Case-insensitive match on the SSID / vendor (OUI). |
+| `keyword` | No | — | Case-insensitive substring match on the SSID, vendor (OUI), or security (include). |
+| `exclude` | No | — | Comma-separated terms; drop any rogue AP whose SSID, OUI, or security contains one of them. Applied **after** `keyword`. |
 
 ```yaml
 action: unifi_network_monitor.get_rogue_aps
 data:
   band: both
   min_signal: -70
+  exclude: "eero, apple"   # skip these vendors
 response_variable: rogues
 ```
+
+Each returned rogue AP carries: `essid`, `ssid_anomaly`, `bssid`, `band`, `channel`, `channel_width` (MHz), `signal` (dBm), `security`, `oui` (vendor), `wired_rogue`, `is_adhoc`, `age`, `last_seen`, and `detected_by`.
+
+- **`wired_rogue`** — `true` only when UniFi has confirmed the AP is **physically bridged to your LAN** (an unauthorized device plugged into your network), not merely a neighbor's Wi-Fi. This is the genuine "rogue" in UniFi's sense and the one worth alerting on; most detections are `false`.
+- **`ssid_anomaly`** — `true` when the SSID was **hidden** (broadcast blank → shown as `<Hidden>`) **or** contained control / zero-width / right-to-left characters (replaced with `·`). A common Wi-Fi impersonation trick is an SSID that *looks* like yours but hides tampering in non-printable characters — this flag surfaces it.
+
+> **ℹ️ Which device do I pick?** In the usual single-gateway setup, leave `device_id` blank — it defaults to your only gateway. If you tick **Device** in the UI you'll see all seven sub-devices (Gateway, Security, Alerts, …); that's expected — they all belong to the same gateway, so **any one resolves to the same result**. `device_id` only *matters* if you run **more than one UniFi gateway**, where it disambiguates which one to query.
 
 ## 🔩 Under the Hood - Technical Architecture
 

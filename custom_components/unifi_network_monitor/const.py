@@ -69,6 +69,14 @@ DEFAULT_ROGUE_ACTION_PERIOD = "24h"
 ROGUE_ACTION_BANDS = ("2.4", "5", "both")
 DEFAULT_ROGUE_ACTION_BAND = "both"
 
+# Display sentinel for a cloaked SSID (empty/whitespace-only essid — the
+# controller's hidden-network case, mirroring the UniFi web GUI's "<Hidden>").
+ROGUE_HIDDEN_SSID = "<Hidden>"
+
+# Placeholder substituted for control/zero-width/non-printable characters in an
+# essid, so a spoofed name renders safely and the tampering stays visible.
+ROGUE_ESSID_PLACEHOLDER = "·"  # · (middle dot)
+
 # Max rogue-AP rows carried on the Strongest Rogue SSID sensor's rogue_aps
 # attribute. HA rejects a state whose attributes exceed 16 KB; capping at 25
 # strongest (~5-6 KB) stays well clear, and the full/filtered list is available

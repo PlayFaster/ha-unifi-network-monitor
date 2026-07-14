@@ -46,6 +46,10 @@ get_alerts:
       required: false
       selector:
         text:
+    exclude:
+      required: false
+      selector:
+        text:
 
 get_rogue_aps:
   fields:
@@ -105,6 +109,10 @@ get_rogue_aps:
           max: 100
           mode: box
     keyword:
+      required: false
+      selector:
+        text:
+    exclude:
       required: false
       selector:
         text:

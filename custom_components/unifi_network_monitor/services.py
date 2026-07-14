@@ -61,6 +61,7 @@ GET_ALERTS_SCHEMA = vol.Schema(
         ),
         vol.Optional("age_days"): vol.All(vol.Coerce(int), vol.Range(min=1)),
         vol.Optional("keyword"): cv.string,
+        vol.Optional("exclude"): cv.string,
     }
 )
 
@@ -80,8 +81,21 @@ GET_ROGUE_APS_SCHEMA = vol.Schema(
             vol.Coerce(int), vol.Range(min=1, max=ROGUE_QUANTITY_MAX)
         ),
         vol.Optional("keyword"): cv.string,
+        vol.Optional("exclude"): cv.string,
     }
 )
+
+
+def _split_terms(value: str | None) -> list[str]:
+    """Split a comma-separated filter string into lowercased, non-empty terms."""
+    if not value:
+        return []
+    return [t for t in (part.strip().lower() for part in value.split(",")) if t]
+
+
+def _excluded(haystack: str, terms: list[str]) -> bool:
+    """True if any exclude term is a substring of the (lowercased) haystack."""
+    return any(term in haystack for term in terms)
 
 
 def _resolve_coordinator(
@@ -130,11 +144,14 @@ async def _fetch_alerts(
     quantity: int,
     cutoff_ms: int | None,
     keyword: str,
+    exclude: list[str],
 ) -> list[dict[str, Any]]:
     """Page the system log (newest-first) and collect matching alerts.
 
     Bounded to ALERT_MAX_PAGES; stops early on quantity reached, a short page
     (end of log), or — with an age cutoff — the first older-than-cutoff record.
+    ``keyword`` (include) and ``exclude`` (any-term drop) both match the
+    title+message text.
     """
     collected: list[dict[str, Any]] = []
     for page in range(ALERT_MAX_PAGES):
@@ -149,9 +166,11 @@ async def _fetch_alerts(
             if cutoff_ms is not None and (ev.get("timestamp") or 0) < cutoff_ms:
                 return collected
             record = build_alert_response(ev)
-            if keyword:
+            if keyword or exclude:
                 haystack = f"{record['title']} {record['message']}".lower()
-                if keyword not in haystack:
+                if keyword and keyword not in haystack:
+                    continue
+                if _excluded(haystack, exclude):
                     continue
             collected.append(record)
             if len(collected) >= quantity:
@@ -167,13 +186,16 @@ async def _handle_get_alerts(hass: HomeAssistant, call: ServiceCall) -> ServiceR
     severities = list(call.data.get("severity") or DEFAULT_ALERT_SEVERITIES)
     quantity = call.data["quantity"]
     keyword = (call.data.get("keyword") or "").strip().lower()
+    exclude = _split_terms(call.data.get("exclude"))
 
     cutoff_ms: int | None = None
     age_days = call.data.get("age_days")
     if age_days:
         cutoff_ms = int((dt_util.as_timestamp(dt_util.now()) - age_days * 86400) * 1000)
 
-    alerts = await _fetch_alerts(coordinator, severities, quantity, cutoff_ms, keyword)
+    alerts = await _fetch_alerts(
+        coordinator, severities, quantity, cutoff_ms, keyword, exclude
+    )
     return cast(ServiceResponse, {"count": len(alerts), "alerts": alerts})
 
 
@@ -198,11 +220,16 @@ def _rogue_response_item(ap: dict[str, Any]) -> dict[str, Any]:
     last_seen = ap.get("last_seen")
     return {
         "essid": ap.get("essid"),
+        "ssid_anomaly": ap.get("ssid_anomaly"),
         "bssid": ap.get("bssid"),
         "band": rogue_band_label(ap.get("band")),
         "channel": ap.get("channel"),
+        "channel_width": ap.get("channel_width"),
         "signal": ap.get("signal"),
+        "security": ap.get("security"),
         "oui": ap.get("oui"),
+        "wired_rogue": ap.get("wired_rogue"),
+        "is_adhoc": ap.get("is_adhoc"),
         "age": ap.get("age"),
         "last_seen": (
             datetime.fromtimestamp(last_seen, tz=UTC).isoformat() if last_seen else None
@@ -228,6 +255,7 @@ async def _handle_get_rogue_aps(
     show_5 = band in ("5", "both")
     min_signal = call.data.get("min_signal")
     keyword = (call.data.get("keyword") or "").strip().lower()
+    exclude = _split_terms(call.data.get("exclude"))
     quantity = call.data["quantity"]
 
     rogueaps_raw = await coordinator.api.get_rogueaps(within_hours=within_hours)
@@ -245,9 +273,14 @@ async def _handle_get_rogue_aps(
         signal = ap.get("signal")
         if min_signal is not None and (signal is None or signal < min_signal):
             continue
-        if keyword:
-            haystack = f"{ap.get('essid') or ''} {ap.get('oui') or ''}".lower()
-            if keyword not in haystack:
+        if keyword or exclude:
+            haystack = (
+                f"{ap.get('essid') or ''} {ap.get('oui') or ''} "
+                f"{ap.get('security') or ''}"
+            ).lower()
+            if keyword and keyword not in haystack:
+                continue
+            if _excluded(haystack, exclude):
                 continue
         matched.append(ap)
 

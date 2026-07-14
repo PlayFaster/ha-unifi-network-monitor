@@ -67,6 +67,8 @@ from .const import (
     EVENT_NEW_ROGUE_AP,
     FETCH_STRIKE_LIMIT,
     GATEWAY_MODELS,
+    ROGUE_ESSID_PLACEHOLDER,
+    ROGUE_HIDDEN_SSID,
     ROGUE_PERIOD_HOURS,
     ROGUE_RAW_WINDOW_HOURS,
 )
@@ -136,6 +138,35 @@ def build_ap_name_map(devices_raw: list[dict[str, Any]] | None) -> dict[str, str
     return ap_name_map
 
 
+def normalize_essid(raw: Any) -> tuple[str, bool]:
+    """Return a display-safe SSID and an anomaly flag.
+
+    - Empty or whitespace-only essid (the controller's cloaked-network case)
+      collapses to the ``<Hidden>`` sentinel, matching the UniFi web GUI.
+    - Otherwise, any control / zero-width / non-printable characters are
+      replaced with a visible placeholder so a spoofed name renders safely and
+      the tampering stays visible.
+
+    The boolean is ``True`` in either case, so an automation can trigger on a
+    cloaked *or* obfuscated SSID via a single ``ssid_anomaly`` field.
+    """
+    text = raw if isinstance(raw, str) else ("" if raw is None else str(raw))
+    if not text.strip():
+        return ROGUE_HIDDEN_SSID, True
+
+    # str.isprintable() keeps normal spaces but rejects control, tab/newline,
+    # zero-width, and RTL-override characters — exactly the deceptive set.
+    cleaned_chars: list[str] = []
+    tampered = False
+    for ch in text:
+        if ch.isprintable():
+            cleaned_chars.append(ch)
+        else:
+            cleaned_chars.append(ROGUE_ESSID_PLACEHOLDER)
+            tampered = True
+    return "".join(cleaned_chars), tampered
+
+
 def parse_rogue_aps(
     rogueaps_raw: list[dict[str, Any]] | None,
     ap_name_map: dict[str, str],
@@ -165,7 +196,9 @@ def parse_rogue_aps(
             continue
         if band == "na" and not show_5ghz:
             continue
-        essid = r.get("essid", "")
+        essid, ssid_anomaly = normalize_essid(r.get("essid"))
+        # Ignore-globs match the display SSID, so a rule like ``<Hidden>`` or
+        # ``*·*`` can target cloaked / obfuscated names.
         if apply_ssid_ignore and any(fnmatchcase(essid, pat) for pat in ignore_ssids):
             continue
         bssid = r.get("bssid", "")
@@ -173,15 +206,21 @@ def parse_rogue_aps(
         detected_by = ap_name_map.get(ap_mac.lower()) or ap_mac
         signal = _safe_int(r.get("signal"))
         last_seen = _safe_int(r.get("last_seen"))
+        channel_width = _safe_int(r.get("bw"))
         cl = clusters.setdefault(
             bssid,
             {
                 "essid": essid,
+                "ssid_anomaly": ssid_anomaly,
                 "bssid": bssid,
                 "band": band,
                 "channel": _safe_int(r.get("channel")),
+                "channel_width": channel_width,
                 "signal": signal,
+                "security": r.get("security") or "",
                 "oui": r.get("oui", ""),
+                "wired_rogue": bool(r.get("is_rogue")),
+                "is_adhoc": bool(r.get("is_adhoc")),
                 "reporters": [],
                 "last_seen": last_seen,
             },
@@ -193,6 +232,18 @@ def parse_rogue_aps(
             cl["last_seen"] is None or last_seen > cl["last_seen"]
         ):
             cl["last_seen"] = last_seen
+        # A BSSID is a wired rogue / ad-hoc if ANY reporter flags it as such;
+        # take the widest observed channel width and first non-empty security.
+        if r.get("is_rogue"):
+            cl["wired_rogue"] = True
+        if r.get("is_adhoc"):
+            cl["is_adhoc"] = True
+        if channel_width is not None and (
+            cl["channel_width"] is None or channel_width > cl["channel_width"]
+        ):
+            cl["channel_width"] = channel_width
+        if not cl["security"] and r.get("security"):
+            cl["security"] = r["security"]
 
     rogue_aps_list: list[dict[str, Any]] = []
     for cl in clusters.values():
@@ -216,11 +267,16 @@ def parse_rogue_aps(
         rogue_aps_list.append(
             {
                 "essid": cl["essid"],
+                "ssid_anomaly": cl["ssid_anomaly"],
                 "bssid": cl["bssid"],
                 "band": cl["band"],
                 "channel": cl["channel"],
+                "channel_width": cl["channel_width"],
                 "signal": cl["signal"],
+                "security": cl["security"],
                 "oui": cl["oui"],
+                "wired_rogue": cl["wired_rogue"],
+                "is_adhoc": cl["is_adhoc"],
                 "last_seen": last_seen,
                 "age": age_str,
                 "detected_by": ", ".join(names),
@@ -235,11 +291,16 @@ def build_rogue_event_payload(entry_id: str, ap: dict[str, Any]) -> dict[str, An
     return {
         "entry_id": entry_id,
         "essid": ap.get("essid"),
+        "ssid_anomaly": ap.get("ssid_anomaly"),
         "bssid": ap.get("bssid"),
         "band": rogue_band_label(ap.get("band")),
         "channel": ap.get("channel"),
+        "channel_width": ap.get("channel_width"),
         "signal": ap.get("signal"),
+        "security": ap.get("security"),
         "oui": ap.get("oui"),
+        "wired_rogue": ap.get("wired_rogue"),
+        "is_adhoc": ap.get("is_adhoc"),
         "detected_by": ap.get("detected_by"),
         "timestamp": (
             datetime.fromtimestamp(last_seen, tz=UTC).isoformat() if last_seen else None

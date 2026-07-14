@@ -2564,6 +2564,146 @@ def test_build_rogue_event_payload_empty() -> None:
     assert payload["timestamp"] is None
 
 
+def test_build_rogue_event_payload_new_fields() -> None:
+    """build_rogue_event_payload surfaces the extended rogue fields."""
+    from custom_components.unifi_network_monitor.coordinator import (
+        build_rogue_event_payload,
+    )
+
+    payload = build_rogue_event_payload(
+        "entry_001",
+        {
+            "bssid": "00:11:22:33:44:55",
+            "essid": "TestNet",
+            "ssid_anomaly": True,
+            "channel_width": 80,
+            "security": "WPA3-Personal (AES/CCMP)",
+            "wired_rogue": True,
+            "is_adhoc": False,
+        },
+    )
+    assert payload["ssid_anomaly"] is True
+    assert payload["channel_width"] == 80
+    assert payload["security"] == "WPA3-Personal (AES/CCMP)"
+    assert payload["wired_rogue"] is True
+    assert payload["is_adhoc"] is False
+
+
+# ---------------------------------------------------------------------------
+# normalize_essid
+# ---------------------------------------------------------------------------
+
+
+def test_normalize_essid_normal() -> None:
+    """A plain SSID is returned unchanged with no anomaly."""
+    from custom_components.unifi_network_monitor.coordinator import normalize_essid
+
+    display, anomaly = normalize_essid("My WiFi")
+    assert display == "My WiFi"
+    assert anomaly is False
+
+
+def test_normalize_essid_empty_is_hidden() -> None:
+    """An empty essid collapses to the <Hidden> sentinel and flags anomaly."""
+    from custom_components.unifi_network_monitor.coordinator import normalize_essid
+
+    display, anomaly = normalize_essid("")
+    assert display == "<Hidden>"
+    assert anomaly is True
+
+
+def test_normalize_essid_whitespace_is_hidden() -> None:
+    """A whitespace-only essid (spaces/tabs) is treated as hidden."""
+    from custom_components.unifi_network_monitor.coordinator import normalize_essid
+
+    display, anomaly = normalize_essid("   \t ")
+    assert display == "<Hidden>"
+    assert anomaly is True
+
+
+def test_normalize_essid_none_is_hidden() -> None:
+    """A missing (None) essid is treated as hidden."""
+    from custom_components.unifi_network_monitor.coordinator import normalize_essid
+
+    display, anomaly = normalize_essid(None)
+    assert display == "<Hidden>"
+    assert anomaly is True
+
+
+def test_normalize_essid_control_chars_sanitized() -> None:
+    """Control / zero-width chars are replaced with the placeholder + flagged."""
+    from custom_components.unifi_network_monitor.coordinator import normalize_essid
+
+    # Embedded zero-width space (U+200B) and trailing RTL override (U+202E).
+    display, anomaly = normalize_essid("Corp​Net‮")
+    assert display == "Corp·Net·"
+    assert anomaly is True
+
+
+# ---------------------------------------------------------------------------
+# parse_rogue_aps — extended fields
+# ---------------------------------------------------------------------------
+
+
+def test_parse_rogue_aps_extended_fields() -> None:
+    """parse_rogue_aps surfaces security / channel_width / is_adhoc and hidden."""
+    from custom_components.unifi_network_monitor.coordinator import parse_rogue_aps
+
+    parsed = parse_rogue_aps(
+        [
+            {
+                "essid": "",
+                "bssid": "00:00:00:00:00:aa",
+                "band": "na",
+                "bw": 80,
+                "security": "Open",
+                "is_rogue": False,
+                "is_adhoc": True,
+                "ap_mac": "aa:bb:cc:dd:ee:ff",
+            }
+        ],
+        {"aa:bb:cc:dd:ee:ff": "Office AP"},
+        1_700_000_000,
+    )
+    assert len(parsed) == 1
+    ap = parsed[0]
+    assert ap["essid"] == "<Hidden>"
+    assert ap["ssid_anomaly"] is True
+    assert ap["channel_width"] == 80
+    assert ap["security"] == "Open"
+    assert ap["is_adhoc"] is True
+    assert ap["wired_rogue"] is False
+    assert ap["detected_by"] == "Office AP"
+
+
+def test_parse_rogue_aps_wired_rogue_any_reporter() -> None:
+    """wired_rogue is true if ANY reporter row for the BSSID flags is_rogue."""
+    from custom_components.unifi_network_monitor.coordinator import parse_rogue_aps
+
+    parsed = parse_rogue_aps(
+        [
+            {
+                "essid": "Clone",
+                "bssid": "00:00:00:00:00:bb",
+                "band": "ng",
+                "is_rogue": False,
+                "ap_mac": "aa:aa:aa:aa:aa:01",
+            },
+            {
+                "essid": "Clone",
+                "bssid": "00:00:00:00:00:bb",
+                "band": "ng",
+                "is_rogue": True,
+                "ap_mac": "aa:aa:aa:aa:aa:02",
+            },
+        ],
+        {},
+        1_700_000_000,
+    )
+    assert len(parsed) == 1
+    assert parsed[0]["wired_rogue"] is True
+
+
 # ---------------------------------------------------------------------------
 # async_schedule_refresh_in (lines 707-717, 723-724)
 # ---------------------------------------------------------------------------

@@ -233,9 +233,40 @@ async def test_fetch_alerts_keyword_filter() -> None:
         ]
     )
 
-    result = await _fetch_alerts(coordinator, ["HIGH"], 10, None, "cpu")
+    result = await _fetch_alerts(coordinator, ["HIGH"], 10, None, "cpu", [])
     assert len(result) == 1
     assert result[0]["id"] == "evt_1"
+
+
+async def test_fetch_alerts_exclude_filter() -> None:
+    """_fetch_alerts drops records matching any exclude term (comma-list)."""
+    coordinator = _make_coordinator()
+    coordinator.api.get_system_logs = AsyncMock(
+        return_value=[
+            {
+                "id": "evt_1",
+                "title_raw": "CPU Alert",
+                "message_raw": "",
+                "severity": "HIGH",
+            },
+            {
+                "id": "evt_2",
+                "title_raw": "Memory Alert",
+                "message_raw": "",
+                "severity": "HIGH",
+            },
+            {
+                "id": "evt_3",
+                "title_raw": "Disk Alert",
+                "message_raw": "",
+                "severity": "HIGH",
+            },
+        ]
+    )
+
+    # No include; exclude drops cpu + memory, leaving only disk.
+    result = await _fetch_alerts(coordinator, ["HIGH"], 10, None, "", ["cpu", "memory"])
+    assert [r["id"] for r in result] == ["evt_3"]
 
 
 async def test_fetch_alerts_short_page_ends_early() -> None:
@@ -245,7 +276,7 @@ async def test_fetch_alerts_short_page_ends_early() -> None:
         return_value=[{"id": "evt_1", "title_raw": "Only one", "severity": "HIGH"}]
     )
 
-    result = await _fetch_alerts(coordinator, ["HIGH"], 10, None, "")
+    result = await _fetch_alerts(coordinator, ["HIGH"], 10, None, "", [])
     assert len(result) == 1
 
 
@@ -261,7 +292,7 @@ async def test_fetch_alerts_stops_at_max_pages() -> None:
     )
 
     result = await _fetch_alerts(
-        coordinator, ["HIGH"], ALERT_PAGE_SIZE * ALERT_MAX_PAGES, None, ""
+        coordinator, ["HIGH"], ALERT_PAGE_SIZE * ALERT_MAX_PAGES, None, "", []
     )
     assert len(result) == ALERT_PAGE_SIZE * ALERT_MAX_PAGES
     assert coordinator.api.get_system_logs.call_count == ALERT_MAX_PAGES
@@ -318,22 +349,32 @@ def test_rogue_response_item_full() -> None:
     result = _rogue_response_item(
         {
             "essid": "TestNet",
+            "ssid_anomaly": False,
             "bssid": "00:11:22:33:44:55",
             "band": "ng",
             "channel": 6,
+            "channel_width": 40,
             "signal": -80,
+            "security": "WPA2-Personal (AES/CCMP)",
             "oui": "VendorA",
+            "wired_rogue": True,
+            "is_adhoc": False,
             "last_seen": 1700000000,
             "age": "2h",
             "detected_by": "AP-1",
         }
     )
     assert result["essid"] == "TestNet"
+    assert result["ssid_anomaly"] is False
     assert result["bssid"] == "00:11:22:33:44:55"
     assert result["band"] == "2.4 GHz"
     assert result["channel"] == 6
+    assert result["channel_width"] == 40
     assert result["signal"] == -80
+    assert result["security"] == "WPA2-Personal (AES/CCMP)"
     assert result["oui"] == "VendorA"
+    assert result["wired_rogue"] is True
+    assert result["is_adhoc"] is False
     assert result["last_seen"] is not None
     assert result["age"] == "2h"
     assert result["detected_by"] == "AP-1"
@@ -591,6 +632,99 @@ async def test_get_rogue_aps_with_keyword(hass: Any, mock_config_entry: Any) -> 
     assert response is not None
     assert response["count"] == 1
     assert response["rogue_aps"][0]["essid"] == "CorpNet"
+
+
+def _rogue_action_env(hass: Any, rogueaps: list[dict[str, Any]]) -> Any:
+    """Wire a MagicMock coordinator/entry for a get_rogue_aps handler call."""
+    api = MagicMock()
+    api.get_rogueaps = AsyncMock(return_value=rogueaps)
+    api.get_devices = AsyncMock(return_value=[])
+    coord = MagicMock()
+    coord.api = api
+    coord.data = {"gateway": {"mac": "aa:bb:cc:dd:ee:ff"}, "devices": {}}
+    entry = MagicMock()
+    entry.domain = DOMAIN
+    entry.runtime_data = coord
+    hass.config_entries.async_entries = MagicMock(return_value=[entry])
+
+
+async def test_get_rogue_aps_with_exclude(hass: Any, mock_config_entry: Any) -> None:
+    """_handle_get_rogue_aps drops APs matching any exclude term (comma-list)."""
+    from custom_components.unifi_network_monitor.services import _handle_get_rogue_aps
+
+    mock_config_entry.add_to_hass(hass)
+    _rogue_action_env(
+        hass,
+        [
+            {
+                "essid": "CorpNet",
+                "bssid": "00:11:22:33:44:55",
+                "band": "ng",
+                "oui": "eero",
+                "signal": -70,
+                "ap_mac": "aa:bb:cc:dd:ee:ff",
+                "last_seen": 1000,
+            },
+            {
+                "essid": "GuestNet",
+                "bssid": "66:77:88:99:aa:bb",
+                "band": "ng",
+                "oui": "netgear",
+                "signal": -75,
+                "ap_mac": "aa:bb:cc:dd:ee:ff",
+                "last_seen": 2000,
+            },
+        ],
+    )
+
+    call = MagicMock()
+    call.data = {
+        "period": "24h",
+        "band": "both",
+        "quantity": 10,
+        "exclude": "eero, apple",
+    }
+    response = await _handle_get_rogue_aps(hass, call)
+    assert response["count"] == 1
+    assert response["rogue_aps"][0]["essid"] == "GuestNet"
+
+
+async def test_get_rogue_aps_keyword_matches_security(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """keyword now also matches the security field."""
+    from custom_components.unifi_network_monitor.services import _handle_get_rogue_aps
+
+    mock_config_entry.add_to_hass(hass)
+    _rogue_action_env(
+        hass,
+        [
+            {
+                "essid": "OpenNet",
+                "bssid": "00:11:22:33:44:55",
+                "band": "ng",
+                "security": "Open",
+                "signal": -70,
+                "ap_mac": "aa:bb:cc:dd:ee:ff",
+                "last_seen": 1000,
+            },
+            {
+                "essid": "SecureNet",
+                "bssid": "66:77:88:99:aa:bb",
+                "band": "ng",
+                "security": "WPA3-Personal (AES/CCMP)",
+                "signal": -75,
+                "ap_mac": "aa:bb:cc:dd:ee:ff",
+                "last_seen": 2000,
+            },
+        ],
+    )
+
+    call = MagicMock()
+    call.data = {"period": "24h", "band": "both", "quantity": 10, "keyword": "open"}
+    response = await _handle_get_rogue_aps(hass, call)
+    assert response["count"] == 1
+    assert response["rogue_aps"][0]["essid"] == "OpenNet"
 
 
 async def test_service_handlers_via_registration(hass: Any) -> None:
