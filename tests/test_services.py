@@ -174,7 +174,7 @@ async def test_fetch_alerts_empty_batch() -> None:
     coordinator = _make_coordinator()
     coordinator.api.get_system_logs = AsyncMock(return_value=[])
 
-    result = await _fetch_alerts(coordinator, ["HIGH"], 10, None, "")
+    result = await _fetch_alerts(coordinator, ["HIGH"], 10, None, "", [])
     assert result == []
 
 
@@ -188,7 +188,7 @@ async def test_fetch_alerts_collects_up_to_quantity() -> None:
         ]
     )
 
-    result = await _fetch_alerts(coordinator, ["HIGH"], 3, None, "")
+    result = await _fetch_alerts(coordinator, ["HIGH"], 3, None, "", [])
     assert len(result) == 3
     assert result[0]["id"] == "evt_0"
 
@@ -208,7 +208,7 @@ async def test_fetch_alerts_cutoff() -> None:
         ]
     )
 
-    result = await _fetch_alerts(coordinator, ["HIGH"], 10, 1000, "")
+    result = await _fetch_alerts(coordinator, ["HIGH"], 10, 1000, "", [])
     assert len(result) == 1
     assert result[0]["id"] == "evt_1"
 
@@ -692,7 +692,7 @@ async def test_get_rogue_aps_with_exclude(hass: Any, mock_config_entry: Any) -> 
 async def test_get_rogue_aps_keyword_matches_security(
     hass: Any, mock_config_entry: Any
 ) -> None:
-    """keyword now also matches the security field."""
+    """Keyword now also matches the security field."""
     from custom_components.unifi_network_monitor.services import _handle_get_rogue_aps
 
     mock_config_entry.add_to_hass(hass)

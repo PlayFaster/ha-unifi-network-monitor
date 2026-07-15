@@ -2635,8 +2635,8 @@ def test_normalize_essid_control_chars_sanitized() -> None:
     from custom_components.unifi_network_monitor.coordinator import normalize_essid
 
     # Embedded zero-width space (U+200B) and trailing RTL override (U+202E).
-    display, anomaly = normalize_essid("Corp​Net‮")
-    assert display == "Corp·Net·"
+    display, anomaly = normalize_essid("Corp\u200bNet\u202e")
+    assert display == "Corp\u00b7Net\u00b7"
     assert anomaly is True
 
 
@@ -2702,6 +2702,38 @@ def test_parse_rogue_aps_wired_rogue_any_reporter() -> None:
     )
     assert len(parsed) == 1
     assert parsed[0]["wired_rogue"] is True
+
+
+def test_parse_rogue_aps_cluster_merge_widens_and_fills() -> None:
+    """A later reporter row widens channel_width and fills empty security."""
+    from custom_components.unifi_network_monitor.coordinator import parse_rogue_aps
+
+    parsed = parse_rogue_aps(
+        [
+            {
+                "essid": "Clone",
+                "bssid": "00:00:00:00:00:cc",
+                "band": "na",
+                "bw": 20,
+                "ap_mac": "aa:aa:aa:aa:aa:01",
+            },
+            {
+                "essid": "Clone",
+                "bssid": "00:00:00:00:00:cc",
+                "band": "na",
+                "bw": 80,
+                "security": "WPA3-Personal (AES/CCMP)",
+                "ap_mac": "aa:aa:aa:aa:aa:02",
+            },
+        ],
+        {},
+        1_700_000_000,
+    )
+    assert len(parsed) == 1
+    # Second row's wider width wins (line 244); its security fills the empty
+    # first-row value (line 246).
+    assert parsed[0]["channel_width"] == 80
+    assert parsed[0]["security"] == "WPA3-Personal (AES/CCMP)"
 
 
 # ---------------------------------------------------------------------------

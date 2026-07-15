@@ -1012,16 +1012,16 @@ action: unifi_network_monitor.get_rogue_aps
 data:
   band: both
   min_signal: -70
-  exclude: "eero, apple"   # skip these vendors
+  exclude: "eero, apple" # skip these vendors
 response_variable: rogues
 ```
 
 Each returned rogue AP carries: `essid`, `ssid_anomaly`, `bssid`, `band`, `channel`, `channel_width` (MHz), `signal` (dBm), `security`, `oui` (vendor), `wired_rogue`, `is_adhoc`, `age`, `last_seen`, and `detected_by`.
 
 - **`wired_rogue`** — `true` only when UniFi has confirmed the AP is **physically bridged to your LAN** (an unauthorized device plugged into your network), not merely a neighbor's Wi-Fi. This is the genuine "rogue" in UniFi's sense and the one worth alerting on; most detections are `false`.
-- **`ssid_anomaly`** — `true` when the SSID was **hidden** (broadcast blank → shown as `<Hidden>`) **or** contained control / zero-width / right-to-left characters (replaced with `·`). A common Wi-Fi impersonation trick is an SSID that *looks* like yours but hides tampering in non-printable characters — this flag surfaces it.
+- **`ssid_anomaly`** — `true` when the SSID was **hidden** (broadcast blank → shown as `<Hidden>`) **or** contained control / zero-width / right-to-left characters (replaced with `·`). A common Wi-Fi impersonation trick is an SSID that _looks_ like yours but hides tampering in non-printable characters — this flag surfaces it.
 
-> **ℹ️ Which device do I pick?** In the usual single-gateway setup, leave `device_id` blank — it defaults to your only gateway. If you tick **Device** in the UI you'll see all seven sub-devices (Gateway, Security, Alerts, …); that's expected — they all belong to the same gateway, so **any one resolves to the same result**. `device_id` only *matters* if you run **more than one UniFi gateway**, where it disambiguates which one to query.
+> **ℹ️ Which device do I pick?** In the usual single-gateway setup, leave `device_id` blank — it defaults to your only gateway. If you tick **Device** in the UI you'll see all seven sub-devices (Gateway, Security, Alerts, …); that's expected — they all belong to the same gateway, so **any one resolves to the same result**. `device_id` only _matters_ if you run **more than one UniFi gateway**, where it disambiguates which one to query.
 
 ## 🔩 Under the Hood - Technical Architecture
 

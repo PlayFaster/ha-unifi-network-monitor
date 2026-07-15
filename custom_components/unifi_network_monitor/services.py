@@ -94,7 +94,7 @@ def _split_terms(value: str | None) -> list[str]:
 
 
 def _excluded(haystack: str, terms: list[str]) -> bool:
-    """True if any exclude term is a substring of the (lowercased) haystack."""
+    """Return True if any exclude term is a substring of the (lowercased) haystack."""
     return any(term in haystack for term in terms)
 
 
