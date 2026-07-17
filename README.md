@@ -4,7 +4,7 @@
 
 A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via your UniFi Gateway (e.g. UDM Pro or similar), designed to run in conjunction with and be complementary to, the official Home Assistant [UniFi Network Integration](https://www.home-assistant.io/integrations/unifi/), but it does not require it.
 
-- The focus is on providing information that the core integration does not, such as: Internet data usage, Speedtest data, WAN latency and IP address, Rogue Access Point insights and summary stats, and UniFi system-log **alerts**.
+- The focus is on providing information that the core integration does not, such as: Internet **data usage**, **Speedtest** data, WAN latency and IP address, **Rogue Access Point** insights and summary stats, and UniFi system-log **alerts**.
 - It works in single or dual WAN mode. In dual WAN mode, it provides per WAN (WAN1, WAN2) info for Internet data usage; Speedtest results; latency; IP addresses and load-balancing status, and if set, balance-weight, plus the ability to change load balancing weight.
   - In single WAN mode, the WAN2 sensors will be unknown.
 - This integration does not provide any client tracking (i.e. device trackers) beyond summary counts, as that is handled by the core Integration.
@@ -16,12 +16,12 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
 > - **If you run a UniFi Network on a UDM Gateway** and want infrastructure-level monitoring — data usage, WAN/internet quality, speedtests, and network security info — directly in Home Assistant, then **yes**.
 > - It is designed to run **alongside** the official Home Assistant UniFi Network integration. Where both cover the same physical device, entities **merge onto one device card** — no duplicate device entries.
 > - **This integration is for you if** you want:
->   - **Internet Data usage** — Daily and monthly download, upload and totals, per WAN if in dual WAN mode.
+>   - **Internet Data usage** — Daily and monthly download, upload and totals (per WAN if in dual WAN mode).
 >   - **Speedtest tracking** — per-WAN download/upload/ping history, plus one-click manual runs.
->   - **Load Balancing** - Status, weights and weight setting
->   - **WAN Stats** - Per WAN latency, status, assigned name, internal and external IP address and uptime.
 >   - **Rogue AP Info** — rogue access-point detection with a configurable proximity alert, band / ignore-list filtering, and an on-demand query action.
 >   - **Alerts** — UniFi system-log alerts (High / Very High), with an event and a query action for automations.
+>   - **Load Balancing** - Failover and load-balancing status, load-balancing weights and weight setting.
+>   - **WAN Stats** - Per WAN latency, status, assigned name, internal and external IP address and uptime.
 >   - **Gateway diagnostics** — OS and Application version, last backup, and storage use.
 >
 > This project is developed and tested on the **UDM Pro** but is expected to work with other UniFi OS gateways.
@@ -75,7 +75,7 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
 
 ## 🎯 Use Cases
 
-- **Data-Cap Management**: Watch daily and monthly WAN usage and if desired, create automations to get notified as you approach an ISP data limit.
+- **Data-Cap Management**: Monitor daily and monthly WAN usage and if desired, create automations to get notified as you approach an ISP data limit.
 - **WAN/dual-WAN & Internet Quality**: Monitor WAN1/WAN2 up/active status, latency, uptime, and the active routing interface; drive failover automations and dashboards.
 - **Speedtest History**: Keep a per-WAN record of speedtests run directly from the gateway - download/upload/ping. Trigger on-demand tests from HA.
 - **Network Security Awareness**: Detect nearby **rogue access points** and raise a **Proximity Alert** when an unknown AP is close (strong signal) — useful for spotting rogue/evil-twin APs or resetting smart home devices.
@@ -102,6 +102,7 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
 - **Proximity Alert**: A `PROBLEM` binary sensor that fires when the strongest rogue signal is at or above a user-set **Rogue Proximity Threshold** (dBm).
 - **On-demand Rogue Query**: A `get_rogue_aps` action returns the current rogue set on demand (filter by band / signal / keyword / exclude) — see [Actions](#-actions-services).
 - **Subsystem Health**: Aggregated **Network Problem** indicator plus per-subsystem OK sensors (WAN, Internet/WWW, WiFi/WLAN, LAN).
+- **Threat Management State**: IPS/IDS mode, Ad-blocking, and Honeypot status.
 - **WiFi, VLAN, VPN & Firewall**: Per-SSID broadcast status, per-VPN-tunnel status, VLAN and firewall-rule counts.
 
 ### 🚨 Alerts (System Log)
@@ -113,7 +114,6 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
 ### 🖥️ Gateway & System Diagnostics
 
 - **Firmware & Identity**: UniFi OS and Network application version, gateway model, and SFP transceiver diagnostics (SFP info is available but disabled by default).
-- **Threat Management State**: IPS/IDS mode, Ad-blocking, and Honeypot status.
 - **Hardware Metrics**: Storage utilization (enabled) plus CPU %, memory %, CPU & board (board=phy in core) temperatures, and uptime (disabled as they are also provided by the official integration, but available).
 
 ### 🔄 Dynamic Polling
@@ -127,7 +127,7 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
 Via **Configure**, choose which groups of sensors are created (all default to **on**). A disabled group both hides its sensors **and skips its API calls**:
 
 - **Alerts monitoring** (system-log High/Very High), **Dual-WAN monitoring** (WAN2 + load-balance entities), **Security monitoring** (rogue APs / VPN / firewall), **Speedtest monitoring**, and **WAN data-usage statistics**.
-  - These entities are specific to this integration and do not overlap with the official HA UniFi Network integration. However, if you don't want or need this info, turning a group off removes its entities from the UI and (except Dual-WAN, which shares WAN1's fetch) saves an API call.
+  - These entities are specific to this integration and do not overlap with the official HA UniFi Network integration. However, if you don't want or need this info, turning a group off removes its entities from the UI and also saves an API call (except Dual-WAN, which shares WAN1's fetch).
 
 - **UniFi device (Access Point & Switch) sensors** — none / AP Satisfaction Score only / all.
   - The integration is designed to work with the official HA UniFi Network integration, and provide minimal overlap. There is though the option to fetch info from all UniFi devices, should you wish.
@@ -138,7 +138,7 @@ Via **Configure**, choose which groups of sensors are created (all default to **
 
 ## 🔍 What You Get
 
-This integration exposes its entities across several sub-devices — **Gateway**, **Internet**, **Speedtest**, **Security**, **Alerts**, **Status**, and **System** — plus, (if enabled) a dynamic sub-device per adopted **Access Point** and **Switch**. Each sub-device appears as its own card in Home Assistant, and entity IDs are prefixed accordingly (e.g. `sensor.unifi_network_gateway_last_backup`, `binary_sensor.unifi_network_status_network_problem`).
+This integration exposes its entities across several sub-devices — **Alerts**, **Gateway**, **Internet**, **Security**, **Speedtest**, **Status**, and **System** — plus, (if enabled) a dynamic sub-device per adopted **Access Point** and **Switch**. Each sub-device appears as its own device card in Home Assistant, and entity IDs are prefixed accordingly (e.g. `sensor.unifi_network_gateway_last_backup`, `binary_sensor.unifi_network_status_network_problem`).
 
 > [!NOTE]
 >
@@ -150,11 +150,11 @@ This integration exposes its entities across several sub-devices — **Gateway**
 >
 > **Not sure what a sensor does?** Many entities carry a short built-in **About** note. Click the sensor to open it, use the **⋮ (three-dots) menu → Details**, and look for the **`about`** attribute — a one-line explanation of that sensor.
 >
-> **What "unrecorded" means:** the **About** notes — and a few intentionally large attributes, such as the rogue-AP list on **Strongest Rogue SSID** — are marked **unrecorded**. Home Assistant still shows them live in the entity's details, but **never writes them to the history/recorder database**. That keeps these bulky or purely-informational values from bloating your database, with no downside to what you see day-to-day.
+> These **About** notes — and a few intentionally large attributes, such as the rogue-AP list on **Strongest Rogue SSID** — are set **unrecorded**. Home Assistant still shows them live in the entity's details, but **never writes them to the history/recorder database**. That keeps bulky or purely-informational values from bloating your database, with no downside to what you see day-to-day.
 
-The counts below are from a **base install** on a UDM Pro — **no per-device (AP/switch) sensors**, with all feature groups **on**. That registers **127 base entities** regardless of anything else; only the enabled-by-default count changes:
+The counts below are from a **base install** on a UDM Pro — **no per-device (AP/switch) sensors**, with all feature groups **on**. That registers **128 base entities** regardless of anything else; only the enabled-by-default count changes:
 
-- **Without the official HA Core UniFi integration:** **104 enabled / 23 disabled**. The `Enabled / Total` column below reflects this case.
+- **Without the official HA Core UniFi integration:** **105 enabled / 23 disabled**. The `Enabled / Total` column below reflects this case.
 - **With HA Core UniFi installed:** **97 enabled / 29 disabled** — six gateway diagnostics (CPU, Memory, CPU/Board Temperature, Uptime, Update Available) come in **disabled-by-default** because Core already surfaces the gateway (see [Coexistence](#-coexistence-with-the-official-unifi-integration)). So the Gateway row below reads **5 / 18** instead of 11 / 18.
 
 Enable any disabled entity per-entity when you want it. Your totals also differ with your options and hardware (see [Configuration](#-configuration)).
@@ -166,15 +166,15 @@ Enable any disabled entity per-entity when you want it. Your totals also differ 
 | ⚡ **Speedtest** | 14 / 14 | WAN1/WAN2 Download, Upload, Ping, Last Run, Monitoring Period, Last Run Status/Problem; Run WAN1/WAN2 Speedtest buttons |
 | 🛡️ **Security** | 20 / 20 | Rogue AP Count, Rogue APs New 24h, Strongest Rogue SSID/RSSI, Rogue APs All 24h, Proximity Alert (+ threshold), Rogue Detection Period, Show 2.4/5 GHz + Apply-ignore switches, Threat-Management mode, Ad-blocking, Honeypot, and VPN-connection & firewall-rule counts |
 | 🚨 **Alerts** | 4 / 4 | Last High Sev3, Last Very High Sev4, and High/Very High Sev4 Qty Last 24h |
-| 📊 **Status** | 12 / 23 | Device/guest/WiFi client counts, VLAN & WiFi-network counts, per-SSID & per-VPN-tunnel status, and the aggregate Network Problem + per-subsystem OK sensors (WAN/Internet/WiFi/LAN) |
-| ⚙️ **System** | 9 / 9 | Multi-WAN mode, WAN1/WAN2 Load Balance, Polling Interval, Pause Polling, WAN1 Load-Balance Weight, Refresh Now, Clean Up Unused Entities, Last Updated |
+| 📊 **Status** | 12 / 23 | Device/guest/WiFi client counts, VLAN & WiFi-network counts, per-SSID status, and the aggregate Network Problem + per-subsystem OK sensors (WAN/Internet/WiFi/LAN) |
+| ⚙️ **System** | 10 / 10 | Integration Health (self-diagnosis), Multi-WAN mode, WAN1/WAN2 Load Balance, Polling Interval, Pause Polling, WAN1 Load-Balance Weight, Refresh Now, Clean Up Unused Entities, Last Updated |
 | 📶 **Per AP / Per Switch** | opt-in | **11 per AP** (Satisfaction Score + 2.4/5 GHz scores, Clients, Guests, 2.4/5 GHz Clients, CPU, Memory, Uptime, Update Available) · **6 per switch** (Clients, CPU, Memory, Uptime, Model, Update Available) — created only when you choose `Add all device sensors` |
 
 > [!NOTE]
 >
 > **Per-device sensors scale with your hardware.** Choosing **Add all device sensors** creates one sub-device per adopted AP/switch: **+11 entities per AP** and **+6 per switch**. For example, a set-up with 8 APs + 12 switches adds 8×11 + 12×6 = **160 entities**.
 >
-> **Enabled-by-default depends on HA Core UniFi:** if you do **not** run the official HA Core UniFi integration, all of these per-device entities are created **and enabled**. If you **do** run Core UniFi, only the AP **Satisfaction Score** is enabled by default and the rest come in disabled (they'd duplicate what Core already provides — hence the "duplicates disabled" label).
+> **Enabled-by-default depends on HA Core UniFi:** if you do **not** run the official HA Core UniFi integration, all of these per-device entities are created **and enabled**. If you **do** run Core UniFi, only the AP **Satisfaction Score** is enabled by default and the rest come in disabled (they'd duplicate what Core already provides — hence the "duplicates disabled" label). Remember, this is what happens when you choose **Add all device sensors**.
 
 ### 📊 Coexistence Summary: With vs. Without HA Core UniFi
 
@@ -196,29 +196,29 @@ Below is a quick reference showing how entities are default-enabled depending on
 
 Home Assistant records Long Term Statistics for a numeric sensor **only when it declares a `state_class`**. Sensors without one still show a live value and short-term history, but are not rolled up into LTS (no hourly min/mean/max, and they can't be used in the Statistics graph). Text, IP, version, mode and timestamp sensors are never LTS candidates.
 
-**Almost every numeric sensor here is in LTS** — CPU/memory/temperatures, signal/RSSI, latency, availability, all counts (devices, clients, VLANs, VPNs, firewall rules, WiFi networks, rogue APs), **monthly** data usage, and speedtest download/upload.
+**Most numeric sensors here are in LTS** — CPU/memory/temperatures, signal/RSSI, latency, the **active/primary** counts (devices, user & guest clients, active VLANs/VPNs/WiFi networks, active & disabled firewall rules, rogue APs), Storage Utilization (%), WAN1 Load-Balance weight, **daily _and_ monthly** data usage, and speedtest **download / upload / ping**.
 
-The exceptions — **17** numeric sensors (14 base + 3 per-AP) that currently have **no `state_class`** and are therefore **excluded from LTS**:
+A deliberately-curated set is **left out of LTS** (no `state_class`) — either it's redundant with a sibling that _is_ tracked, or it's a near-static/derivable value not worth a trend series. **This is intentional, not an oversight** — see the note in [`docs/all_sensors.md`](docs/all_sensors.md) for the per-pair rationale. The excluded numeric sensors are:
 
-| Sub-Device | Sensor | Entity ID (this install) | Unit |
-| :-- | :-- | :-- | :-- |
-| 🖥️ Gateway | Storage Total | `sensor.unifi_network_gateway_storage_total` | GB |
-| 🌐 Internet | WAN1/WAN2 Today Download / Upload / Total (6) | `sensor.unifi_network_internet_wan{1,2}_today_{download,upload,total}` | GB |
-| 🌐 Internet | WAN1 / WAN2 / Internet Uptime Duration (3) | `sensor.unifi_network_internet_wan{1,2}_uptime_duration`, `…_internet_uptime_duration` | s |
-| ⚡ Speedtest | WAN1 / WAN2 Ping (2) | `sensor.unifi_network_speedtest_wan{1,2}_ping` | ms |
-| ⚡ Speedtest | WAN1 / WAN2 Monitoring Period (2) | `sensor.unifi_network_speedtest_wan{1,2}_monitoring_period` | h |
-| 📶 Access Point | Satisfaction Score / 2.4 GHz / 5 GHz (3) | `sensor.<ap>_satisfaction_score` (+ per-band) | % |
+| Group | Sensors (not in LTS) | Why |
+| :-- | :-- | :-- |
+| **Raw storage bytes** | Storage Used, Storage Total | the **Storage Utilization (%)** sibling is in LTS |
+| **WAN availability & durations** | WAN1/2 Availability (%), WAN1/2 & Internet Uptime (s), WAN1/2 Time Period (s) | duration counters; a `boot_time` timestamp already marks "since when" |
+| **Redundant / total siblings** | WAN2 Load Balance (sums to 100 with WAN1), Firewall Rules Configured, WiFi Networks Total, VLANs Total/Configured, VPN Connections Total | the **changeable** sibling (Active/Disabled/WAN1) is the one tracked |
+| **Secondary client/device counts** | WiFi IoT Clients, WiFi AP count, LAN IoT Clients, LAN Switch count, Adopted Devices | the **primary** user/guest client counts are tracked |
+
+(Text, IP, version, mode and timestamp sensors are never LTS candidates and aren't counted here. There are **no** excluded per-AP/switch sensors — the AP Satisfaction Scores _are_ in LTS.)
 
 > [!TIP]
 >
-> **Want to add a sensor to Long Term Statistics?**
+> **Want to force a sensor into Long Term Statistics anyway?**
 >
-> Add a `state_class` override via [Manual Customization](https://www.home-assistant.io/integrations/homeassistant/#manual-customization) in your `configuration.yaml`. For example, to track Download Rate in LTS:
+> Add a `state_class` override via [Manual Customization](https://www.home-assistant.io/integrations/homeassistant/#manual-customization) in your `configuration.yaml`. For example, to track WAN2 Load Balance in LTS:
 >
 > ```yaml
 > homeassistant:
 >   customize:
->     sensor.unifi_network_speedtest_wan1_ping:
+>     sensor.unifi_network_system_wan2_load_balance:
 >       state_class: measurement
 > ```
 >
@@ -1109,7 +1109,7 @@ response_variable: rogues
 
 Each returned rogue AP carries: `essid`, `ssid_anomaly`, `bssid`, `band`, `channel`, `channel_width` (MHz), `signal` (dBm), `security`, `oui` (vendor), `wired_rogue`, `is_adhoc`, `age`, `last_seen`, `first_seen`, `appearances`, and `detected_by`.
 
-- **`first_seen` / `appearances`** — from the persistent appearance history: when Home Assistant _first tracked_ this BSSID and how many poll cycles it's appeared in. Lets you tell a **brand-new** rogue (`first_seen` minutes ago, `appearances: 1`) from a **long-standing** neighbour. Both are `null` for a BSSID HA hasn't polled (e.g. a wide `period` surfacing an AP never seen at your poll cadence, or while Security was off). See [Rogue AP appearance history](#-rogue-ap-appearance-history).
+- **`first_seen` / `appearances`** — from the persistent appearance history: when Home Assistant _first tracked_ this BSSID and how many poll cycles it's appeared in. Lets you tell a **brand-new** rogue (`first_seen` minutes ago, `appearances: 1`) from a **long-standing** neighbor. Both are `null` for a BSSID HA hasn't polled (e.g. a wide `period` surfacing an AP never seen at your poll cadence, or while Security was off). See [Rogue AP appearance history](#-rogue-ap-appearance-history).
 
 - **`wired_rogue`** — `true` only when UniFi has confirmed the AP is **physically bridged to your LAN** (an unauthorized device plugged into your network), not merely a neighbor's Wi-Fi. This is the genuine "rogue" in UniFi's sense and the one worth alerting on; most detections are `false`.
 - **`ssid_anomaly`** — `true` when the SSID was **hidden** (broadcast blank → named `Hidden-A2D3` from the BSSID) **or** contained control / zero-width / right-to-left characters (replaced with `·`). A common Wi-Fi impersonation trick is an SSID that _looks_ like yours but hides tampering in non-printable characters — this flag surfaces it.
@@ -1150,7 +1150,7 @@ For each rogue **BSSID**, the integration keeps a small persisted record — `fi
 - The **Rogue APs New 24h** sensor — a count of BSSIDs first seen in the last 24 h (LTS-enabled for trends).
 - A `new_rogue_ap` event that fires only for **genuinely-new** BSSIDs and **survives restarts** (no re-fire for already-known APs after a reload).
 
-**Caveats:** `first_seen` is "first seen by _Home Assistant_", not by the gateway — on first enable everything counts as new for 24 h. And BSSID-randomising devices (some phones/IoT) appear new on each rotation. Use `clear_rogue_history` to reset.
+**Caveats:** `first_seen` is "first seen by _Home Assistant_", not by the gateway — on first enable everything counts as new for 24 h. And BSSID-randomizing devices (some phones/IoT) appear new on each rotation. Use `clear_rogue_history` to reset.
 
 ## 🔩 Under the Hood - Technical Architecture
 
@@ -1169,6 +1169,15 @@ A custom `DataUpdateCoordinator` fetches everything per cycle and applies two re
 - **Global 3-strike** over the mandatory device/health fetches: holds last-known values for up to 3 consecutive failures before marking entities `Unavailable`; auto-recovers on the next good poll.
 - **Per-endpoint resilience** for the optional endpoints: each holds its own last-good value for up to 3 failures, then only **its** entities go `unavailable` — a single flaky endpoint (or an API change) degrades one sensor group, not the whole integration.
 - **Triggered refresh**: buttons (Refresh, Speedtest) request an immediate fetch for instant feedback.
+
+### 🩺 Self-diagnosis (Integration Health)
+
+Some failures are **silent** — a fetch succeeds but the data is wrong (e.g. a UniFi controller update renames a field and a sensor group quietly reads zero). The **Integration Health** sensor (a `problem` binary sensor on the System sub-device) watches for these:
+
+- **`on` (moderate)** when a data source is **unavailable and you didn't disable it** — the attributes name the affected capability (e.g. _Security / Rogue APs_).
+- **`on` (serious) + a Repair** when **schema drift** is detected: a non-empty response that parsed to nothing for several cycles → a `schema_drift_detected` repair suggesting you check for an integration update.
+
+It's deliberately cautious: it **ignores capabilities you turned off**, ignores v3/firewall/VPN under username-password auth (expected), and only flags drift after it persists (no single-cycle false alarms). Details — `issues`, `severity`, `degraded_capabilities`, `drift`, `auth_mode` — live in the sensor's attributes; put it on a dashboard or alert on it to catch breakage early instead of months later.
 
 ### 🆔 Flat Identity & Stable Entities
 

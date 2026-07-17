@@ -452,6 +452,9 @@
       }
     },
     "binary_sensor": {
+      "integration_health": {
+        "name": "Integration Health"
+      },
       "gateway_internet": {
         "name": "Internet Connected"
       },
@@ -568,6 +571,10 @@
     "site_resolution_failed": {
       "title": "UniFi site could not be resolved",
       "description": "UniFi Network Monitor could not resolve the controller's site ID via the UniFi v3 API, so the VPN tunnel, firewall rule, and WAN interface-name sensors are unavailable. Check that your API key exists and has full site permissions, then reload the integration."
+    },
+    "schema_drift_detected": {
+      "title": "UniFi data looks malformed",
+      "description": "UniFi Network Monitor received data in an unexpected shape for: {capabilities}. This usually follows a UniFi controller/firmware update that changed a field, and means some sensors may be wrong or empty. Check for a UniFi Network Monitor update; if it persists after updating, please report it. See the Integration Health sensor for details."
     }
   },
   "options": {

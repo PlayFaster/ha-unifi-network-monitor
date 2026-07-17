@@ -4,7 +4,7 @@
 
 This document is split into two logical parts:
 
-- **Part I: Base Gateway & Network Entities**: The default virtual devices (comprising 127 entities across the Alerts, Gateway, Internet, Security, Speedtest, Status, and System sub-devices) present in standard gateway-monitoring mode.
+- **Part I: Base Gateway & Network Entities**: The default virtual devices (comprising 128 entities across the Alerts, Gateway, Internet, Security, Speedtest, Status, and System sub-devices) present in standard gateway-monitoring mode.
 - **Part II: Dynamic UniFi Devices (APs & Switches)**: Dynamic sensor entities generated for each physical UniFi Access Point and Switch monitored by the integration (~20 devices, adding ~160 entities when enabled).
 
 > **🔑 API-key-only sensors:** rows marked **_API-key only_** in the Notes column are served by the UniFi Integration (v3) API, which cannot be reached with username/password auth. Under username/password these seven sensors (Rules Active/Configured/Disabled, VPN Connections Active/Total, WAN1/WAN2 Name) are permanently `unknown`. Use an API key to enable them.
@@ -15,11 +15,11 @@ This document is split into two logical parts:
 
 > **Grouping note:** Sub-devices below match the **actual Home Assistant device cards** (the `sensor.unifi_network_<group>_…` entity-ID prefix a user sees on a default install), verified live against a UDM Pro.
 >
-> The default sub-device names are **UniFi Network Alerts / Gateway / Internet / Security / Speedtest / Status / System**; counts are for the base scenario: **127 entities** = Alerts 4 + Gateway 18 + Internet 39 + Security 20 + Speedtest 14 + Status 23 + System 9.
+> The default sub-device names are **UniFi Network Alerts / Gateway / Internet / Security / Speedtest / Status / System**; counts are for the base scenario: **128 entities** = Alerts 4 + Gateway 18 + Internet 39 + Security 20 + Speedtest 14 + Status 23 + System 10.
 >
-> **Enabled vs disabled — depends on HA Core UniFi:** the 127 registered entities are the same either way; only the enabled-by-default count differs.
+> **Enabled vs disabled — depends on HA Core UniFi:** the 128 registered entities are the same either way; only the enabled-by-default count differs.
 >
-> - **Without Core UniFi (standalone):** **104 enabled / 23 disabled** (base counts + the new Rogue APs New 24h sensor; re-verify live). Per card, enabled / total: Alerts 4/4, Gateway 11/18, Internet 34/39, Security 20/20, Speedtest 14/14, Status 12/23, System 9/9.
+> - **Without Core UniFi (standalone):** **105 enabled / 23 disabled** (verified live 2026-07-17; the Integration Health sensor is the only addition since the prior manifest check). Per card, enabled / total: Alerts 4/4, Gateway 11/18, Internet 34/39, Security 20/20, Speedtest 14/14, Status 12/23, System 10/10.
 > - **With Core UniFi installed:** **97 enabled / 29 disabled** — six gateway diagnostics (rows tagged _Standalone-only enabled_ in §2: `cpu`, `ram`, `cpu_temp`, `board_temp`, `uptime`, `update_available`) revert to disabled-by-default when Core is present, so the Gateway card reads 5/18. Core already provides the gateway's CPU/memory; the temperatures are Monitor-only but kept off to avoid cluttering the merged gateway card (enable manually if wanted).
 >
 > The 23 always-disabled rows are the ones marked _Disabled by default_ (Gateway 7 SFP/storage, Internet 5, Status 11).
@@ -34,6 +34,7 @@ _Group: `alerts`_
 | Last High Sev3 | `gateway_last_high` | Sensor | — | — |  |
 | Last Very High Sev4 | `gateway_last_very_high` | Sensor | — | — |  |
 | Very High Sev4 Qty Last 24h | `gateway_alerts_very_high_24h` | Sensor | — | — |  |
+| Get alerts | `get_alerts` | Service | — | — |  |
 
 ### 2. Gateway Sub-Device (18 Entities)
 
@@ -86,9 +87,9 @@ _Group: `internet`_
 | WAN1 Month Upload | `gateway_wan1_month_tx` | Sensor | GB | — |  |
 | WAN1 Name | `gateway_wan1_interface_name` | Sensor | — | Diagnostic | **_API-key only_** (v3 API; `unknown` under username/password). |
 | WAN1 Public IP Address | `gateway_wan1_public_ip` | Sensor | — | Diagnostic |  |
-| WAN1 Today Download | `gateway_wan1_today_rx` | Sensor | GB | — | No LTS (no state_class). |
-| WAN1 Today Total | `gateway_wan1_today_total` | Sensor | GB | — | No LTS (no state_class). |
-| WAN1 Today Upload | `gateway_wan1_today_tx` | Sensor | GB | — | No LTS (no state_class). |
+| WAN1 Today Download | `gateway_wan1_today_rx` | Sensor | GB | — | In LTS (total_increasing). |
+| WAN1 Today Total | `gateway_wan1_today_total` | Sensor | GB | — | In LTS (total_increasing). |
+| WAN1 Today Upload | `gateway_wan1_today_tx` | Sensor | GB | — | In LTS (total_increasing). |
 | WAN1 Uptime Duration | `health_wan1_uptime` | Sensor | s | Diagnostic | **Disabled by default.** Other display units may be used (e.g. s). No LTS (no state_class). |
 | WAN2 Active Uplink | `gateway_wan2_active` | Binary Sensor | — | Diagnostic |  |
 | WAN2 Availability | `health_wan2_availability` | Sensor | % | Diagnostic |  |
@@ -101,9 +102,9 @@ _Group: `internet`_
 | WAN2 Month Upload | `gateway_wan2_month_tx` | Sensor | GB | — |  |
 | WAN2 Name | `gateway_wan2_interface_name` | Sensor | — | Diagnostic | **_API-key only_** (v3 API; `unknown` under username/password). |
 | WAN2 Public IP Address | `gateway_wan2_public_ip` | Sensor | — | Diagnostic |  |
-| WAN2 Today Download | `gateway_wan2_today_rx` | Sensor | GB | — | No LTS (no state_class). |
-| WAN2 Today Total | `gateway_wan2_today_total` | Sensor | GB | — | No LTS (no state_class). |
-| WAN2 Today Upload | `gateway_wan2_today_tx` | Sensor | GB | — | No LTS (no state_class). |
+| WAN2 Today Download | `gateway_wan2_today_rx` | Sensor | GB | — | In LTS (total_increasing). |
+| WAN2 Today Total | `gateway_wan2_today_total` | Sensor | GB | — | In LTS (total_increasing). |
+| WAN2 Today Upload | `gateway_wan2_today_tx` | Sensor | GB | — | In LTS (total_increasing). |
 | WAN2 Uptime Duration | `health_wan2_uptime` | Sensor | s | Diagnostic | **Disabled by default.** Other display units may be used (e.g. s). No LTS (no state_class). |
 
 ### 4. Security Sub-Device (19 Entities)
@@ -127,11 +128,16 @@ _Group: `security`_
 | Rules Disabled | `gateway_rules_disabled` | Sensor | — | — | **_API-key only_** (v3 API; `unknown` under username/password). |
 | Show 2.4 GHz rogues | `rogue_show_24ghz` | Switch | — | Config |  |
 | Show 5 GHz rogues | `rogue_show_5ghz` | Switch | — | Config |  |
-| Strongest Rogue RSSI | `gateway_strongest_rogue_rssi` | Sensor | dBm | — |  |
+| Strongest Rogue RSSI | `gateway_strongest_rogue_rssi` | Sensor | dBm | — | Data may not be available in all configurations. |
 | Strongest Rogue SSID | `gateway_strongest_rogue_ssid` | Sensor | — | — | `rogue_aps` attribute carries the full rogue-AP list. |
 | Threat Management Mode | `gateway_ips_mode` | Sensor | — | Diagnostic |  |
 | VPN Connections Active | `gateway_vpn_connections_active` | Sensor | — | — | **_API-key only_** (v3 API; `unknown` under username/password). |
 | VPN Connections Total | `gateway_vpn_connections_total` | Sensor | — | Diagnostic | **_API-key only_** (v3 API; `unknown` under username/password). |
+| Add Rogue Ignore | `add_rogue_ignore` | Service | — | — |  |
+| Clear Rogue AP History | `clear_rogue_history` | Service | — | — |  |
+| Get Rogue APs | `get_rogue_aps` | Service | — | — |  |
+| Remove Rogue Ignore | `remove_rogue_ignore` | Service | — | — |  |
+| Set Rogue Ignore | `set_rogue_ignore` | Service | — | — |  |
 
 ### 5. Speedtest Sub-Device (14 Entities)
 
@@ -144,13 +150,13 @@ _Group: `speedtest`_
 | WAN1 Download | `gateway_wan1_speedtest_download` | Sensor | Mbit/s | — |  |
 | WAN1 Last Run | `gateway_wan1_speedtest_lastrun` | Sensor | — | Diagnostic |  |
 | WAN1 Monitoring Period | `health_wan1_time_period` | Sensor | h | Diagnostic | No LTS (no state_class). |
-| WAN1 Ping | `gateway_wan1_speedtest_ping` | Sensor | ms | Diagnostic | No LTS (no state_class). |
+| WAN1 Ping | `gateway_wan1_speedtest_ping` | Sensor | ms | Diagnostic | In LTS (measurement). |
 | WAN1 Run | `gateway_wan1_speedtest` | Button | — | — | Data may not be available in all configurations. |
 | WAN1 Upload | `gateway_wan1_speedtest_upload` | Sensor | Mbit/s | — |  |
 | WAN2 Download | `gateway_wan2_speedtest_download` | Sensor | Mbit/s | — |  |
 | WAN2 Last Run | `gateway_wan2_speedtest_lastrun` | Sensor | — | Diagnostic |  |
 | WAN2 Monitoring Period | `health_wan2_time_period` | Sensor | h | Diagnostic | No LTS (no state_class). |
-| WAN2 Ping | `gateway_wan2_speedtest_ping` | Sensor | ms | Diagnostic | No LTS (no state_class). |
+| WAN2 Ping | `gateway_wan2_speedtest_ping` | Sensor | ms | Diagnostic | In LTS (measurement). |
 | WAN2 Run | `gateway_wan2_speedtest` | Button | — | — | Data may not be available in all configurations. |
 | WAN2 Upload | `gateway_wan2_speedtest_upload` | Sensor | Mbit/s | — |  |
 
@@ -191,6 +197,7 @@ _Group: `system`_
 | Name | Key | Type | Unit | Category | Notes |
 | :-- | :-- | :-- | :-- | :-- | :-- |
 | Clean Up Unused Entities | `cleanup_unused_entities` | Button | — | Config |  |
+| Integration Health | `integration_health` | Binary Sensor | — | Diagnostic | Problem sensor; on when the integration self-diagnoses a degraded/malformed state. |
 | Last Updated | `gateway_last_updated` | Sensor | — | Diagnostic |  |
 | Multi-WAN Mode | `gateway_wan_mode` | Sensor | — | Diagnostic |  |
 | Pause polling | `pause_polling` | Switch | — | Config |  |
@@ -199,10 +206,13 @@ _Group: `system`_
 | WAN1 Load Balance | `gateway_wan1_weight` | Sensor | % | — |  |
 | WAN1 Load Balance Weight | `wan1_load_balance_weight` | Number | % | Config |  |
 | WAN2 Load Balance | `gateway_wan2_weight` | Sensor | % | — |  |
+| Clean up unused entities | `cleanup_unused_entities` | Service | — | — |  |
 
-> **Actions (not entities):** seven registered services are **not** part of the 127 entity count — `unifi_network_monitor.cleanup_unused_entities` (the `dry_run` counterpart to the **Clean Up Unused Entities** button), `get_alerts` (on-demand system-log query — Alerts group), `get_rogue_aps` (on-demand rogue-AP query — Security group), `clear_rogue_history` (reset the persistent rogue history), and `add_rogue_ignore` / `remove_rogue_ignore` / `set_rogue_ignore` (manage the Ignore Rogue SSIDs / Ignore detecting APs lists from automations). The `get_*` actions fetch their own data, so they work even when the matching sensor group is off.
+> **Actions (not entities):** seven registered services are **not** part of the 128 entity count — `unifi_network_monitor.cleanup_unused_entities` (the `dry_run` counterpart to the **Clean Up Unused Entities** button), `get_alerts` (on-demand system-log query — Alerts group), `get_rogue_aps` (on-demand rogue-AP query — Security group), `clear_rogue_history` (reset the persistent rogue history), and `add_rogue_ignore` / `remove_rogue_ignore` / `set_rogue_ignore` (manage the Ignore Rogue SSIDs / Ignore detecting APs lists from automations). The `get_*` actions fetch their own data, so they work even when the matching sensor group is off.
 >
 > **Bus events (not entities):** `unifi_network_monitor_new_alert` (per newly-seen HIGH/VERY_HIGH alert) and `unifi_network_monitor_new_rogue_ap` (per newly-seen rogue BSSID) fire on the bus for automations. They only fire while the Alerts / Security group is enabled.
+>
+> **Repair issues (Settings → Repairs):** `site_resolution_failed` (v3 site unreachable — VPN/firewall/WAN-name sensors unavailable) and `schema_drift_detected` (a controller update appears to have changed the data format; some sensors may be wrong). Both are also reflected in the **Integration Health** sensor's attributes.
 >
 > **`about` attribute:** ~20 entities carry an unrecorded `about:` attribute — a one-line explanation shown in More Info / Developer Tools but excluded from the recorder (`_unrecorded_attributes`). The Strongest Rogue SSID `rogue_aps` list attribute is capped at 25 (`rogue_aps_truncated` flags overflow) and is also unrecorded.
 
@@ -218,9 +228,9 @@ These entities are **opt-in**, controlled by the _UniFi device (Access Point & S
 
 | Mode (rig: 8 APs, 12 switches) | Devices | Registered | Enabled — no Core | Enabled — Core present |
 | :-- | :-: | :-: | :-: | :-: |
-| Don't add | 7 | 127 | 104 | 98 |
-| AP Satisfaction Score only | 15 | 151 | n/a¹ | 106 |
-| Add all device sensors | 27 | 287 | 264 | 106 |
+| Don't add | 7 | 128 | 105 | 99 |
+| AP Satisfaction Score only | 15 | 152 | n/a¹ | 107 |
+| Add all device sensors | 27 | 288 | 265 | 107 |
 
 ¹ Satisfaction-only is only offered when Core is present. **Without Core**, all created per-device entities are enabled; **with Core**, only the AP **Satisfaction Score** is enabled (band scores + everything else, and all 6 switch sensors, are disabled — 1 enabled per AP, 0 per switch). So under Core, "Add all" enables the _same_ 105 as "Satisfaction only" — the extra 152 per-device entities are all disabled clutter. The **Don't add** base row is verified live (2026-07-14, standalone = 126/103); the per-device rows carry the prior live rig validation plus the +10 base delta (Alerts 4 + Rogue APs All 24h + 4 rogue switches + Rogue Detection Period select), which are all enabled-by-default and mode-independent. The `Default (Core present)` column in §8/§9 reflects the per-entity defaults.
 
@@ -236,9 +246,9 @@ _Group: `ap`_
 | Guests | `guests` | Sensor | — | Disabled |  |
 | 2.4 GHz Clients | `clients_wifi0` | Sensor | — | Disabled |  |
 | 5 GHz Clients | `clients_wifi1` | Sensor | — | Disabled |  |
-| Satisfaction Score | `score` | Sensor | % | **Enabled** | No LTS (no state_class). |
-| 2.4 GHz Score | `score_wifi0` | Sensor | % | Disabled | No LTS (no state_class). |
-| 5 GHz Score | `score_wifi1` | Sensor | % | Disabled | No LTS (no state_class). |
+| Satisfaction Score | `score` | Sensor | % | **Enabled** | In LTS (measurement). |
+| 2.4 GHz Score | `score_wifi0` | Sensor | % | Disabled | In LTS (measurement). |
+| 5 GHz Score | `score_wifi1` | Sensor | % | Disabled | In LTS (measurement). |
 | CPU utilization | `cpu` | Sensor | % | Disabled | Entity ID gets `_mon` suffix. |
 | Memory utilization | `ram` | Sensor | % | Disabled | Entity ID gets `_mon` suffix. |
 | Uptime | `uptime` | Sensor | — | Disabled | Entity ID gets `_mon` suffix. |
@@ -265,29 +275,31 @@ _Group: `switch`_
 
 Home Assistant records **Long Term Statistics** for a numeric sensor **only when it declares a `state_class`** (`measurement`, `total`, or `total_increasing`). Numeric sensors with **no** `state_class` still show a live value and short-term history, but are **excluded from LTS** (no hourly min/mean/max roll-up, and they cannot be used in the Statistics/Energy graphs). Text, IP, version, mode and timestamp sensors are never LTS candidates and are not listed here.
 
-Almost every numeric sensor in this integration carries a `state_class` and **is** in LTS (CPU/RAM/temperatures, signal/RSSI, latency, availability, all counts, monthly data usage, speedtest download/upload, etc.). The following numeric sensors are the exceptions — they are numeric but currently have **no `state_class`**, so they are **not** in LTS:
+Most numeric sensors carry a `state_class` and **are** in LTS — CPU/RAM/temperatures, signal/RSSI, latency, Storage **Utilization (%)**, the **active/primary** counts (user & guest clients, active VLANs/VPNs/WiFi networks, active & disabled firewall rules, rogue APs), WAN1 Load-Balance weight, **daily _and_ monthly** data usage, and speedtest **download / upload / ping**.
 
-| Sub-Device      | Name                     | Key                       | Unit |
-| :-------------- | :----------------------- | :------------------------ | :--- |
-| 🖥️ Gateway      | Storage Total            | `storage_size`            | GB   |
-| 🌐 Internet     | WAN1 Today Download      | `wan1_today_rx`           | GB   |
-| 🌐 Internet     | WAN1 Today Upload        | `wan1_today_tx`           | GB   |
-| 🌐 Internet     | WAN1 Today Total         | `wan1_today_total`        | GB   |
-| 🌐 Internet     | WAN2 Today Download      | `wan2_today_rx`           | GB   |
-| 🌐 Internet     | WAN2 Today Upload        | `wan2_today_tx`           | GB   |
-| 🌐 Internet     | WAN2 Today Total         | `wan2_today_total`        | GB   |
-| 🌐 Internet     | WAN1 Uptime Duration     | `health_wan1_uptime`      | s    |
-| 🌐 Internet     | WAN2 Uptime Duration     | `health_wan2_uptime`      | s    |
-| 🌐 Internet     | Internet Uptime Duration | `health_www_uptime`       | s    |
-| ⚡ Speedtest    | WAN1 Ping                | `wan1_speedtest_ping`     | ms   |
-| ⚡ Speedtest    | WAN2 Ping                | `wan2_speedtest_ping`     | ms   |
-| ⚡ Speedtest    | WAN1 Monitoring Period   | `health_wan1_time_period` | h    |
-| ⚡ Speedtest    | WAN2 Monitoring Period   | `health_wan2_time_period` | h    |
-| 📶 Access Point | Satisfaction Score       | `score`                   | %    |
-| 📶 Access Point | 2.4 GHz Score            | `score_wifi0`             | %    |
-| 📶 Access Point | 5 GHz Score              | `score_wifi1`             | %    |
+### LTS is a deliberately-curated set — the sibling asymmetry is intentional
 
-> **Note:** The individual rows above are also flagged with `No LTS (no state_class).` in the Notes column of their respective entity tables. Daily-usage totals, ping and the AP Satisfaction Score are natural trend candidates — if long-term history of these is wanted, give them a `state_class` (`measurement`, or `total_increasing` for the daily totals) in `sensor.py`.
+The numeric sensors **left out of LTS** below are **not** an oversight. LTS is curated to avoid **redundant or near-static** long-term series (each one is an hourly-rolled-up table in the recorder DB), so when two sensors carry the same information we give a `state_class` to the **one that changes / is primary** and omit its sibling:
+
+- **`storage_used_pct` (Utilization %) is in LTS; the raw `storage_used`/`storage_size` bytes are not** — the % carries the trend.
+- **`wan1_weight` is in LTS; `wan2_weight` is not** — they sum to 100 %, so one series reconstructs the other.
+- **`rules_active` / `rules_disabled` are in LTS; `rules_configured` (the total) is not** — the changeable counts carry the signal.
+- **`*_active` (WiFi networks / VLANs / VPN connections) are in LTS; the `*_total` siblings are not** — the totals are near-static config.
+- **Primary `num_user` / `num_guest` client counts are in LTS; the secondary `num_iot` / `num_ap` / `num_sw` / `num_adopted` counts are not.**
+- **Availability % and uptime-seconds durations are omitted** — a `boot_time` **timestamp** already marks "since when", so a duration LTS series would be redundant.
+
+Do **not** "fix" these by adding a `state_class` — the omissions are the design. A user who genuinely wants one of them in LTS can add a `state_class` override via HA's Manual Customization (documented in the README LTS tip).
+
+**Numeric sensors with no `state_class` (not in LTS):**
+
+| Group | Sensors | Key(s) |
+| :-- | :-- | :-- |
+| Raw storage bytes | Storage Used, Storage Total | `storage_used`, `storage_size` |
+| WAN availability & durations | WAN1/2 Availability, WAN1/2 & Internet Uptime, WAN1/2 Time Period | `wan{1,2}_availability`, `health_wan{1,2}_uptime`, `health_www_uptime`, `health_wan{1,2}_time_period` |
+| Redundant / total siblings | WAN2 Load Balance, Firewall Rules Configured, WiFi Networks Total, VLANs Total & Configured, VPN Connections Total | `wan2_weight`, `rules_configured`, `wifi_networks_total`, `vlans_total`, `configured_vlans`, `vpn_connections_total` |
+| Secondary client/device counts | WiFi IoT Clients, WiFi AP count, LAN IoT Clients, LAN Switch count, Adopted Devices | `wlan_num_iot`, `wlan_num_ap`, `lan_num_iot`, `lan_num_sw`, `lan_num_adopted` |
+
+> **Note:** the AP **Satisfaction Score** sensors, the **daily "Today" usage** sensors, and **WAN Ping** _do_ carry a `state_class` and **are in LTS** (an earlier revision of this doc listed them as excluded — corrected 2026-07-17).
 
 ---
 
@@ -323,3 +335,5 @@ Sensors are stored in their canonical **native** unit (so long-term statistics a
 - **v1.8.0** (2026-07-08) - Validated the **Satisfaction-only** and **Add-all** per-device modes with Core present (live). Added the per-mode device/entity/enabled table (Don't add / Satisfaction only / Add all × no-Core / Core). Fixed the switch **Clients** `_2` collision: `ports_used` now maps to the `_mon` stem `clients` (`…_clients_mon`) — see `_DUPLICATES_CORE_KEYS` in `sensor.py`.
 - **v1.7.0** (2026-07-08) - Validated the **default install on top of HA Core UniFi** (live). Documented that the base enabled count is **93 (no Core) / 87 (Core present)** — six gateway diagnostics (`cpu`, `ram`, `cpu_temp`, `board_temp`, `uptime`, `update_available`) are _Standalone-only enabled_; tagged those §1 rows. Added a **Coexistence with HA Core UniFi** section: gateway card merges into Core's device (adopting Core's name/firmware), other sub-devices stay separate, and the `switch.unifi_network_*` counting caveat (Core names its controller "UniFi Network").
 - **v2.0.0** (2026-07-14) - Restructured to **7 sub-devices** for the Alerts + rogue-action work: new **Alerts** sub-device (4 sensors) and new **Security** sub-device (19 entities — rogue/threat/VPN/firewall relocated off Status & System, plus **Rogue APs All 24h**, the rogue control switches, and the Rogue Detection Period select). Base grew **116 → 126**. Re-verified live on a fresh **standalone** default install (2026-07-14): **103 enabled / 23 disabled**; per-card enabled/total Alerts 4/4, Gateway 11/18, Internet 34/39, Security 19/19, Speedtest 14/14, Status 12/23, System 9/9. Updated the per-mode table (base +10, all enabled-by-default), added the Actions/Events/`about`-attribute note, and corrected the WAN Ping LTS rows (Speedtest, not System).
+- **v2.1.0** (2026-07-17) - Added 7 undocumented services as rows in the sub-device entity tables (Alerts, Security, System) to match live discovery. Appended data availability note to Strongest Rogue RSSI.
+- **v2.2.0** (2026-07-17) - Rogue expansion / history / self-diagnosis: **Rogue APs New 24h** sensor (Security) + **Integration Health** binary sensor (System); base **127 → 128**. **LTS Coverage section rewritten and corrected against code** — the previous list wrongly excluded the AP Satisfaction Scores, the daily "Today" usage sensors, and WAN Ping (all _do_ carry a `state_class`); those 11 per-row Notes flags were flipped to "In LTS". Documented the **deliberate LTS curation policy** (redundant/derivable/near-static siblings are intentionally omitted — e.g. `storage_used`/`_size` vs `storage_used_pct`, `wan2_weight` vs `wan1_weight`, `*_total` vs `*_active`, secondary `num_*` counts, availability/uptime-seconds vs the `boot_time` timestamp).

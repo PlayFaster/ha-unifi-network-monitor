@@ -3292,3 +3292,156 @@ async def test_fire_new_rogue_events_only_new(
     aps = [{"bssid": "aa", "essid": "A"}, {"bssid": "bb", "essid": "B"}]
     coord._fire_new_rogue_events(aps, {"bb"})
     assert events == ["bb"]
+
+
+# ---------------------------------------------------------------------------
+# Self-diagnosis / Integration Health
+# ---------------------------------------------------------------------------
+
+
+def _health_coord(hass: Any, entry: Any, *, api_key: str | None = "key") -> Any:
+    """Build a coordinator with a controllable api_key for health tests."""
+    entry.add_to_hass(hass)
+    api = MagicMock()
+    api.api_key = api_key
+    coord = UnifiNetworkDataUpdateCoordinator(hass, entry, api)
+    return coord
+
+
+async def test_health_ok_when_clean(hass: Any, mock_config_entry: Any) -> None:
+    """No stale endpoints and no drift → no problem."""
+    coord = _health_coord(hass, mock_config_entry)
+    health = coord._compute_integration_health({}, {})
+    assert health["problem"] is False
+    assert health["severity"] is None
+    assert health["degraded_capabilities"] == []
+
+
+async def test_health_moderate_on_stale_endpoint(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """A failed endpoint the user did NOT disable → moderate problem."""
+    from custom_components.unifi_network_monitor.const import EP_ROGUE
+
+    coord = _health_coord(hass, mock_config_entry)
+    coord._stale_endpoints = {EP_ROGUE}
+    health = coord._compute_integration_health({}, {})
+    assert health["problem"] is True
+    assert health["severity"] == "moderate"
+    assert "Security / Rogue APs" in health["degraded_capabilities"]
+
+
+async def test_health_ignores_user_disabled(hass: Any, mock_config_entry: Any) -> None:
+    """A stale endpoint the user turned off is NOT reported."""
+    from custom_components.unifi_network_monitor.const import (
+        CONF_ENABLE_SPEEDTEST,
+        EP_SPEEDTEST,
+    )
+
+    coord = _health_coord(hass, mock_config_entry)
+    coord._stale_endpoints = {EP_SPEEDTEST}
+    health = coord._compute_integration_health({CONF_ENABLE_SPEEDTEST: False}, {})
+    assert health["problem"] is False
+
+
+async def test_health_v3_not_flagged_under_password(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """v3-only endpoints down under password auth are expected, not flagged."""
+    from custom_components.unifi_network_monitor.const import EP_FIREWALL
+
+    coord = _health_coord(hass, mock_config_entry, api_key=None)
+    coord._stale_endpoints = {EP_FIREWALL}
+    health = coord._compute_integration_health({}, {})
+    assert health["problem"] is False
+    assert health["auth_mode"] == "password"
+
+
+async def test_health_drift_needs_persistence(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """A drift signal flags only after HEALTH_DRIFT_STRIKE_LIMIT cycles."""
+    from custom_components.unifi_network_monitor.const import HEALTH_DRIFT_STRIKE_LIMIT
+
+    coord = _health_coord(hass, mock_config_entry)
+    health = {}
+    for _ in range(HEALTH_DRIFT_STRIKE_LIMIT - 1):
+        health = coord._compute_integration_health({}, {"rogue": True})
+        assert health["drift"] == []  # not yet
+    health = coord._compute_integration_health({}, {"rogue": True})
+    assert "Rogue APs" in health["drift"]
+    assert health["severity"] == "serious"
+    # A clean cycle resets the counter.
+    health = coord._compute_integration_health({}, {"rogue": False})
+    assert health["drift"] == []
+
+
+async def test_health_drift_decays_when_not_evaluated(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """A source absent from raw_drift (stale/disabled) resets its strike."""
+    coord = _health_coord(hass, mock_config_entry)
+    coord._compute_integration_health({}, {"rogue": True})
+    assert coord._drift_strikes.get("rogue") == 1
+    coord._compute_integration_health({}, {})  # rogue not evaluated
+    assert "rogue" not in coord._drift_strikes
+
+
+async def test_sync_health_issues_create_and_clear(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """_sync_health_issues raises and clears the schema_drift repair."""
+    from homeassistant.helpers import issue_registry as ir
+
+    from custom_components.unifi_network_monitor.const import DOMAIN
+
+    coord = _health_coord(hass, mock_config_entry)
+    reg = ir.async_get(hass)
+
+    coord._sync_health_issues({"drift": ["Rogue APs"]})
+    assert reg.async_get_issue(DOMAIN, "schema_drift_detected") is not None
+
+    coord._sync_health_issues({"drift": []})
+    assert reg.async_get_issue(DOMAIN, "schema_drift_detected") is None
+
+
+async def test_integration_health_computation_error_caught(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """Exception in integration-health computation is caught (lines 1996-1997)."""
+    mock_config_entry.add_to_hass(hass)
+    api = MagicMock()
+    api.get_devices = AsyncMock(
+        return_value=[
+            {
+                "mac": "aa:bb:cc:dd:ee:ff",
+                "model": "UDMPRO",
+                "state": 1,
+                "uptime": 1000,
+                "system-stats": {"cpu": "10.0", "mem": "50.0"},
+            }
+        ]
+    )
+    api.get_health = AsyncMock(return_value=[])
+    api.get_sysinfo = AsyncMock(return_value=[])
+    api.get_networkconf = AsyncMock(return_value=[])
+    api.get_settings = AsyncMock(return_value=[])
+    api.get_daily_gateway = AsyncMock(return_value=[])
+    api.get_monthly_gateway = AsyncMock(return_value=[])
+    api.get_rogueaps = AsyncMock(return_value=[])
+    api.get_guests = AsyncMock(return_value=[])
+    api.get_backups = AsyncMock(return_value=[])
+    api.get_speedtest_results = AsyncMock(return_value=[])
+    api.get_system_logs = AsyncMock(return_value=[])
+
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+
+    with patch.object(
+        coordinator,
+        "_compute_integration_health",
+        side_effect=ValueError("bad data"),
+    ):
+        result = await coordinator._async_update_data()
+
+    assert result is not None
+    assert "gateway" in result

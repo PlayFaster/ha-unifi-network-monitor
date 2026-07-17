@@ -120,6 +120,7 @@
       "device_model": { "default": "mdi:information-outline" }
     },
     "binary_sensor": {
+      "integration_health": { "default": "mdi:heart-pulse" },
       "gateway_internet": { "default": "mdi:access-point-check" },
       "gateway_update_available": { "default": "mdi:package-up" },
       "gateway_speedtest_pass": { "default": "mdi:speedometer" },

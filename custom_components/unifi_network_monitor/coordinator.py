@@ -70,6 +70,7 @@ from .const import (
     EVENT_NEW_ROGUE_AP,
     FETCH_STRIKE_LIMIT,
     GATEWAY_MODELS,
+    HEALTH_DRIFT_STRIKE_LIMIT,
     ROGUE_ESSID_PLACEHOLDER,
     ROGUE_HIDDEN_PREFIX,
     ROGUE_HIDDEN_SSID,
@@ -111,6 +112,36 @@ def disabled_endpoints(options: Mapping[str, Any]) -> frozenset[str]:
     if not options.get(CONF_ENABLE_LOGS_ALERTS, DEFAULT_ENABLE_LOGS_ALERTS):
         disabled.add(EP_SYSLOG)
     return frozenset(disabled)
+
+
+# Self-diagnosis maps. A stale endpoint (not user-disabled) is reported on the
+# Integration Health sensor under a friendly capability name.
+_ENDPOINT_CAPABILITY: dict[str, str] = {
+    EP_ROGUE: "Security / Rogue APs",
+    EP_ROGUE_RAW: "Security / Rogue APs",
+    EP_SYSLOG: "Alerts",
+    EP_SPEEDTEST: "Speedtest",
+    EP_DAILY: "WAN Usage",
+    EP_MONTHLY: "WAN Usage",
+    EP_VPN_SERVERS: "Security (VPN / Firewall)",
+    EP_VPN_TUNNELS: "Security (VPN / Firewall)",
+    EP_FIREWALL: "Security (VPN / Firewall)",
+    EP_SETTINGS: "Security (Threat Management)",
+    EP_WAN_IF: "WAN interface names",
+}
+
+# v3-only endpoints — unreachable under username/password auth (expected, not a
+# fault), so they are excluded from health when no API key is configured.
+_V3_ENDPOINTS: frozenset[str] = frozenset(
+    {EP_WAN_IF, EP_VPN_SERVERS, EP_VPN_TUNNELS, EP_FIREWALL}
+)
+
+# Friendly names for the schema-drift checks.
+_DRIFT_CAPABILITY: dict[str, str] = {
+    "gateway": "Gateway telemetry",
+    "rogue": "Rogue APs",
+    "alerts": "Alerts",
+}
 
 
 def _split_patterns(raw: str) -> list[str]:
@@ -675,6 +706,10 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._endpoint_state: dict[str, dict[str, Any]] = {}
         self._stale_endpoints: set[str] = set()
 
+        # Self-diagnosis: per-source consecutive schema-drift counters. A drift
+        # signal must persist HEALTH_DRIFT_STRIKE_LIMIT cycles before it flags.
+        self._drift_strikes: dict[str, int] = {}
+
         # Explicit user actions (Refresh Now, speedtest run, weight change,
         # scan-interval change) set this so the next update fetches even when
         # polling is paused. Scheduled polls still respect the pause.
@@ -1005,6 +1040,87 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             )
         elif self.site_uuid is not None:
             ir.async_delete_issue(self.hass, DOMAIN, "site_resolution_failed")
+
+    def _compute_integration_health(
+        self, opts: Mapping[str, Any], raw_drift: dict[str, bool]
+    ) -> dict[str, Any]:
+        """Build the Integration Health snapshot from current internal state.
+
+        ``raw_drift`` carries this cycle's per-source drift signal, but only for
+        sources that were *freshly fetched* (a stale/held or user-disabled source
+        is absent and its strike counter decays). A drift flags only after it has
+        persisted HEALTH_DRIFT_STRIKE_LIMIT cycles.
+        """
+        persistent: list[str] = []
+        for key in ("gateway", "rogue", "alerts"):
+            signal = raw_drift.get(key)
+            if signal is None:  # not evaluated this cycle — reset
+                self._drift_strikes.pop(key, None)
+                continue
+            if signal:
+                self._drift_strikes[key] = self._drift_strikes.get(key, 0) + 1
+                if self._drift_strikes[key] >= HEALTH_DRIFT_STRIKE_LIMIT:
+                    persistent.append(key)
+            else:
+                self._drift_strikes.pop(key, None)
+
+        # Degraded = failed endpoints the user did NOT disable; v3 endpoints are
+        # expected to be down under password auth, so exclude them there.
+        degraded = set(self._stale_endpoints) - disabled_endpoints(opts)
+        if not self.api.api_key:
+            degraded -= _V3_ENDPOINTS
+        degraded_caps = sorted({_ENDPOINT_CAPABILITY.get(ep, ep) for ep in degraded})
+
+        site_failed = self.site_uuid == "failed" and bool(self.api.api_key)
+        drift_caps = [_DRIFT_CAPABILITY[k] for k in persistent]
+
+        issues: list[str] = []
+        for cap in drift_caps:
+            issues.append(f"{cap} data looks malformed (possible controller update)")
+        for cap in degraded_caps:
+            issues.append(f"{cap} data unavailable")
+        if site_failed:
+            issues.append(
+                "UniFi v3 site could not be resolved "
+                "(VPN, firewall and WAN-name sensors unavailable)"
+            )
+
+        serious = bool(drift_caps) or site_failed
+        severity = "serious" if serious else ("moderate" if degraded_caps else None)
+
+        return {
+            "problem": severity is not None,
+            "severity": severity,
+            "issues": issues,
+            "degraded_capabilities": degraded_caps,
+            "drift": drift_caps,
+            "auth_mode": "api_key" if self.api.api_key else "password",
+            "v3_available": self.site_uuid not in (None, "failed"),
+            "last_good_update": (
+                self.last_update_success_time.isoformat()
+                if self.last_update_success_time
+                else None
+            ),
+        }
+
+    def _sync_health_issues(self, health: dict[str, Any]) -> None:
+        """Raise/clear the schema-drift repair issue based on the health snapshot.
+
+        (The v3 ``site_resolution_failed`` repair is owned by ``_sync_site_issue``;
+        it is reflected in the health sensor's attributes, not double-raised here.)
+        """
+        if health.get("drift"):
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                "schema_drift_detected",
+                is_fixable=False,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key="schema_drift_detected",
+                translation_placeholders={"capabilities": ", ".join(health["drift"])},
+            )
+        else:
+            ir.async_delete_issue(self.hass, DOMAIN, "schema_drift_detected")
 
     def endpoint_available(self, source: str | None) -> bool:
         """Return False when an optional endpoint has exhausted its retry strikes.
@@ -1840,11 +1956,56 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     self._was_available = True
                     _LOGGER.info("%s: Reconnected successfully.", self.entry.title)
 
+                # Self-diagnosis: per-source schema-drift signals — a non-empty
+                # raw response that parsed to nothing meaningful. Only evaluated
+                # for sources freshly fetched this cycle. Wrapped so a malformed
+                # payload can never break the update it's diagnosing.
+                integration_health: dict[str, Any] = {
+                    "problem": False,
+                    "severity": None,
+                }
+                try:
+                    raw_drift: dict[str, bool] = {}
+                    if gateway_data:
+                        raw_drift["gateway"] = not any(
+                            gateway_data.get(k) is not None
+                            for k in ("cpu", "ram", "uptime_secs")
+                        )
+                    if (
+                        want_security
+                        and self.endpoint_available(EP_ROGUE)
+                        and rogueaps_raw
+                    ):
+                        raw_drift["rogue"] = (not rogue_aps_list) or all(
+                            not (isinstance(ap, dict) and ap.get("bssid"))
+                            for ap in rogue_aps_list
+                        )
+                    if (
+                        want_logs
+                        and self.endpoint_available(EP_SYSLOG)
+                        and system_logs_raw
+                    ):
+                        raw_drift["alerts"] = not any(
+                            isinstance(ev, dict) and ev.get("severity")
+                            for ev in system_logs_raw
+                        )
+                    integration_health = self._compute_integration_health(
+                        opts, raw_drift
+                    )
+                    self._sync_health_issues(integration_health)
+                except (AttributeError, KeyError, TypeError, ValueError) as err:
+                    _LOGGER.debug(
+                        "%s: integration-health computation skipped: %s",
+                        self.entry.title,
+                        err,
+                    )
+
                 return {
                     "gateway": gateway_data or {},
                     "health": health,
                     "devices": devices,
                     "sw_version": sw_version,
+                    "integration_health": integration_health,
                 }
 
         except UnifiAuthError as err:

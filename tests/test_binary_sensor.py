@@ -331,9 +331,15 @@ async def test_async_setup_entry_creates_entities(hass: Any) -> None:
     num_wifi = 2
     num_vpn = 2
     num_proximity = 1  # static Rogue AP Proximity Alert
-    assert (
-        len(entities)
-        == num_gateway + num_health + num_device + num_wifi + num_vpn + num_proximity
+    num_integration_health = 1  # always-created Integration Health sensor
+    assert len(entities) == (
+        num_gateway
+        + num_health
+        + num_device
+        + num_wifi
+        + num_vpn
+        + num_proximity
+        + num_integration_health
     )
 
 
@@ -352,8 +358,8 @@ async def test_async_setup_entry_handles_no_data(hass: Any) -> None:
     entities = async_add_entities.call_args[0][0]
     num_gateway = len(GATEWAY_BINARY_SENSORS)
     num_health = len(HEALTH_BINARY_SENSORS)
-    # +1 for the static Rogue AP Proximity Alert sensor.
-    assert len(entities) == num_gateway + num_health + 1
+    # +1 Rogue AP Proximity Alert, +1 Integration Health (both always created).
+    assert len(entities) == num_gateway + num_health + 2
 
 
 def test_base_raw_data_raises_not_implemented() -> None:
@@ -804,3 +810,44 @@ def test_vpn_binary_sensor_source_endpoint() -> None:
     entry = _make_entry()
     sensor = UnifiVpnBinarySensor(coordinator, entry, "TestTunnel")
     assert sensor._source_endpoint() == EP_VPN_TUNNELS
+
+
+# ---------------------------------------------------------------------------
+# Integration Health binary sensor
+# ---------------------------------------------------------------------------
+
+
+def test_integration_health_on_with_attributes() -> None:
+    """Health sensor is on and exposes the issue detail when a problem exists."""
+    from custom_components.unifi_network_monitor.binary_sensor import (
+        UnifiIntegrationHealthBinarySensor,
+    )
+
+    health = {
+        "problem": True,
+        "severity": "serious",
+        "issues": ["Rogue APs data looks malformed (possible controller update)"],
+        "degraded_capabilities": [],
+        "drift": ["Rogue APs"],
+        "auth_mode": "api_key",
+        "v3_available": True,
+        "last_good_update": "2026-07-17T12:00:00+00:00",
+    }
+    coordinator = _make_coordinator({"integration_health": health})
+    sensor = UnifiIntegrationHealthBinarySensor(coordinator, _make_entry())
+    assert sensor.is_on is True
+    attrs = sensor.extra_state_attributes or {}
+    assert attrs["severity"] == "serious"
+    assert attrs["drift"] == ["Rogue APs"]
+    assert "about" in attrs  # About note included
+
+
+def test_integration_health_off_when_healthy() -> None:
+    """Health sensor is off when no problem is reported."""
+    from custom_components.unifi_network_monitor.binary_sensor import (
+        UnifiIntegrationHealthBinarySensor,
+    )
+
+    coordinator = _make_coordinator({"integration_health": {"problem": False}})
+    sensor = UnifiIntegrationHealthBinarySensor(coordinator, _make_entry())
+    assert sensor.is_on is False

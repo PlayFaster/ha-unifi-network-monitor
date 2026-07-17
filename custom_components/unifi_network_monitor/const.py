@@ -135,6 +135,11 @@ ROGUE_HISTORY_MAX = 1000
 ROGUE_HISTORY_SAVE_DELAY = 120
 ROGUE_HISTORY_STORAGE_VERSION = 1
 
+# Self-diagnosis: how many consecutive cycles a schema-drift signal must persist
+# before the Integration Health sensor / repair issue flags it (avoids single-
+# cycle false alarms; also gives startup grace).
+HEALTH_DRIFT_STRIKE_LIMIT = 3
+
 # unifi_device_mode values — which per-UniFi-device entities Monitor creates
 DEVICE_MODE_NONE = "none"
 DEVICE_MODE_SATISFACTION = "satisfaction_only"

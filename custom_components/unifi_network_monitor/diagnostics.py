@@ -59,6 +59,7 @@ async def async_get_config_entry_diagnostics(
             ).get("mac"),
             "gateway_model": coordinator.gateway_model,
             "sw_version": coordinator.sw_version,
+            "integration_health": (coordinator.data or {}).get("integration_health"),
         },
         "data": async_redact_data(coordinator.data or {}, TO_REDACT),
     }

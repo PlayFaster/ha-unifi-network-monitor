@@ -489,6 +489,81 @@ class UnifiRogueProximityBinarySensor(
         return build_sub_device_info(self.coordinator, self._entry, "security")
 
 
+class UnifiIntegrationHealthBinarySensor(
+    UnifiAboutEntity,
+    CoordinatorEntity[UnifiNetworkDataUpdateCoordinator],
+    BinarySensorEntity,
+):
+    """Problem sensor: the integration is self-reporting a degraded state.
+
+    Always available while the coordinator is succeeding (it must be able to
+    report per-endpoint staleness), so it is deliberately NOT tied to any
+    optional endpoint. Detail lives in the attributes.
+    """
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_translation_key = "integration_health"
+    _attr_about = (
+        "On when the integration self-diagnoses a problem: a data source is "
+        "unavailable (and not one you disabled), or a controller update appears "
+        "to have changed the data format. See the attributes for details."
+    )
+    _unrecorded_attributes = frozenset(
+        {
+            "about",
+            "issues",
+            "severity",
+            "degraded_capabilities",
+            "drift",
+            "auth_mode",
+            "v3_available",
+            "last_good_update",
+        }
+    )
+
+    def __init__(
+        self,
+        coordinator: UnifiNetworkDataUpdateCoordinator,
+        entry: ConfigEntry,
+    ) -> None:
+        """Initialize."""
+        super().__init__(coordinator)
+        self._entry = entry
+        self._attr_unique_id = f"{entry.unique_id}_integration_health"
+
+    def _health(self) -> dict[str, Any]:
+        return (self.coordinator.data or {}).get("integration_health") or {}
+
+    @property
+    def is_on(self) -> bool:
+        """Return True when the integration reports a problem."""
+        return bool(self._health().get("problem"))
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Expose the health detail (unrecorded) plus the About note."""
+        health = self._health()
+        return self._with_about(
+            {
+                "severity": health.get("severity"),
+                "issues": health.get("issues") or [],
+                "degraded_capabilities": health.get("degraded_capabilities") or [],
+                "drift": health.get("drift") or [],
+                "auth_mode": health.get("auth_mode"),
+                "v3_available": health.get("v3_available"),
+                "last_good_update": health.get("last_good_update"),
+            }
+        )
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return System sub-device info."""
+        return build_sub_device_info(self.coordinator, self._entry, "system")
+
+
 class UnifiVpnBinarySensor(UnifiBinarySensorBase):
     """Binary sensor for an individual Site-to-Site VPN Tunnel status."""
 
@@ -565,6 +640,9 @@ async def async_setup_entry(
     )
     if EP_ROGUE not in disabled_eps:
         entities.append(UnifiRogueProximityBinarySensor(coordinator, entry))
+
+    # Integration Health — always created (self-diagnosis), never feature-gated.
+    entities.append(UnifiIntegrationHealthBinarySensor(coordinator, entry))
 
     known_macs: set[str] = set()
     known_ssids: set[str] = set()
