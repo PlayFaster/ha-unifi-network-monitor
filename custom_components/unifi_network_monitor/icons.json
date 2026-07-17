@@ -57,6 +57,7 @@
       "gateway_strongest_rogue_ssid": { "default": "mdi:wifi-alert" },
       "gateway_strongest_rogue_rssi": { "default": "mdi:wifi-strength-2-alert" },
       "gateway_rogue_raw_24h": { "default": "mdi:radar" },
+      "gateway_rogue_new_24h": { "default": "mdi:wifi-plus" },
       "gateway_last_high": { "default": "mdi:alert" },
       "gateway_last_very_high": { "default": "mdi:alert-octagon" },
       "gateway_alerts_high_24h": { "default": "mdi:alert-outline" },

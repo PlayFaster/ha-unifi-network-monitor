@@ -515,7 +515,7 @@ def test_gateway_sensor_rogue_ap_count_has_no_attributes() -> None:
 
 
 def test_gateway_strongest_rogue_sensors_values() -> None:
-    """Strongest rogue SSID/RSSI sensors return the strongest rogue's fields."""
+    """Strongest Rogue SSID/RSSI sensors return the strongest rogue's fields."""
     coordinator = _make_coordinator(MOCK_COORDINATOR_DATA)
     entry = _make_entry()
     ssid_desc = next(d for d in GATEWAY_SENSORS if d.key == "strongest_rogue_ssid")

@@ -134,6 +134,7 @@ Source: `stat/rogueap` (rogue), `system-log/all` (alerts). These live in the `GA
 | :-- | :-- | :-- | :-- | :-- |
 | `rogue_ap_count` | `gateway_rogue_ap_count` | 0 | — | Count cannot be negative |
 | `rogue_raw_24h` | `gateway_rogue_raw_24h` | 0 | — | Raw 24h detection count cannot be negative |
+| `rogue_new_24h` | `gateway_rogue_new_24h` | 0 | — | Count of BSSIDs first seen in HA within 24h; cannot be negative |
 | `strongest_rogue_rssi` | `gateway_strongest_rogue_rssi` | -100 | 0 | dBm — RSSI is negative; `None` (→ `unknown`) when no rogues |
 | `strongest_rogue_ssid` | `gateway_strongest_rogue_ssid` | — | — | String — sentinel `"None Detected"` when none |
 | `alerts_high_24h` | `gateway_alerts_high_24h` | 0 | — | Count cannot be negative |

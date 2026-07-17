@@ -464,6 +464,54 @@ async def test_config_flow_reconfigure_step_success(hass: Any) -> None:
         assert result["reason"] == "reconfigure_successful"
 
 
+async def test_config_flow_reconfigure_can_clear_ignore_list(hass: Any) -> None:
+    """A rogue ignore list can be CLEARED via reconfigure (omitted key → blank).
+
+    Regression: with ``default=<current value>`` the frontend omits the emptied
+    optional and voluptuous restores the old value, so the field can't be cleared.
+    Using ``suggested_value`` + ``default=""`` makes a blank submit clear it.
+    """
+    with patch(
+        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        AsyncMock(return_value=MOCK_IDENTITY),
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": "user"}
+        )
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], user_input=VALID_INPUT
+        )
+        entry = result["result"]
+
+        # 1) Set an ignore list.
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": "reconfigure", "entry_id": entry.entry_id},
+        )
+        await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            user_input={
+                **SETTINGS_INPUT,
+                "api_key": "k",
+                CONF_ROGUE_IGNORE_SSIDS: "Foo, Bar",
+            },
+        )
+        assert entry.options[CONF_ROGUE_IGNORE_SSIDS] == "Foo, Bar"
+
+        # 2) Clear it: the frontend omits the emptied optional entirely.
+        cleared = {
+            k: v for k, v in SETTINGS_INPUT.items() if k != CONF_ROGUE_IGNORE_SSIDS
+        }
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": "reconfigure", "entry_id": entry.entry_id},
+        )
+        await hass.config_entries.flow.async_configure(
+            result["flow_id"], user_input={**cleared, "api_key": "k"}
+        )
+        assert entry.options[CONF_ROGUE_IGNORE_SSIDS] == ""
+
+
 @pytest.mark.usefixtures("socket_enabled")
 async def test_config_flow_reconfigure_auth_error(hass: Any) -> None:
     """Reconfigure step shows auth error."""

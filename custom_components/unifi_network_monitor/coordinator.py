@@ -15,6 +15,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.event import async_call_later
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
@@ -27,6 +28,7 @@ from .const import (
     CONF_ENABLE_WAN_USAGE,
     CONF_ROGUE_APPLY_AP_IGNORE,
     CONF_ROGUE_APPLY_SSID_IGNORE,
+    CONF_ROGUE_HISTORY_TTL_DAYS,
     CONF_ROGUE_IGNORE_APS,
     CONF_ROGUE_IGNORE_SSIDS,
     CONF_ROGUE_PERIOD,
@@ -40,6 +42,7 @@ from .const import (
     DEFAULT_ENABLE_WAN_USAGE,
     DEFAULT_ROGUE_APPLY_AP_IGNORE,
     DEFAULT_ROGUE_APPLY_SSID_IGNORE,
+    DEFAULT_ROGUE_HISTORY_TTL_DAYS,
     DEFAULT_ROGUE_IGNORE_APS,
     DEFAULT_ROGUE_IGNORE_SSIDS,
     DEFAULT_ROGUE_PERIOD,
@@ -68,7 +71,11 @@ from .const import (
     FETCH_STRIKE_LIMIT,
     GATEWAY_MODELS,
     ROGUE_ESSID_PLACEHOLDER,
+    ROGUE_HIDDEN_PREFIX,
     ROGUE_HIDDEN_SSID,
+    ROGUE_HISTORY_MAX,
+    ROGUE_HISTORY_SAVE_DELAY,
+    ROGUE_HISTORY_STORAGE_VERSION,
     ROGUE_PERIOD_HOURS,
     ROGUE_RAW_WINDOW_HOURS,
 )
@@ -138,21 +145,22 @@ def build_ap_name_map(devices_raw: list[dict[str, Any]] | None) -> dict[str, str
     return ap_name_map
 
 
-def normalize_essid(raw: Any) -> tuple[str, bool]:
-    """Return a display-safe SSID and an anomaly flag.
+def normalize_essid(raw: Any) -> tuple[str, bool, bool]:
+    """Return ``(display, anomaly, hidden)`` for a raw SSID.
 
     - Empty or whitespace-only essid (the controller's cloaked-network case)
-      collapses to the ``<Hidden>`` sentinel, matching the UniFi web GUI.
+      returns ``hidden=True``; ``display`` is the ``<Hidden>`` fallback, which the
+      caller replaces with a BSSID-derived ``Hidden-<suffix>`` name.
     - Otherwise, any control / zero-width / non-printable characters are
       replaced with a visible placeholder so a spoofed name renders safely and
-      the tampering stays visible.
+      the tampering stays visible (``hidden=False``).
 
-    The boolean is ``True`` in either case, so an automation can trigger on a
+    ``anomaly`` is ``True`` for either case, so an automation can trigger on a
     cloaked *or* obfuscated SSID via a single ``ssid_anomaly`` field.
     """
     text = raw if isinstance(raw, str) else ("" if raw is None else str(raw))
     if not text.strip():
-        return ROGUE_HIDDEN_SSID, True
+        return ROGUE_HIDDEN_SSID, True, True
 
     # str.isprintable() keeps normal spaces but rejects control, tab/newline,
     # zero-width, and RTL-override characters — exactly the deceptive set.
@@ -164,7 +172,24 @@ def normalize_essid(raw: Any) -> tuple[str, bool]:
         else:
             cleaned_chars.append(ROGUE_ESSID_PLACEHOLDER)
             tampered = True
-    return "".join(cleaned_chars), tampered
+    return "".join(cleaned_chars), tampered, False
+
+
+def hidden_label(bssid: str, *, extended: bool = False) -> str:
+    """Return the BSSID-derived pseudo-name for a cloaked SSID.
+
+    ``Hidden-`` + the last 4 hex of the BSSID (uppercase), or the last 6 when
+    ``extended`` (used to disambiguate a last-4 collision within one response).
+    Falls back to ``<Hidden>`` when the BSSID has no usable hex.
+    """
+    hexonly = "".join(c for c in bssid if c in "0123456789abcdefABCDEF").upper()
+    if not hexonly:
+        return ROGUE_HIDDEN_SSID
+    return (
+        ROGUE_HIDDEN_PREFIX + hexonly[-6:]
+        if extended
+        else (ROGUE_HIDDEN_PREFIX + hexonly[-4:])
+    )
 
 
 def parse_rogue_aps(
@@ -196,12 +221,16 @@ def parse_rogue_aps(
             continue
         if band == "na" and not show_5ghz:
             continue
-        essid, ssid_anomaly = normalize_essid(r.get("essid"))
-        # Ignore-globs match the display SSID, so a rule like ``<Hidden>`` or
+        essid, ssid_anomaly, hidden = normalize_essid(r.get("essid"))
+        bssid = r.get("bssid", "")
+        # A cloaked SSID is named from its BSSID (Hidden-A2D3) so distinct hidden
+        # APs stay distinguishable; a collision pass below extends colliding ones.
+        if hidden:
+            essid = hidden_label(bssid)
+        # Ignore-globs match the display SSID, so a rule like ``Hidden-*`` or
         # ``*·*`` can target cloaked / obfuscated names.
         if apply_ssid_ignore and any(fnmatchcase(essid, pat) for pat in ignore_ssids):
             continue
-        bssid = r.get("bssid", "")
         ap_mac = r.get("ap_mac", "")
         detected_by = ap_name_map.get(ap_mac.lower()) or ap_mac
         signal = _safe_int(r.get("signal"))
@@ -212,6 +241,7 @@ def parse_rogue_aps(
             {
                 "essid": essid,
                 "ssid_anomaly": ssid_anomaly,
+                "hidden": hidden,
                 "bssid": bssid,
                 "band": band,
                 "channel": _safe_int(r.get("channel")),
@@ -244,6 +274,18 @@ def parse_rogue_aps(
             cl["channel_width"] = channel_width
         if not cl["security"] and r.get("security"):
             cl["security"] = r["security"]
+
+    # Disambiguate hidden labels that collide on the last-4 suffix: if two or
+    # more distinct BSSIDs map to the same Hidden-XXXX, extend all of them to
+    # the last-6 form. The stable identity is the BSSID; the label is cosmetic.
+    hidden_by_label: dict[str, list[dict[str, Any]]] = {}
+    for cl in clusters.values():
+        if cl.get("hidden") and cl["bssid"]:
+            hidden_by_label.setdefault(cl["essid"], []).append(cl)
+    for group in hidden_by_label.values():
+        if len({cl["bssid"] for cl in group}) > 1:
+            for cl in group:
+                cl["essid"] = hidden_label(cl["bssid"], extended=True)
 
     rogue_aps_list: list[dict[str, Any]] = []
     for cl in clusters.values():
@@ -647,10 +689,17 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._seen_alert_ids: set[str] = set()
         self._alert_baseline_done = False
 
-        # New-rogue-AP event dedup — same baseline/window machinery as alerts,
-        # keyed on BSSID instead of alert id.
-        self._seen_rogue_bssids: set[str] = set()
+        # New-rogue-AP event dedup + persistent appearance history, both keyed on
+        # BSSID. ``rogue_history`` maps BSSID -> {first_seen, last_seen,
+        # appearances, last_label}, persisted across restarts so the event fires
+        # only for genuinely-new BSSIDs (not the whole set after a reload).
         self._rogue_baseline_done = False
+        self.rogue_history: dict[str, dict[str, Any]] = {}
+        self._rogue_history_store: Store[dict[str, dict[str, Any]]] = Store(
+            hass,
+            ROGUE_HISTORY_STORAGE_VERSION,
+            f"{DOMAIN}.{entry.entry_id}.rogue_history",
+        )
 
         # "Flat Identity" — loaded from entry.data, stable without a network call
         self.gateway_mac: str = entry.data.get("mac", "")
@@ -823,29 +872,114 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._seen_alert_ids = current_ids
 
     @callback
-    def _fire_new_rogue_events(self, rogue_aps: list[dict[str, Any]]) -> None:
-        """Fire ``EVENT_NEW_ROGUE_AP`` once per newly-seen BSSID.
+    async def async_initialize(self) -> None:
+        """Load persisted rogue-AP appearance history from storage."""
+        stored = await self._rogue_history_store.async_load()
+        if isinstance(stored, dict):
+            self.rogue_history = {
+                b: dict(v) for b, v in stored.items() if isinstance(v, dict)
+            }
 
-        Mirrors ``_fire_new_alert_events``: the first fetch after startup (or
-        after Security is re-enabled) records the current set as a silent
-        baseline, then seen BSSIDs are reset to the current set each poll. A
-        BSSID that drops out of the detection window and later reappears fires
-        again (treated as "a rogue is back").
+    def _update_rogue_history(
+        self, rogue_aps: list[dict[str, Any]], now: datetime
+    ) -> set[str]:
+        """Update the persistent BSSID history; return newly-first-seen BSSIDs.
+
+        A baseline (empty store on the first poll of this coordinator instance)
+        records everything silently and returns an empty set. Otherwise a BSSID
+        not previously in the store is "new" — this survives restarts, so the
+        event won't re-fire for BSSIDs already tracked before a reload.
         """
-        current_bssids = {ap["bssid"] for ap in rogue_aps if ap.get("bssid")}
-        if not self._rogue_baseline_done:
-            self._rogue_baseline_done = True
-            self._seen_rogue_bssids = current_bssids
-            return
+        now_iso = now.isoformat()
+        prev_keys = set(self.rogue_history)
+        is_first_poll = not self._rogue_baseline_done
+        self._rogue_baseline_done = True
+
+        current_bssids: set[str] = set()
         for ap in rogue_aps:
             bssid = ap.get("bssid")
-            if not bssid or bssid in self._seen_rogue_bssids:
+            if not bssid:
                 continue
-            self.hass.bus.async_fire(
-                EVENT_NEW_ROGUE_AP,
-                build_rogue_event_payload(self.entry.entry_id, ap),
+            current_bssids.add(bssid)
+            rec = self.rogue_history.get(bssid)
+            if rec is None:
+                self.rogue_history[bssid] = {
+                    "first_seen": now_iso,
+                    "last_seen": now_iso,
+                    "appearances": 1,
+                    "last_label": ap.get("essid"),
+                }
+            else:
+                rec["last_seen"] = now_iso
+                rec["appearances"] = int(rec.get("appearances", 0)) + 1
+                rec["last_label"] = ap.get("essid")
+
+        self._prune_rogue_history(now)
+        # Coalesce writes so a fast poll cadence doesn't hammer .storage.
+        self._rogue_history_store.async_delay_save(
+            lambda: self.rogue_history, ROGUE_HISTORY_SAVE_DELAY
+        )
+
+        if is_first_poll and not prev_keys:
+            return set()
+        return current_bssids - prev_keys
+
+    def _prune_rogue_history(self, now: datetime) -> None:
+        """Apply the TTL window and the hard max-entries cap to the history."""
+        ttl_days = self.entry.options.get(
+            CONF_ROGUE_HISTORY_TTL_DAYS, DEFAULT_ROGUE_HISTORY_TTL_DAYS
+        )
+        if ttl_days > 0:
+            cutoff = now - timedelta(days=ttl_days)
+            self.rogue_history = {
+                b: r
+                for b, r in self.rogue_history.items()
+                if (last := dt_util.parse_datetime(r.get("last_seen") or "")) is None
+                or last > cutoff
+            }
+        # Hard cap regardless of TTL — MAC randomization can spray many one-off
+        # BSSIDs; keep the most-recently-seen entries. ISO strings sort by time.
+        if len(self.rogue_history) > ROGUE_HISTORY_MAX:
+            ordered = sorted(
+                self.rogue_history.items(),
+                key=lambda kv: kv[1].get("last_seen") or "",
+                reverse=True,
             )
-        self._seen_rogue_bssids = current_bssids
+            self.rogue_history = dict(ordered[:ROGUE_HISTORY_MAX])
+
+    def _annotate_rogue_history(self, rogue_aps: list[dict[str, Any]]) -> None:
+        """Merge first_seen / appearances from history onto each rogue item."""
+        for ap in rogue_aps:
+            rec = self.rogue_history.get(ap.get("bssid") or "")
+            ap["first_seen"] = rec.get("first_seen") if rec else None
+            ap["appearances"] = rec.get("appearances") if rec else None
+
+    def rogue_new_24h(self, now: datetime) -> int:
+        """Count history BSSIDs first seen within the last 24 hours."""
+        cutoff = now - timedelta(hours=24)
+        count = 0
+        for rec in self.rogue_history.values():
+            first = dt_util.parse_datetime(rec.get("first_seen") or "")
+            if first is not None and first > cutoff:
+                count += 1
+        return count
+
+    async def async_clear_rogue_history(self) -> None:
+        """Empty the persistent rogue-AP history and its store."""
+        self.rogue_history = {}
+        self._rogue_baseline_done = False
+        await self._rogue_history_store.async_save({})
+
+    def _fire_new_rogue_events(
+        self, rogue_aps: list[dict[str, Any]], new_bssids: set[str]
+    ) -> None:
+        """Fire ``EVENT_NEW_ROGUE_AP`` once per genuinely-new BSSID."""
+        for ap in rogue_aps:
+            if ap.get("bssid") in new_bssids:
+                self.hass.bus.async_fire(
+                    EVENT_NEW_ROGUE_AP,
+                    build_rogue_event_payload(self.entry.entry_id, ap),
+                )
 
     @callback
     def _sync_site_issue(self) -> None:
@@ -933,10 +1067,8 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             # so the backlog doesn't flood the bus with events.
             self._alert_baseline_done = False
             self._seen_alert_ids.clear()
-        elif label == EP_ROGUE:
-            # Security is off — re-baseline rogue events on re-enable likewise.
-            self._rogue_baseline_done = False
-            self._seen_rogue_bssids.clear()
+        # Security (EP_ROGUE) needs no reset: the persistent BSSID history
+        # already suppresses re-fires for BSSIDs tracked before it was disabled.
         return []
 
     def _optional(
@@ -1271,6 +1403,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
                 # Rogue Access Points — curated view (Security options applied).
                 rogue_ap_count = 0
+                rogue_new_24h = 0
                 rogue_aps_list: list[dict[str, Any]] = []
                 # "None Detected" (not unknown) is preferred for the text sensor
                 # when no rogues are present; the RSSI counterpart stays None so
@@ -1314,7 +1447,15 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         strongest_rogue_ssid = strongest.get("essid") or "None Detected"
                         strongest_rogue_rssi = strongest.get("signal")
                     if want_security:
-                        self._fire_new_rogue_events(rogue_aps_list)
+                        # Persistent history: update first (captures "new" vs the
+                        # store), then fire events and annotate the items with
+                        # first_seen / appearances for the sensor attr + action.
+                        new_bssids = self._update_rogue_history(
+                            rogue_aps_list, update_time
+                        )
+                        self._fire_new_rogue_events(rogue_aps_list, new_bssids)
+                        self._annotate_rogue_history(rogue_aps_list)
+                        rogue_new_24h = self.rogue_new_24h(update_time)
                 except (
                     AttributeError,
                     KeyError,
@@ -1653,6 +1794,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             "wan2_month_rx": wan2_month_rx,
                             "wan2_month_tx": wan2_month_tx,
                             "rogue_ap_count": rogue_ap_count,
+                            "rogue_new_24h": rogue_new_24h,
                             "rogue_aps_list": rogue_aps_list,
                             "strongest_rogue_ssid": strongest_rogue_ssid,
                             "strongest_rogue_rssi": strongest_rogue_rssi,

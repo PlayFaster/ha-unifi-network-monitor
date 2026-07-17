@@ -53,15 +53,17 @@
           "password": "Password",
           "site": "Site ID",
           "unifi_device_mode": "UniFi device (Access Point & Switch) sensors",
-          "rogue_ignore_ssids": "Ignore rogue SSIDs",
-          "rogue_ignore_aps": "Ignore detecting APs"
+          "rogue_ignore_ssids": "Ignore Rogue SSIDs",
+          "rogue_ignore_aps": "Ignore detecting APs",
+          "rogue_history_ttl_days": "Rogue history retention (days)"
         },
         "data_description": {
           "api_key": "Leave blank to keep the current API key, or enter a new one to change it.",
           "password": "Leave blank to keep the current password, or enter a new one to change it.",
           "unifi_device_mode": "How much per-device detail to add for your APs and switches.",
           "rogue_ignore_ssids": "Comma-separated; wildcards allowed (e.g. Guest_*, *test*).",
-          "rogue_ignore_aps": "Comma-separated AP names or MACs; wildcards allowed."
+          "rogue_ignore_aps": "Comma-separated AP names or MACs; wildcards allowed.",
+          "rogue_history_ttl_days": "Days to keep a rogue AP's first-seen/appearance history after it stops being detected (0 = keep forever)."
         },
         "sections": {
           "sensor_groups": {
@@ -243,6 +245,9 @@
       },
       "gateway_rogue_raw_24h": {
         "name": "Rogue APs All 24h"
+      },
+      "gateway_rogue_new_24h": {
+        "name": "Rogue APs New 24h"
       },
       "gateway_guest_user_count": {
         "name": "Guest Users"
@@ -577,15 +582,17 @@
           "password": "Password",
           "site": "Site ID",
           "unifi_device_mode": "UniFi device (Access Point & Switch) sensors",
-          "rogue_ignore_ssids": "Ignore rogue SSIDs",
-          "rogue_ignore_aps": "Ignore detecting APs"
+          "rogue_ignore_ssids": "Ignore Rogue SSIDs",
+          "rogue_ignore_aps": "Ignore detecting APs",
+          "rogue_history_ttl_days": "Rogue history retention (days)"
         },
         "data_description": {
           "api_key": "Leave blank to keep the current API key, or enter a new one to change it.",
           "password": "Leave blank to keep the current password, or enter a new one to change it.",
           "unifi_device_mode": "How much per-device detail to add for your APs and switches.",
           "rogue_ignore_ssids": "Comma-separated; wildcards allowed (e.g. Guest_*, *test*).",
-          "rogue_ignore_aps": "Comma-separated AP names or MACs; wildcards allowed."
+          "rogue_ignore_aps": "Comma-separated AP names or MACs; wildcards allowed.",
+          "rogue_history_ttl_days": "Days to keep a rogue AP's first-seen/appearance history after it stops being detected (0 = keep forever)."
         },
         "sections": {
           "sensor_groups": {
@@ -657,11 +664,15 @@
         },
         "keyword": {
           "name": "Keyword",
-          "description": "Case-insensitive substring to match against the alert title and message."
+          "description": "Comma-separated terms; keep any alert whose title or message contains at least one of them (case-insensitive substring)."
         },
         "exclude": {
           "name": "Exclude",
           "description": "Comma-separated terms; drop any alert whose title or message contains one of them. Applied after Keyword."
+        },
+        "count_total": {
+          "name": "Count Total",
+          "description": "Also return the total number of matching alerts (scanning past the returned quantity, up to the 500-record cap), plus a 'truncated' flag if that cap was reached. Off by default to keep the query light."
         }
       }
     },
@@ -691,11 +702,75 @@
         },
         "keyword": {
           "name": "Keyword",
-          "description": "Case-insensitive substring to match against the SSID, OUI (vendor), and security."
+          "description": "Comma-separated terms; keep any rogue AP whose SSID, OUI (vendor), or security contains at least one of them (case-insensitive substring)."
         },
         "exclude": {
           "name": "Exclude",
           "description": "Comma-separated terms; drop any rogue AP whose SSID, OUI, or security contains one of them. Applied after Keyword."
+        }
+      }
+    },
+    "clear_rogue_history": {
+      "name": "Clear Rogue AP History",
+      "description": "Erase the persistent rogue-AP appearance history (first-seen and appearance counts). History rebuilds from the next poll.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "The UniFi Network Monitor gateway to clear. Optional when only one is configured."
+        }
+      }
+    },
+    "add_rogue_ignore": {
+      "name": "Add Rogue Ignore",
+      "description": "Add one pattern to a rogue ignore list (Ignore Rogue SSIDs or Ignore detecting APs). Applies to the passive Security view; the Get Rogue APs action ignores these lists.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "The UniFi Network Monitor gateway. Optional when only one is configured."
+        },
+        "target": {
+          "name": "List",
+          "description": "Which ignore list to modify."
+        },
+        "value": {
+          "name": "Pattern",
+          "description": "The SSID/AP pattern to add. Wildcards allowed (e.g. Guest_*, Hidden-*)."
+        }
+      }
+    },
+    "remove_rogue_ignore": {
+      "name": "Remove Rogue Ignore",
+      "description": "Remove one pattern from a rogue ignore list (exact match). Silent if the pattern is not present.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "The UniFi Network Monitor gateway. Optional when only one is configured."
+        },
+        "target": {
+          "name": "List",
+          "description": "Which ignore list to modify."
+        },
+        "value": {
+          "name": "Pattern",
+          "description": "The exact SSID/AP pattern to remove."
+        }
+      }
+    },
+    "set_rogue_ignore": {
+      "name": "Set Rogue Ignore",
+      "description": "Replace an entire rogue ignore list in one call. Returns the previous and new lists (useful for undo).",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "The UniFi Network Monitor gateway. Optional when only one is configured."
+        },
+        "target": {
+          "name": "List",
+          "description": "Which ignore list to replace."
+        },
+        "values": {
+          "name": "Patterns",
+          "description": "Comma-separated patterns that replace the list entirely. Leave blank to clear it."
         }
       }
     }

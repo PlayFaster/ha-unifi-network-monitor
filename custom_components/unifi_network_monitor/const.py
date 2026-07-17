@@ -45,6 +45,16 @@ EVENT_NEW_ROGUE_AP = f"{DOMAIN}_new_rogue_ap"
 # own data so it works regardless of the Security toggle (fully decoupled).
 SERVICE_GET_ROGUE_APS = "get_rogue_aps"
 
+# Persistent rogue-AP appearance history — clear action + ignore-list management.
+SERVICE_CLEAR_ROGUE_HISTORY = "clear_rogue_history"
+SERVICE_ADD_ROGUE_IGNORE = "add_rogue_ignore"
+SERVICE_REMOVE_ROGUE_IGNORE = "remove_rogue_ignore"
+SERVICE_SET_ROGUE_IGNORE = "set_rogue_ignore"
+# target selector for the ignore-list services (which list to manage).
+ROGUE_IGNORE_TARGET_SSIDS = "ssids"
+ROGUE_IGNORE_TARGET_APS = "aps"
+ROGUE_IGNORE_TARGETS = (ROGUE_IGNORE_TARGET_SSIDS, ROGUE_IGNORE_TARGET_APS)
+
 # get_rogue_aps quantity control.
 ROGUE_QUANTITY_DEFAULT = 10
 ROGUE_QUANTITY_MAX = 100
@@ -69,9 +79,13 @@ DEFAULT_ROGUE_ACTION_PERIOD = "24h"
 ROGUE_ACTION_BANDS = ("2.4", "5", "both")
 DEFAULT_ROGUE_ACTION_BAND = "both"
 
-# Display sentinel for a cloaked SSID (empty/whitespace-only essid — the
-# controller's hidden-network case, mirroring the UniFi web GUI's "<Hidden>").
+# Display sentinel for a cloaked SSID when its BSSID is unknown (fallback only).
+# Normally a hidden SSID is named ``Hidden-<suffix>`` from its BSSID so distinct
+# cloaked APs stay distinguishable and trackable across polls.
 ROGUE_HIDDEN_SSID = "<Hidden>"
+
+# Prefix for the BSSID-derived pseudo-name of a cloaked SSID (e.g. "Hidden-A2D3").
+ROGUE_HIDDEN_PREFIX = "Hidden-"
 
 # Placeholder substituted for control/zero-width/non-printable characters in an
 # essid, so a spoofed name renders safely and the tampering stays visible.
@@ -111,6 +125,15 @@ CONF_ROGUE_SHOW_24GHZ = "rogue_show_24ghz"
 CONF_ROGUE_SHOW_5GHZ = "rogue_show_5ghz"
 CONF_ROGUE_APPLY_AP_IGNORE = "rogue_apply_ap_ignore"
 CONF_ROGUE_APPLY_SSID_IGNORE = "rogue_apply_ssid_ignore"
+CONF_ROGUE_HISTORY_TTL_DAYS = "rogue_history_ttl_days"
+
+# Persistent rogue-history tuning. TTL prunes BSSIDs unseen for N days (0 = keep
+# forever); the hard cap bounds the store regardless of TTL (MAC randomization
+# can spray many one-off BSSIDs). Writes are coalesced via async_delay_save.
+DEFAULT_ROGUE_HISTORY_TTL_DAYS = 90
+ROGUE_HISTORY_MAX = 1000
+ROGUE_HISTORY_SAVE_DELAY = 120
+ROGUE_HISTORY_STORAGE_VERSION = 1
 
 # unifi_device_mode values — which per-UniFi-device entities Monitor creates
 DEVICE_MODE_NONE = "none"

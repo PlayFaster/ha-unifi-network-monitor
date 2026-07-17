@@ -32,12 +32,19 @@ async def async_get_config_entry_diagnostics(
     """Return diagnostics for a config entry."""
     coordinator: UnifiNetworkDataUpdateCoordinator = entry.runtime_data
 
+    # Emit history as a list of records (not a BSSID-keyed dict) so the ``bssid``
+    # entry in TO_REDACT masks the MAC — async_redact_data redacts values, not keys.
+    rogue_history = [
+        {"bssid": bssid, **rec} for bssid, rec in coordinator.rogue_history.items()
+    ]
+
     return {
         "entry": {
             "title": entry.title,
             "data": async_redact_data(dict(entry.data), TO_REDACT),
             "options": async_redact_data(dict(entry.options), TO_REDACT),
         },
+        "rogue_history": async_redact_data(rogue_history, TO_REDACT),
         "coordinator": {
             "consecutive_failures": coordinator.consecutive_failures,
             "last_update_success": coordinator.last_update_success,

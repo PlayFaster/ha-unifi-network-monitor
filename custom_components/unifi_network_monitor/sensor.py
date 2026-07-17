@@ -97,6 +97,7 @@ _ENDPOINT_BY_KEY: dict[str, str] = {
     "wan2_month_total": EP_MONTHLY,
     "month_total": EP_MONTHLY,
     "rogue_ap_count": EP_ROGUE,
+    "rogue_new_24h": EP_ROGUE,
     "strongest_rogue_ssid": EP_ROGUE,
     "strongest_rogue_rssi": EP_ROGUE,
     "rogue_raw_24h": EP_ROGUE_RAW,
@@ -558,6 +559,21 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
             "Filtered count of unique rogue APs after your band, SSID and UniFi "
             "AP ignore settings are applied. See 'Rogue APs All 24h' for "
             "unfiltered volume."
+        ),
+    ),
+    UnifiSensorEntityDescription(
+        key="rogue_new_24h",
+        translation_key="gateway_rogue_new_24h",
+        state_class=SensorStateClass.MEASUREMENT,
+        min_limit=0.0,
+        value_fn=lambda d: d.get("rogue_new_24h"),
+        device_key="security",
+        about=(
+            "Count of rogue BSSIDs first seen by Home Assistant within the last "
+            "24 hours — brand-new neighbours/devices, distinct from long-standing "
+            "ones. Tracked across restarts. Note: on first enable everything "
+            "counts as new for the first 24h, and BSSID-randomising devices "
+            "appear new on each rotation."
         ),
     ),
     UnifiSensorEntityDescription(

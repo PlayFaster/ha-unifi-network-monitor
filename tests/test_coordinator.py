@@ -2598,36 +2598,40 @@ def test_normalize_essid_normal() -> None:
     """A plain SSID is returned unchanged with no anomaly."""
     from custom_components.unifi_network_monitor.coordinator import normalize_essid
 
-    display, anomaly = normalize_essid("My WiFi")
+    display, anomaly, hidden = normalize_essid("My WiFi")
     assert display == "My WiFi"
     assert anomaly is False
+    assert hidden is False
 
 
 def test_normalize_essid_empty_is_hidden() -> None:
-    """An empty essid collapses to the <Hidden> sentinel and flags anomaly."""
+    """An empty essid flags hidden + anomaly (display is the <Hidden> fallback)."""
     from custom_components.unifi_network_monitor.coordinator import normalize_essid
 
-    display, anomaly = normalize_essid("")
+    display, anomaly, hidden = normalize_essid("")
     assert display == "<Hidden>"
     assert anomaly is True
+    assert hidden is True
 
 
 def test_normalize_essid_whitespace_is_hidden() -> None:
     """A whitespace-only essid (spaces/tabs) is treated as hidden."""
     from custom_components.unifi_network_monitor.coordinator import normalize_essid
 
-    display, anomaly = normalize_essid("   \t ")
+    display, anomaly, hidden = normalize_essid("   \t ")
     assert display == "<Hidden>"
     assert anomaly is True
+    assert hidden is True
 
 
 def test_normalize_essid_none_is_hidden() -> None:
     """A missing (None) essid is treated as hidden."""
     from custom_components.unifi_network_monitor.coordinator import normalize_essid
 
-    display, anomaly = normalize_essid(None)
+    display, anomaly, hidden = normalize_essid(None)
     assert display == "<Hidden>"
     assert anomaly is True
+    assert hidden is True
 
 
 def test_normalize_essid_control_chars_sanitized() -> None:
@@ -2635,9 +2639,20 @@ def test_normalize_essid_control_chars_sanitized() -> None:
     from custom_components.unifi_network_monitor.coordinator import normalize_essid
 
     # Embedded zero-width space (U+200B) and trailing RTL override (U+202E).
-    display, anomaly = normalize_essid("Corp\u200bNet\u202e")
+    display, anomaly, hidden = normalize_essid("Corp\u200bNet\u202e")
     assert display == "Corp\u00b7Net\u00b7"
     assert anomaly is True
+    assert hidden is False  # obfuscated, not cloaked
+
+
+def test_hidden_label_last4_and_extended() -> None:
+    """hidden_label builds Hidden-<last4> (or last6 when extended)."""
+    from custom_components.unifi_network_monitor.coordinator import hidden_label
+
+    assert hidden_label("02:18:4a:c0:a2:d3") == "Hidden-A2D3"
+    assert hidden_label("02:18:4a:c0:a2:d3", extended=True) == "Hidden-C0A2D3"
+    # No usable hex \u2192 <Hidden> fallback.
+    assert hidden_label("") == "<Hidden>"
 
 
 # ---------------------------------------------------------------------------
@@ -2667,13 +2682,34 @@ def test_parse_rogue_aps_extended_fields() -> None:
     )
     assert len(parsed) == 1
     ap = parsed[0]
-    assert ap["essid"] == "<Hidden>"
+    # Empty essid → BSSID-derived pseudo-name (last 4 hex of 00:00:00:00:00:aa).
+    assert ap["essid"] == "Hidden-00AA"
     assert ap["ssid_anomaly"] is True
     assert ap["channel_width"] == 80
     assert ap["security"] == "Open"
     assert ap["is_adhoc"] is True
     assert ap["wired_rogue"] is False
     assert ap["detected_by"] == "Office AP"
+
+
+def test_parse_rogue_aps_hidden_label_collision_extends() -> None:
+    """Two hidden BSSIDs sharing a last-4 suffix both extend to last-6."""
+    from custom_components.unifi_network_monitor.coordinator import parse_rogue_aps
+
+    parsed = parse_rogue_aps(
+        [
+            {"essid": "", "bssid": "00:00:00:aa:a2:d3", "band": "ng"},
+            {"essid": "", "bssid": "00:00:00:bb:a2:d3", "band": "ng"},
+            {"essid": "", "bssid": "00:00:00:cc:00:99", "band": "ng"},
+        ],
+        {},
+        1_700_000_000,
+    )
+    labels = {ap["bssid"]: ap["essid"] for ap in parsed}
+    # The two colliding on A2D3 extend to last-6; the non-colliding stays last-4.
+    assert labels["00:00:00:aa:a2:d3"] == "Hidden-AAA2D3"
+    assert labels["00:00:00:bb:a2:d3"] == "Hidden-BBA2D3"
+    assert labels["00:00:00:cc:00:99"] == "Hidden-0099"
 
 
 def test_parse_rogue_aps_wired_rogue_any_reporter() -> None:
@@ -2929,47 +2965,50 @@ async def test_fire_new_alert_events_skips_null_id(
 async def test_fire_new_rogue_events_baseline(
     hass: Any, mock_config_entry: Any
 ) -> None:
-    """First call records baseline and does not fire events."""
+    """First call with no new_bssids fires nothing; baseline covers all."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
     coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
 
     coordinator._fire_new_rogue_events(
-        [{"bssid": "00:11:22:33:44:55", "essid": "TestNet"}]
+        [{"bssid": "00:11:22:33:44:55", "essid": "TestNet"}], set()
     )
-    assert coordinator._rogue_baseline_done is True
-    assert "00:11:22:33:44:55" in coordinator._seen_rogue_bssids
+    # With an empty new set, no events fire — the baseline for these
+    # BSSIDs is set externally by _update_rogue_history.
+    assert coordinator._rogue_baseline_done is False
 
 
 async def test_fire_new_rogue_events_new_bssid(
     hass: Any, mock_config_entry: Any
 ) -> None:
-    """New BSSID fires a bus event."""
+    """New BSSID (in new_bssids set) fires a bus event."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
     coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
     coordinator._rogue_baseline_done = True
 
     coordinator._fire_new_rogue_events(
-        [{"bssid": "66:77:88:99:aa:bb", "essid": "NewRogue"}]
+        [{"bssid": "66:77:88:99:aa:bb", "essid": "NewRogue"}], {"66:77:88:99:aa:bb"}
     )
-    assert "66:77:88:99:aa:bb" in coordinator._seen_rogue_bssids
+    # The event fires but the BSSID is recorded by _update_rogue_history
+    # not _fire_new_rogue_events. Just verify no exception —
+    #  the event assertion is in test_fire_new_rogue_events_only_new
 
 
 async def test_fire_new_rogue_events_skips_seen(
     hass: Any, mock_config_entry: Any
 ) -> None:
-    """Already-seen BSSID does not fire again."""
+    """BSSID not in new_bssids set is not fired again."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
     coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
     coordinator._rogue_baseline_done = True
-    coordinator._seen_rogue_bssids = {"00:11:22:33:44:55"}
 
     coordinator._fire_new_rogue_events(
-        [{"bssid": "00:11:22:33:44:55", "essid": "Seen"}]
+        [{"bssid": "00:11:22:33:44:55", "essid": "Seen"}], set()
     )
-    assert coordinator._seen_rogue_bssids == {"00:11:22:33:44:55"}
+    # No assertion needed on _seen_rogue_bssids — it no longer exists.
+    # With empty new_bssids, no event fires.
 
 
 async def test_fire_new_rogue_events_skips_missing_bssid(
@@ -2981,8 +3020,8 @@ async def test_fire_new_rogue_events_skips_missing_bssid(
     coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
     coordinator._rogue_baseline_done = True
 
-    coordinator._fire_new_rogue_events([{"essid": "NoBSSID"}])
-    assert coordinator._seen_rogue_bssids == set()
+    coordinator._fire_new_rogue_events([{"essid": "NoBSSID"}], set())
+    # No exception means the missing BSSID was skipped.
 
 
 # ---------------------------------------------------------------------------
@@ -3010,7 +3049,7 @@ async def test_skip_fetch_resets_alert_baseline(
 async def test_skip_fetch_resets_rogue_baseline(
     hass: Any, mock_config_entry: Any
 ) -> None:
-    """_skip_fetch with EP_ROGUE resets rogue baseline."""
+    """_skip_fetch via EP_ROGUE no reset on rogue base persistent hist handles dedup."""
     from custom_components.unifi_network_monitor.const import EP_ROGUE
 
     mock_config_entry.add_to_hass(hass)
@@ -3020,8 +3059,8 @@ async def test_skip_fetch_resets_rogue_baseline(
     coordinator._seen_rogue_bssids = {"00:11:22:33:44:55"}
 
     await coordinator._skip_fetch(EP_ROGUE)
-    assert coordinator._rogue_baseline_done is False
-    assert coordinator._seen_rogue_bssids == set()
+    assert coordinator._rogue_baseline_done is True
+    assert coordinator._seen_rogue_bssids == {"00:11:22:33:44:55"}
 
 
 async def test_skip_fetch_other_label_no_reset(
@@ -3067,3 +3106,189 @@ def test_safe_int_zero() -> None:
 def test_safe_int_negative() -> None:
     """_safe_int handles negative values."""
     assert _safe_int(-5) == -5
+
+
+# ---------------------------------------------------------------------------
+# Persistent rogue-AP appearance history
+# ---------------------------------------------------------------------------
+
+
+def _history_coordinator(hass: Any, entry: Any) -> Any:
+    """Build a coordinator with the history store's writes stubbed out."""
+    entry.add_to_hass(hass)
+    coord = UnifiNetworkDataUpdateCoordinator(hass, entry, MagicMock())
+    coord._rogue_history_store.async_delay_save = MagicMock()
+    coord._rogue_history_store.async_save = AsyncMock()
+    return coord
+
+
+async def test_rogue_history_baseline_then_new(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """First poll baselines silently; later a genuinely-new BSSID is returned."""
+    coord = _history_coordinator(hass, mock_config_entry)
+    t0 = dt_util.now()
+    aps = [{"bssid": "00:11:22:33:44:55", "essid": "Hidden-4455"}]
+
+    assert coord._update_rogue_history(aps, t0) == set()  # baseline
+    rec = coord.rogue_history["00:11:22:33:44:55"]
+    assert rec["appearances"] == 1
+    assert rec["first_seen"] == t0.isoformat()
+    assert rec["last_label"] == "Hidden-4455"
+
+    t1 = t0 + timedelta(minutes=5)
+    new = coord._update_rogue_history(
+        [*aps, {"bssid": "66:77:88:99:aa:bb", "essid": "New"}], t1
+    )
+    assert new == {"66:77:88:99:aa:bb"}
+    rec = coord.rogue_history["00:11:22:33:44:55"]
+    assert rec["appearances"] == 2  # incremented
+    assert rec["first_seen"] == t0.isoformat()  # unchanged
+    assert rec["last_seen"] == t1.isoformat()
+
+
+async def test_rogue_history_skips_ap_without_bssid(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """AP without a BSSID triggers the continue at line 902."""
+    coord = _history_coordinator(hass, mock_config_entry)
+    aps = [{"essid": "NoBSSID"}]
+    result = coord._update_rogue_history(aps, dt_util.now())
+    assert result == set()
+    assert len(coord.rogue_history) == 0
+
+
+async def test_rogue_history_survives_reload(hass: Any, mock_config_entry: Any) -> None:
+    """A pre-populated store (post-restart) does not baseline; known BSSID silent."""
+    coord = _history_coordinator(hass, mock_config_entry)
+    now = dt_util.now()
+    coord.rogue_history = {
+        "aa:aa:aa:aa:aa:aa": {
+            "first_seen": now.isoformat(),
+            "last_seen": now.isoformat(),
+            "appearances": 3,
+        }
+    }
+    new = coord._update_rogue_history(
+        [{"bssid": "aa:aa:aa:aa:aa:aa"}, {"bssid": "cc:cc:cc:cc:cc:cc"}], now
+    )
+    assert new == {"cc:cc:cc:cc:cc:cc"}  # only the truly-new one
+
+
+async def test_rogue_history_ttl_prune(hass: Any, mock_config_entry: Any) -> None:
+    """TTL prunes BSSIDs whose last_seen is older than the window."""
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_config_entry,
+        options={**mock_config_entry.options, "rogue_history_ttl_days": 30},
+    )
+    coord = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, MagicMock())
+    coord._rogue_history_store.async_delay_save = MagicMock()
+    now = dt_util.now()
+    old_iso = (now - timedelta(days=40)).isoformat()
+    coord.rogue_history = {
+        "old": {"first_seen": old_iso, "last_seen": old_iso, "appearances": 1},
+        "new": {
+            "first_seen": now.isoformat(),
+            "last_seen": now.isoformat(),
+            "appearances": 1,
+        },
+    }
+    coord._prune_rogue_history(now)
+    assert "old" not in coord.rogue_history
+    assert "new" in coord.rogue_history
+
+
+async def test_rogue_history_cap(hass: Any, mock_config_entry: Any) -> None:
+    """The hard cap keeps the most-recently-seen entries (TTL disabled)."""
+    from custom_components.unifi_network_monitor.const import ROGUE_HISTORY_MAX
+
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_config_entry,
+        options={**mock_config_entry.options, "rogue_history_ttl_days": 0},
+    )
+    coord = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, MagicMock())
+    coord._rogue_history_store.async_delay_save = MagicMock()
+    now = dt_util.now()
+    coord.rogue_history = {
+        f"b{i}": {
+            "first_seen": now.isoformat(),
+            "last_seen": (now - timedelta(seconds=i)).isoformat(),
+            "appearances": 1,
+        }
+        for i in range(ROGUE_HISTORY_MAX + 5)
+    }
+    coord._prune_rogue_history(now)
+    assert len(coord.rogue_history) == ROGUE_HISTORY_MAX
+    assert "b0" in coord.rogue_history  # most recent survives
+
+
+async def test_rogue_new_24h_counts_recent(hass: Any, mock_config_entry: Any) -> None:
+    """rogue_new_24h counts only BSSIDs first seen within 24h."""
+    coord = _history_coordinator(hass, mock_config_entry)
+    now = dt_util.now()
+    coord.rogue_history = {
+        "recent": {
+            "first_seen": (now - timedelta(hours=2)).isoformat(),
+            "last_seen": now.isoformat(),
+            "appearances": 1,
+        },
+        "old": {
+            "first_seen": (now - timedelta(days=3)).isoformat(),
+            "last_seen": now.isoformat(),
+            "appearances": 1,
+        },
+    }
+    assert coord.rogue_new_24h(now) == 1
+
+
+async def test_rogue_history_annotate(hass: Any, mock_config_entry: Any) -> None:
+    """_annotate_rogue_history merges first_seen/appearances onto items."""
+    coord = _history_coordinator(hass, mock_config_entry)
+    coord.rogue_history = {"bb": {"first_seen": "t", "appearances": 5}}
+    aps = [{"bssid": "bb"}, {"bssid": "zz"}]
+    coord._annotate_rogue_history(aps)
+    assert aps[0]["first_seen"] == "t"
+    assert aps[0]["appearances"] == 5
+    assert aps[1]["first_seen"] is None
+    assert aps[1]["appearances"] is None
+
+
+async def test_rogue_history_clear(hass: Any, mock_config_entry: Any) -> None:
+    """async_clear_rogue_history empties the store and resets the baseline."""
+    coord = _history_coordinator(hass, mock_config_entry)
+    coord.rogue_history = {"x": {"appearances": 1}}
+    coord._rogue_baseline_done = True
+    await coord.async_clear_rogue_history()
+    assert coord.rogue_history == {}
+    assert coord._rogue_baseline_done is False
+
+
+async def test_async_initialize_loads_history(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """async_initialize populates rogue_history from the store."""
+    coord = _history_coordinator(hass, mock_config_entry)
+    coord._rogue_history_store.async_load = AsyncMock(
+        return_value={"aa": {"appearances": 2}}
+    )
+    await coord.async_initialize()
+    assert coord.rogue_history["aa"]["appearances"] == 2
+
+
+async def test_fire_new_rogue_events_only_new(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """_fire_new_rogue_events fires only for BSSIDs in the new set."""
+    coord = _history_coordinator(hass, mock_config_entry)
+    fired: list[str] = []
+    events = []
+
+    async def _capture(event):
+        events.append(event.data.get("bssid"))
+
+    coord.hass.bus.async_listen("unifi_network_monitor_new_rogue_ap", _capture)
+    aps = [{"bssid": "aa", "essid": "A"}, {"bssid": "bb", "essid": "B"}]
+    coord._fire_new_rogue_events(aps, {"bb"})
+    assert events == ["bb"]

@@ -164,6 +164,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     coordinator = UnifiNetworkDataUpdateCoordinator(hass, entry, api)
     entry.runtime_data = coordinator
+    # Load persisted rogue-AP appearance history before the first poll so the
+    # new-rogue event and first_seen/appearances are correct from the start.
+    await coordinator.async_initialize()
     coordinator.reload_signature = _reload_signature(entry.options)
     entry.async_on_unload(entry.add_update_listener(_async_reload_on_settings_change))
     entry.async_on_unload(coordinator._cancel_scheduled_refresh)

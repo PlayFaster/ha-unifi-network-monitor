@@ -4,7 +4,7 @@
 
 This document is split into two logical parts:
 
-- **Part I: Base Gateway & Network Entities**: The default virtual devices (comprising 126 entities across the Alerts, Gateway, Internet, Security, Speedtest, Status, and System sub-devices) present in standard gateway-monitoring mode.
+- **Part I: Base Gateway & Network Entities**: The default virtual devices (comprising 127 entities across the Alerts, Gateway, Internet, Security, Speedtest, Status, and System sub-devices) present in standard gateway-monitoring mode.
 - **Part II: Dynamic UniFi Devices (APs & Switches)**: Dynamic sensor entities generated for each physical UniFi Access Point and Switch monitored by the integration (~20 devices, adding ~160 entities when enabled).
 
 > **🔑 API-key-only sensors:** rows marked **_API-key only_** in the Notes column are served by the UniFi Integration (v3) API, which cannot be reached with username/password auth. Under username/password these seven sensors (Rules Active/Configured/Disabled, VPN Connections Active/Total, WAN1/WAN2 Name) are permanently `unknown`. Use an API key to enable them.
@@ -15,11 +15,11 @@ This document is split into two logical parts:
 
 > **Grouping note:** Sub-devices below match the **actual Home Assistant device cards** (the `sensor.unifi_network_<group>_…` entity-ID prefix a user sees on a default install), verified live against a UDM Pro.
 >
-> The default sub-device names are **UniFi Network Alerts / Gateway / Internet / Security / Speedtest / Status / System**; counts are for the base scenario: **126 entities** = Alerts 4 + Gateway 18 + Internet 39 + Security 19 + Speedtest 14 + Status 23 + System 9.
+> The default sub-device names are **UniFi Network Alerts / Gateway / Internet / Security / Speedtest / Status / System**; counts are for the base scenario: **127 entities** = Alerts 4 + Gateway 18 + Internet 39 + Security 20 + Speedtest 14 + Status 23 + System 9.
 >
-> **Enabled vs disabled — depends on HA Core UniFi:** the 126 registered entities are the same either way; only the enabled-by-default count differs.
+> **Enabled vs disabled — depends on HA Core UniFi:** the 127 registered entities are the same either way; only the enabled-by-default count differs.
 >
-> - **Without Core UniFi (standalone):** **103 enabled / 23 disabled** (verified live, 2026-07-14). Per card, enabled / total: Alerts 4/4, Gateway 11/18, Internet 34/39, Security 19/19, Speedtest 14/14, Status 12/23, System 9/9.
+> - **Without Core UniFi (standalone):** **104 enabled / 23 disabled** (base counts + the new Rogue APs New 24h sensor; re-verify live). Per card, enabled / total: Alerts 4/4, Gateway 11/18, Internet 34/39, Security 20/20, Speedtest 14/14, Status 12/23, System 9/9.
 > - **With Core UniFi installed:** **97 enabled / 29 disabled** — six gateway diagnostics (rows tagged _Standalone-only enabled_ in §2: `cpu`, `ram`, `cpu_temp`, `board_temp`, `uptime`, `update_available`) revert to disabled-by-default when Core is present, so the Gateway card reads 5/18. Core already provides the gateway's CPU/memory; the temperatures are Monitor-only but kept off to avoid cluttering the merged gateway card (enable manually if wanted).
 >
 > The 23 always-disabled rows are the ones marked _Disabled by default_ (Gateway 7 SFP/storage, Internet 5, Status 11).
@@ -118,6 +118,7 @@ _Group: `security`_
 | Honeypot | `gateway_honeypot` | Binary Sensor | — | Diagnostic |  |
 | Rogue AP Proximity Alert | `gateway_rogue_proximity_alert` | Binary Sensor | — | Diagnostic |  |
 | Rogue APs All 24h | `gateway_rogue_raw_24h` | Sensor | — | Diagnostic |  |
+| Rogue APs New 24h | `gateway_rogue_new_24h` | Sensor | — | — | BSSIDs first seen by HA within 24h; persistent history, LTS-enabled. |
 | Rogue Access Points | `gateway_rogue_ap_count` | Sensor | — | — |  |
 | Rogue Detection Period | `rogue_period` | Select | — | Config |  |
 | Rogue Proximity Threshold | `gateway_rogue_proximity_threshold` | Number | dBm | Config |  |
@@ -199,7 +200,7 @@ _Group: `system`_
 | WAN1 Load Balance Weight | `wan1_load_balance_weight` | Number | % | Config |  |
 | WAN2 Load Balance | `gateway_wan2_weight` | Sensor | % | — |  |
 
-> **Actions (not entities):** three registered services are **not** part of the 126 entity count — `unifi_network_monitor.cleanup_unused_entities` (the `dry_run` counterpart to the **Clean Up Unused Entities** button), `unifi_network_monitor.get_alerts` (on-demand system-log query — Alerts group), and `unifi_network_monitor.get_rogue_aps` (on-demand rogue-AP query — Security group). Both `get_*` actions fetch their own data, so they work even when the matching sensor group is off.
+> **Actions (not entities):** seven registered services are **not** part of the 127 entity count — `unifi_network_monitor.cleanup_unused_entities` (the `dry_run` counterpart to the **Clean Up Unused Entities** button), `get_alerts` (on-demand system-log query — Alerts group), `get_rogue_aps` (on-demand rogue-AP query — Security group), `clear_rogue_history` (reset the persistent rogue history), and `add_rogue_ignore` / `remove_rogue_ignore` / `set_rogue_ignore` (manage the Ignore Rogue SSIDs / Ignore detecting APs lists from automations). The `get_*` actions fetch their own data, so they work even when the matching sensor group is off.
 >
 > **Bus events (not entities):** `unifi_network_monitor_new_alert` (per newly-seen HIGH/VERY_HIGH alert) and `unifi_network_monitor_new_rogue_ap` (per newly-seen rogue BSSID) fire on the bus for automations. They only fire while the Alerts / Security group is enabled.
 >
@@ -217,9 +218,9 @@ These entities are **opt-in**, controlled by the _UniFi device (Access Point & S
 
 | Mode (rig: 8 APs, 12 switches) | Devices | Registered | Enabled — no Core | Enabled — Core present |
 | :-- | :-: | :-: | :-: | :-: |
-| Don't add | 7 | 126 | 103 | 97 |
-| AP Satisfaction Score only | 15 | 150 | n/a¹ | 105 |
-| Add all device sensors | 27 | 286 | 263 | 105 |
+| Don't add | 7 | 127 | 104 | 98 |
+| AP Satisfaction Score only | 15 | 151 | n/a¹ | 106 |
+| Add all device sensors | 27 | 287 | 264 | 106 |
 
 ¹ Satisfaction-only is only offered when Core is present. **Without Core**, all created per-device entities are enabled; **with Core**, only the AP **Satisfaction Score** is enabled (band scores + everything else, and all 6 switch sensors, are disabled — 1 enabled per AP, 0 per switch). So under Core, "Add all" enables the _same_ 105 as "Satisfaction only" — the extra 152 per-device entities are all disabled clutter. The **Don't add** base row is verified live (2026-07-14, standalone = 126/103); the per-device rows carry the prior live rig validation plus the +10 base delta (Alerts 4 + Rogue APs All 24h + 4 rogue switches + Rogue Detection Period select), which are all enabled-by-default and mode-independent. The `Default (Core present)` column in §8/§9 reflects the per-entity defaults.
 

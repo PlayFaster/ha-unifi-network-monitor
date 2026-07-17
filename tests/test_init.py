@@ -440,6 +440,7 @@ async def test_setup_entry_background_init_unifi_error(
         mock_api.get_health = AsyncMock(return_value=[])
         mock_api.get_sysinfo = AsyncMock(return_value=[])
         coordinator = MagicMock()
+        coordinator.async_initialize = AsyncMock()
         coordinator.async_refresh = AsyncMock(
             side_effect=UnifiConnectionError("connection lost")
         )

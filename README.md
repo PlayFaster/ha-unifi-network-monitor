@@ -152,9 +152,9 @@ This integration exposes its entities across several sub-devices — **Gateway**
 >
 > **What "unrecorded" means:** the **About** notes — and a few intentionally large attributes, such as the rogue-AP list on **Strongest Rogue SSID** — are marked **unrecorded**. Home Assistant still shows them live in the entity's details, but **never writes them to the history/recorder database**. That keeps these bulky or purely-informational values from bloating your database, with no downside to what you see day-to-day.
 
-The counts below are from a **base install** on a UDM Pro — **no per-device (AP/switch) sensors**, with all feature groups **on**. That registers **126 base entities** regardless of anything else; only the enabled-by-default count changes:
+The counts below are from a **base install** on a UDM Pro — **no per-device (AP/switch) sensors**, with all feature groups **on**. That registers **127 base entities** regardless of anything else; only the enabled-by-default count changes:
 
-- **Without the official HA Core UniFi integration:** **103 enabled / 23 disabled**. The `Enabled / Total` column below reflects this case.
+- **Without the official HA Core UniFi integration:** **104 enabled / 23 disabled**. The `Enabled / Total` column below reflects this case.
 - **With HA Core UniFi installed:** **97 enabled / 29 disabled** — six gateway diagnostics (CPU, Memory, CPU/Board Temperature, Uptime, Update Available) come in **disabled-by-default** because Core already surfaces the gateway (see [Coexistence](#-coexistence-with-the-official-unifi-integration)). So the Gateway row below reads **5 / 18** instead of 11 / 18.
 
 Enable any disabled entity per-entity when you want it. Your totals also differ with your options and hardware (see [Configuration](#-configuration)).
@@ -164,7 +164,7 @@ Enable any disabled entity per-entity when you want it. Your totals also differ 
 | 🖥️ **Gateway** | 11 / 18 | CPU, Memory, CPU/Board Temperature, Storage (used/total/%), Uptime, UniFi OS & Network application versions, WAN1/WAN2 SFP diagnostics, Update Available |
 | 🌐 **Internet** | 34 / 39 | WAN1/WAN2 active-uplink & link-up, Local/Public IPs, WAN names, availability, latency, last-restart/uptime, ISP name/org, and daily/monthly data usage; plus Internet Connected / OK, drops, latency, online-since |
 | ⚡ **Speedtest** | 14 / 14 | WAN1/WAN2 Download, Upload, Ping, Last Run, Monitoring Period, Last Run Status/Problem; Run WAN1/WAN2 Speedtest buttons |
-| 🛡️ **Security** | 19 / 19 | Rogue AP Count, Strongest Rogue SSID/RSSI, Rogue APs All 24h, Proximity Alert (+ threshold), Rogue Detection Period, Show 2.4/5 GHz + Apply-ignore switches, Threat-Management mode, Ad-blocking, Honeypot, and VPN-connection & firewall-rule counts |
+| 🛡️ **Security** | 20 / 20 | Rogue AP Count, Rogue APs New 24h, Strongest Rogue SSID/RSSI, Rogue APs All 24h, Proximity Alert (+ threshold), Rogue Detection Period, Show 2.4/5 GHz + Apply-ignore switches, Threat-Management mode, Ad-blocking, Honeypot, and VPN-connection & firewall-rule counts |
 | 🚨 **Alerts** | 4 / 4 | Last High Sev3, Last Very High Sev4, and High/Very High Sev4 Qty Last 24h |
 | 📊 **Status** | 12 / 23 | Device/guest/WiFi client counts, VLAN & WiFi-network counts, per-SSID & per-VPN-tunnel status, and the aggregate Network Problem + per-subsystem OK sensors (WAN/Internet/WiFi/LAN) |
 | ⚙️ **System** | 9 / 9 | Multi-WAN mode, WAN1/WAN2 Load Balance, Polling Interval, Pause Polling, WAN1 Load-Balance Weight, Refresh Now, Clean Up Unused Entities, Last Updated |
@@ -274,11 +274,27 @@ The same screen also sets the **UniFi device (AP & Switch) sensors** scope (none
 
 ---
 
-### Setup / Reconfig plus Gateway
+### Setup and Reconfigure
 
-| Setup and Reconfigure Screen | Gateway Diagnostic Info |
+| Setup Screen | Reconfigure Screen |
 | :-: | :-: |
-| ![Setup Reconfigure](.github/images/unifi_mon_setup_reconfig.png) | ![Gateway](.github/images/unifi_mon_gateway_dev_plus_dis.png) |
+| ![Setup](.github/images/unifi_mon_setup_setup.png) | ![Reconfigure](.github/images/unifi_mon_setup_reconfig.png) |
+
+---
+
+### Alert / About: Attribute
+
+| Alert Sensors | About: Attribute Example |
+| :-: | :-: |
+| ![Alert Sensors](.github/images/unifi_mon_alert_sensors.png) | ![About Attribute Example](.github/images/unifi_mon_about_attrib_example.png) |
+
+---
+
+### Security / Gateway
+
+| Security Entities | Gateway Diagnostic Info |
+| :-: | :-: |
+| ![Security Entities](.github/images/unifi_mon_security_all.png) | ![Gateway](.github/images/unifi_mon_gateway_dev_plus_dis.png) |
 
 ---
 
@@ -300,15 +316,27 @@ The same screen also sets the **UniFi device (AP & Switch) sensors** scope (none
 
 ### Status Info
 
-| Status Sensors | Status Config and Diagnostic Info |
+| Status Sensors | Status Diagnostic Info |
 | :-: | :-: |
-| ![Status Sensors](.github/images/unifi_mon_status_dev_sensors.png) | ![Status Configuration Diagnostics](.github/images/unifi_mon_status_dev_diag_config.png) |
+| ![Status Sensors](.github/images/unifi_mon_status_dev_sensors.png) | ![Status Configuration Diagnostics](.github/images/unifi_mon_status_dev_diag.png) |
 
 ---
 
 ### Clean Up Action (service)
 
-![Cleanup Action](.github/images/unifi_mon_cleanup_action.png)
+![Cleanup Action](.github/images/unifi_mon_action_cleanup.png)
+
+---
+
+### Get Alerts Action (service)
+
+![Get Alerts Action](.github/images/unifi_mon_action_alerts.png)
+
+---
+
+### Get Rogue APs Action (service)
+
+![Get Rogue APs Action](.github/images/unifi_mon_action_rogue_aps.png)
 
 ---
 
@@ -322,7 +350,7 @@ This integration surfaces those detections through the **Security** sub-device. 
 
 - **Rogue Access Points (`sensor.*_rogue_access_points`)**: Count of unique rogue APs, after your band and ignore-list filtering.
 - **Strongest Rogue SSID (`sensor.*_strongest_rogue_ssid`)**: The SSID of the rogue network with the strongest (least-negative) signal.
-  - _Attributes_: a `rogue_aps` list (the 25 strongest) with each rogue's SSID, BSSID (MAC), band, channel, channel width, signal (RSSI), security, vendor (OUI), age, last-seen, `wired_rogue`, `is_adhoc`, `ssid_anomaly`, and the friendly name of the UniFi AP that detected it. A hidden SSID shows as `<Hidden>`. `rogue_aps_truncated` flags if the list was capped — use the `get_rogue_aps` action for the complete set.
+  - _Attributes_: a `rogue_aps` list (the 25 strongest) with each rogue's SSID, BSSID (MAC), band, channel, channel width, signal (RSSI), security, vendor (OUI), age, last-seen, `wired_rogue`, `is_adhoc`, `ssid_anomaly`, and the friendly name of the UniFi AP that detected it. A hidden SSID is named from its BSSID as `Hidden-A2D3` (last 4 hex) so distinct cloaked APs stay distinguishable. `rogue_aps_truncated` flags if the list was capped — use the `get_rogue_aps` action for the complete set.
 - **Strongest Rogue RSSI (`sensor.*_strongest_rogue_rssi`)**: The signal strength (in dBm) of the strongest rogue network.
 - **Rogue APs All 24h (`sensor.*_rogue_aps_all_24h`)**: The **raw, unfiltered** total detection count over a rolling 24 hours — every detection by every UniFi AP, ignoring all your settings and lists. A gauge of background rogue "noise", distinct from the filtered count above.
 - **Rogue AP Proximity Alert (`binary_sensor.*_rogue_ap_proximity_alert`)**: A `PROBLEM` binary sensor that turns `on` when the strongest rogue's RSSI is at or above your **Rogue Proximity Threshold** (e.g. `-50` dBm is higher/closer than `-60` dBm).
@@ -346,8 +374,8 @@ This integration surfaces those detections through the **Security** sub-device. 
 
 ### ⚙️ How to use it
 
-1. Look at the typical signal levels of your neighbours' Wi-Fi networks in your dashboard.
-2. Set your **Rogue Proximity Threshold** slightly above this normal background level (e.g. if neighbours average `-75` dBm, set the threshold to `-65` or `-60` dBm).
+1. Look at the typical signal levels of your neighbors' Wi-Fi networks in your dashboard.
+2. Set your **Rogue Proximity Threshold** slightly above this normal background level (e.g. if neighbors average `-75` dBm, set the threshold to `-65` or `-60` dBm).
 3. Optionally narrow the noise: set the **Rogue Detection Period**, add known-friendly SSIDs/APs to the ignore lists, or turn off a band you don't care about.
 4. Set up an automation to notify you when the **Proximity Alert** turns `on` (see the example below).
 
@@ -389,7 +417,7 @@ triggers:
       Triggers when a rogue AP exceeds the proximity threshold. Dynamic delay ensures we wait
       for consecutive polls to confirm it is a stationary/sustained threat rather than a passing car.
 actions:
-  - action: notify.mobile_app_your_phone
+  - action: persistent_notification.create
     data:
       title: "Rogue AP detected nearby"
       message: |
@@ -417,7 +445,7 @@ triggers:
       Alerts monitoring is enabled, and it records the existing backlog silently on startup /
       re-enable, so a restart won't replay old alerts.
 actions:
-  - action: notify.mobile_app_your_phone
+  - action: persistent_notification.create
     data:
       title: "UniFi alert: {{ trigger.event.data.title }}"
       message: "{{ trigger.event.data.message }}"
@@ -452,13 +480,11 @@ actions:
   - condition: template
     value_template: "{{ alerts.count > 0 }}"
     note: Stop here (no notification) when there were no alerts.
-  - action: notify.mobile_app_your_phone
+  - action: persistent_notification.create
     data:
       title: "UniFi: {{ alerts.count }} alert(s) in the last 24h"
-      message: >-
+      message: |
         • {{ alerts.alerts | map(attribute='title') | join('\n• ') }}
-
-
     note: |
       One bulleted line per alert title. To include severity, swap the message for a loop:
       {% for a in alerts.alerts %}• {{ a.severity }} — {{ a.title }}
@@ -491,7 +517,7 @@ actions:
   - condition: template
     value_template: "{{ rogues.count > 0 }}"
     note: Stop here (no notification) when no rogues were detected.
-  - action: notify.mobile_app_your_phone
+  - action: persistent_notification.create
     data:
       title: "UniFi: top {{ rogues.count }} rogue AP(s) — last 24h"
       message: |-
@@ -500,8 +526,68 @@ actions:
         {% endfor -%}
     note: |
       One bulleted line per rogue: SSID, signal strength, and band. A hidden SSID shows as
-      `<Hidden>` (no fallback needed). Each `r` also carries bssid, channel, channel_width,
+      `Hidden-A2D3` (from its BSSID). Each `r` also carries bssid, channel, channel_width,
       security, oui (vendor), age, detected_by, is_adhoc, and wired_rogue (flagged above).
+```
+
+#### 🏠 New / Reset Smart-Home Device Nearby
+
+When a Shelly, Sonoff, Aqara, or SwitchBot device is **factory-reset or newly powered**, it drops into setup/pairing mode and broadcasts its **own Wi-Fi AP** (e.g. `shelly-1A2B3C`, `sonoff_1001`). This runs **every 4 hours between 7 am and 11 pm** and flags any such SSID seen in the last 6 hours — an early heads-up that a device reset itself, dropped off your network, or that a new one appeared.
+
+Rather than the `keyword` field (a single substring), this fetches all recent rogues once and filters them against an **editable vendor list** in the automation — so matching several vendors is one obvious knob. Matching is case-insensitive **substring**, so `shelly` matches `shelly-1A2B3C` (no wildcard needed).
+
+```yaml
+alias: "UniFi: Smart-Home Device in Setup/AP Mode"
+description: |
+  Every 4 hours (7am–11pm), checks for nearby Wi-Fi APs broadcast by smart-home
+  devices in setup/pairing mode (reset or new), and raises a persistent notification.
+triggers:
+  - trigger: time
+    at:
+      - "07:00:00"
+      - "11:00:00"
+      - "15:00:00"
+      - "19:00:00"
+      - "23:00:00"
+    note: Every 4 hours from 7am to 11pm — add/remove times to change the cadence.
+actions:
+  - action: unifi_network_monitor.get_rogue_aps
+    data:
+      period: "6h"
+      band: both
+      quantity: 50
+    response_variable: rogues
+    note: |
+      Fetches up to 50 rogues from the last 6h (period > the 4h cadence, so nothing is
+      missed between runs). quantity is set high so the vendor filter below sees the full
+      set rather than only the 10 strongest.
+  - variables:
+      vendors:
+        - shelly
+        - sonoff
+        - aqara
+        - switchbot
+      matches: >-
+        {% set ns = namespace(hits=[]) %} {% for r in rogues.rogue_aps %} {% set name = (r.essid | default('')) | lower %} {% if vendors | select('in', name) | list | length > 0 %} {% set ns.hits = ns.hits + [r] %} {% endif %} {% endfor %} {{ ns.hits }}
+
+
+    note: |
+      `vendors` is the only knob — add or remove a prefix to change what's flagged.
+      `matches` keeps each rogue whose SSID contains any vendor string (substring, lowercased).
+  - condition: template
+    value_template: "{{ matches | count > 0 }}"
+    note: Stop here (no notification) when no smart-home APs were found.
+  - action: persistent_notification.create
+    data:
+      notification_id: unifi_smart_home_ap
+      title: "UniFi: {{ matches | count }} smart-home device(s) broadcasting nearby"
+      message: |-
+        {% for r in matches -%}
+        • {{ r.essid }} — {{ r.signal }} dBm, {{ r.band }} (seen {{ r.age }} ago)
+        {% endfor -%}
+    note: |
+      A fixed `notification_id` means each run updates the same notification instead of
+      stacking new ones. Each `r` also carries oui (vendor), bssid, security, and detected_by.
 ```
 
 #### 👥 Guest Network in Use
@@ -525,7 +611,7 @@ triggers:
       the polling interval plus a 5-second buffer (minimum 120-second floor) to confirm
       guest activity persists across consecutive polls.
 actions:
-  - action: notify.mobile_app_your_phone
+  - action: persistent_notification.create
     data:
       title: "Guest Network Active"
       message: "There are currently {{ states('sensor.unifi_network_status_wifi_guests') }} active guest(s) on your Wi-Fi."
@@ -560,7 +646,7 @@ triggers:
       plus a 5-second buffer (enforcing a minimum 120-second floor) to confirm the 
       latency remains high on the next consecutive poll.
 actions:
-  - action: notify.mobile_app_your_phone
+  - action: persistent_notification.create
     data:
       title: "High Latency Detected"
       message: |
@@ -607,7 +693,7 @@ actions:
          (trigger.id == 'restored' and is_state('binary_sensor.unifi_network_internet_wan2_active_uplink', 'off')) }}
     note: |
       Ensures the failover/restored state is still active after the forced refresh before continuing.
-  - action: notify.mobile_app_your_phone
+  - action: persistent_notification.create
     data:
       title: |
         {{ 'Failed over to WAN2' if trigger.id == 'failover' else 'Back on WAN1' }}
@@ -646,7 +732,7 @@ actions:
         entity_id: binary_sensor.unifi_network_internet_internet_connected
         state: "off"
     then:
-      - action: notify.mobile_app_your_phone
+      - action: persistent_notification.create
         data:
           title: "Internet connection lost"
           message: "The UniFi gateway reports the internet is down."
@@ -696,7 +782,7 @@ triggers:
     note: |
       Triggers when total WAN1 monthly data consumption exceeds 500 GB.
 actions:
-  - action: notify.mobile_app_your_phone
+  - action: persistent_notification.create
     data:
       title: "UniFi Data Alert"
       message: "WAN1 monthly usage has exceeded 500 GB."
@@ -764,7 +850,7 @@ triggers:
     note: |
       Fires when the WAN1 download result falls below 200 Mbps. Setting the threshold to about 80% of your plan speed allows for normal variance without false alarms.
 actions:
-  - action: notify.mobile_app_your_phone
+  - action: persistent_notification.create
     data:
       title: "UniFi: Slow WAN1 speedtest"
       message: |
@@ -851,7 +937,7 @@ triggers:
     note: |
       Checks if the last backup entity is populated and is older than 10 days (864,000 seconds).
 actions:
-  - action: notify.mobile_app_your_phone
+  - action: persistent_notification.create
     data:
       title: "UniFi Backup Stale"
       message: "The last local backup is over 10 days old!"
@@ -974,7 +1060,7 @@ data:
 
 ### `unifi_network_monitor.get_alerts`
 
-Returns recent UniFi **system-log alerts** on demand — the history the passive Alerts sensors can't hold. Fetches fresh data, so it works even if the Alerts group is off. Supports **Action Responses** (returns `{count, alerts: [...]}`).
+Returns recent UniFi **system-log alerts** on demand — the history the passive Alerts sensors can't hold. Fetches fresh data, so it works even if the Alerts group is off. Supports **Action Responses** (returns `{count, alerts: [...]}`; with `count_total: true`, also `total_matched` and `truncated`).
 
 | Parameter | Required | Default | Description |
 | :-- | :-- | :-- | :-- |
@@ -982,8 +1068,9 @@ Returns recent UniFi **system-log alerts** on demand — the history the passive
 | `severity` | No | High + Very High | Any of Low / Medium / High / Very High. **YAML values:** `LOW`, `MEDIUM`, `HIGH`, `VERY_HIGH`. Low/Medium can be very high-volume. |
 | `quantity` | No | `10` | Max alerts to return (1–100). |
 | `age_days` | No | — | Only alerts newer than this many days. |
-| `keyword` | No | — | Case-insensitive substring match on the alert title/message (include). |
+| `keyword` | No | — | Comma-separated terms; keep any alert whose title/message contains **at least one** (case-insensitive substring, include). |
 | `exclude` | No | — | Comma-separated terms; drop any alert whose title/message contains one of them. Applied **after** `keyword`. |
+| `count_total` | No | `false` | Also return `total_matched` (how many matched, scanning past `quantity` up to the 500-record cap) and `truncated: true` if that cap was hit before the log/age was exhausted. Off by default to keep the query light. |
 
 ```yaml
 action: unifi_network_monitor.get_alerts
@@ -993,9 +1080,11 @@ data:
 response_variable: alerts
 ```
 
+> **`count_total`:** without it you get `count` (≤ `quantity`) only. With `count_total: true` the response adds `total_matched` — the real number of matches — and `truncated`, which is `true` when there are more matches than the 500-record scan could reach (so `total_matched` is a floor, not the absolute total).
+
 ### `unifi_network_monitor.get_rogue_aps`
 
-Returns the current **rogue-AP set** on demand (fresh fetch, works even if Security monitoring is off). Applies only the filters you pass — not the sensor's ignore lists — so you can surface an AP you've hidden from the passive view. Supports **Action Responses** (returns `{count, rogue_aps: [...]}`).
+Returns the current **rogue-AP set** on demand (fresh fetch, works even if Security monitoring is off). Applies only the filters you pass — not the sensor's ignore lists — so you can surface an AP you've hidden from the passive view. Supports **Action Responses** (returns `{count, total_matched, rogue_aps: [...]}`).
 
 | Parameter | Required | Default | Description |
 | :-- | :-- | :-- | :-- |
@@ -1004,8 +1093,10 @@ Returns the current **rogue-AP set** on demand (fresh fetch, works even if Secur
 | `band` | No | `both` | Which band(s). **YAML values:** `2.4`, `5`, `both`. |
 | `min_signal` | No | — | Only APs at or above this signal (dBm, e.g. `-70`). |
 | `quantity` | No | `10` | Max rogue APs to return, strongest first (1–100). |
-| `keyword` | No | — | Case-insensitive substring match on the SSID, vendor (OUI), or security (include). |
+| `keyword` | No | — | Comma-separated terms; keep any rogue AP whose SSID, vendor (OUI), or security contains **at least one** (case-insensitive substring, include). |
 | `exclude` | No | — | Comma-separated terms; drop any rogue AP whose SSID, OUI, or security contains one of them. Applied **after** `keyword`. |
+
+> **`total_matched`** is always returned here (unlike `get_alerts`, it's free) — it's the full count of APs matching your filters, while `count`/`rogue_aps` are capped at `quantity`. Trigger on `rogues.total_matched > N` to count without pulling the whole list.
 
 ```yaml
 action: unifi_network_monitor.get_rogue_aps
@@ -1016,12 +1107,50 @@ data:
 response_variable: rogues
 ```
 
-Each returned rogue AP carries: `essid`, `ssid_anomaly`, `bssid`, `band`, `channel`, `channel_width` (MHz), `signal` (dBm), `security`, `oui` (vendor), `wired_rogue`, `is_adhoc`, `age`, `last_seen`, and `detected_by`.
+Each returned rogue AP carries: `essid`, `ssid_anomaly`, `bssid`, `band`, `channel`, `channel_width` (MHz), `signal` (dBm), `security`, `oui` (vendor), `wired_rogue`, `is_adhoc`, `age`, `last_seen`, `first_seen`, `appearances`, and `detected_by`.
+
+- **`first_seen` / `appearances`** — from the persistent appearance history: when Home Assistant _first tracked_ this BSSID and how many poll cycles it's appeared in. Lets you tell a **brand-new** rogue (`first_seen` minutes ago, `appearances: 1`) from a **long-standing** neighbour. Both are `null` for a BSSID HA hasn't polled (e.g. a wide `period` surfacing an AP never seen at your poll cadence, or while Security was off). See [Rogue AP appearance history](#-rogue-ap-appearance-history).
 
 - **`wired_rogue`** — `true` only when UniFi has confirmed the AP is **physically bridged to your LAN** (an unauthorized device plugged into your network), not merely a neighbor's Wi-Fi. This is the genuine "rogue" in UniFi's sense and the one worth alerting on; most detections are `false`.
-- **`ssid_anomaly`** — `true` when the SSID was **hidden** (broadcast blank → shown as `<Hidden>`) **or** contained control / zero-width / right-to-left characters (replaced with `·`). A common Wi-Fi impersonation trick is an SSID that _looks_ like yours but hides tampering in non-printable characters — this flag surfaces it.
+- **`ssid_anomaly`** — `true` when the SSID was **hidden** (broadcast blank → named `Hidden-A2D3` from the BSSID) **or** contained control / zero-width / right-to-left characters (replaced with `·`). A common Wi-Fi impersonation trick is an SSID that _looks_ like yours but hides tampering in non-printable characters — this flag surfaces it.
+
+  > **Hidden-SSID naming & MAC randomization:** a cloaked AP is named `Hidden-` + the last 4 hex of its BSSID (extended to 6 if two collide), so the _same_ AP keeps the _same_ name across polls — you can tell a returning neighbor from a brand-new one. **Caveat:** phones and some devices randomize their BSSID; such a source appears as a _new_ `Hidden-XXXX` on each rotation, so it will look new even when it isn't. Infrastructure APs and most reset smart-home devices keep a stable BSSID.
 
 > **ℹ️ Which device do I pick?** In the usual single-gateway setup, leave `device_id` blank — it defaults to your only gateway. If you tick **Device** in the UI you'll see all seven sub-devices (Gateway, Security, Alerts, …); that's expected — they all belong to the same gateway, so **any one resolves to the same result**. `device_id` only _matters_ if you run **more than one UniFi gateway**, where it disambiguates which one to query.
+
+### `unifi_network_monitor.clear_rogue_history`
+
+Erases the persistent rogue-AP appearance history (`first_seen` / `appearances`). History rebuilds from the next poll. Optional `device_id`.
+
+### `unifi_network_monitor.add_rogue_ignore` / `remove_rogue_ignore` / `set_rogue_ignore`
+
+Manage the two rogue **ignore lists** from automations — **Ignore Rogue SSIDs** and **Ignore detecting APs** — which otherwise are only editable via **Configure**. Pick the list with `target: ssids | aps`.
+
+| Action | Params | Returns |
+| :-- | :-- | :-- |
+| `add_rogue_ignore` | `target`, `value` (pattern; wildcards OK, e.g. `Hidden-*`) | `{target, entries}` (resulting list) |
+| `remove_rogue_ignore` | `target`, `value` (exact match; silent if absent) | `{target, entries}` |
+| `set_rogue_ignore` | `target`, `values` (comma-separated; blank clears) | `{target, old, new}` (previous + applied, for undo) |
+
+```yaml
+# Whitelist a guest SSID pattern when the guest switch turns on
+action: unifi_network_monitor.add_rogue_ignore
+data:
+  target: ssids
+  value: "MyGuest_*"
+```
+
+> These affect the **passive Security view** (the rogue sensors), not the `get_rogue_aps` action, which deliberately ignores the ignore-lists. Changing a list applies immediately (it reloads the entry) — call them on a state change, not in a tight loop.
+
+### 🕒 Rogue AP appearance history
+
+For each rogue **BSSID**, the integration keeps a small persisted record — `first_seen` (when HA first tracked it), `appearances` (poll cycles seen), pruned by the **Rogue history retention** option (Configure → default 90 days, `0` = keep forever, plus a hard safety cap). It powers:
+
+- **`first_seen` / `appearances`** on the `get_rogue_aps` response and the `new_rogue_ap` event.
+- The **Rogue APs New 24h** sensor — a count of BSSIDs first seen in the last 24 h (LTS-enabled for trends).
+- A `new_rogue_ap` event that fires only for **genuinely-new** BSSIDs and **survives restarts** (no re-fire for already-known APs after a reload).
+
+**Caveats:** `first_seen` is "first seen by _Home Assistant_", not by the gateway — on first enable everything counts as new for 24 h. And BSSID-randomising devices (some phones/IoT) appear new on each rotation. Use `clear_rogue_history` to reset.
 
 ## 🔩 Under the Hood - Technical Architecture
 

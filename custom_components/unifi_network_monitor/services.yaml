@@ -50,6 +50,11 @@ get_alerts:
       required: false
       selector:
         text:
+    count_total:
+      default: false
+      required: false
+      selector:
+        boolean:
 
 get_rogue_aps:
   fields:
@@ -113,6 +118,77 @@ get_rogue_aps:
       selector:
         text:
     exclude:
+      required: false
+      selector:
+        text:
+
+clear_rogue_history:
+  fields:
+    device_id:
+      required: false
+      selector:
+        device:
+          integration: unifi_network_monitor
+
+add_rogue_ignore:
+  fields:
+    device_id:
+      required: false
+      selector:
+        device:
+          integration: unifi_network_monitor
+    target:
+      required: true
+      selector:
+        select:
+          options:
+            - value: ssids
+              label: Ignore Rogue SSIDs
+            - value: aps
+              label: Ignore detecting APs
+    value:
+      required: true
+      selector:
+        text:
+
+remove_rogue_ignore:
+  fields:
+    device_id:
+      required: false
+      selector:
+        device:
+          integration: unifi_network_monitor
+    target:
+      required: true
+      selector:
+        select:
+          options:
+            - value: ssids
+              label: Ignore Rogue SSIDs
+            - value: aps
+              label: Ignore detecting APs
+    value:
+      required: true
+      selector:
+        text:
+
+set_rogue_ignore:
+  fields:
+    device_id:
+      required: false
+      selector:
+        device:
+          integration: unifi_network_monitor
+    target:
+      required: true
+      selector:
+        select:
+          options:
+            - value: ssids
+              label: Ignore Rogue SSIDs
+            - value: aps
+              label: Ignore detecting APs
+    values:
       required: false
       selector:
         text:

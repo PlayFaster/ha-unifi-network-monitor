@@ -29,6 +29,7 @@ from .const import (
     CONF_ENABLE_SECURITY_MONITORING,
     CONF_ENABLE_SPEEDTEST,
     CONF_ENABLE_WAN_USAGE,
+    CONF_ROGUE_HISTORY_TTL_DAYS,
     CONF_ROGUE_IGNORE_APS,
     CONF_ROGUE_IGNORE_SSIDS,
     CONF_SCAN_INTERVAL,
@@ -40,6 +41,7 @@ from .const import (
     DEFAULT_ENABLE_SPEEDTEST,
     DEFAULT_ENABLE_WAN_USAGE,
     DEFAULT_NAME,
+    DEFAULT_ROGUE_HISTORY_TTL_DAYS,
     DEFAULT_ROGUE_IGNORE_APS,
     DEFAULT_ROGUE_IGNORE_SSIDS,
     DEFAULT_SCAN_INTERVAL,
@@ -164,18 +166,40 @@ def _settings_schema(defaults: dict[str, Any], core_present: bool) -> vol.Schema
     fields.update(_device_mode_field(defaults, core_present))
     fields[vol.Required(SECTION_SENSOR_GROUPS)] = _sensor_groups_section(defaults)
     # Rogue-AP ignore lists (advanced; comma-separated, wildcards via fnmatch).
+    # Use suggested_value (not default) for the current value so the field can be
+    # CLEARED: the frontend omits an empty optional, and a `default=<current>`
+    # would silently restore the old value. default="" makes a blank submit clear it.
     fields[
         vol.Optional(
             CONF_ROGUE_IGNORE_SSIDS,
-            default=defaults.get(CONF_ROGUE_IGNORE_SSIDS, DEFAULT_ROGUE_IGNORE_SSIDS),
+            default=DEFAULT_ROGUE_IGNORE_SSIDS,
+            description={
+                "suggested_value": defaults.get(
+                    CONF_ROGUE_IGNORE_SSIDS, DEFAULT_ROGUE_IGNORE_SSIDS
+                )
+            },
         )
     ] = str
     fields[
         vol.Optional(
             CONF_ROGUE_IGNORE_APS,
-            default=defaults.get(CONF_ROGUE_IGNORE_APS, DEFAULT_ROGUE_IGNORE_APS),
+            default=DEFAULT_ROGUE_IGNORE_APS,
+            description={
+                "suggested_value": defaults.get(
+                    CONF_ROGUE_IGNORE_APS, DEFAULT_ROGUE_IGNORE_APS
+                )
+            },
         )
     ] = str
+    # Persistent rogue-history retention (days; 0 = keep forever).
+    fields[
+        vol.Optional(
+            CONF_ROGUE_HISTORY_TTL_DAYS,
+            default=defaults.get(
+                CONF_ROGUE_HISTORY_TTL_DAYS, DEFAULT_ROGUE_HISTORY_TTL_DAYS
+            ),
+        )
+    ] = vol.All(vol.Coerce(int), vol.Range(min=0, max=366))
     return vol.Schema(fields)
 
 
