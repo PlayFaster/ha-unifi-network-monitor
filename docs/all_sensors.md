@@ -48,7 +48,7 @@ _Group: `gateway`_
 | CPU utilization | `gateway_cpu` | Sensor | % | Diagnostic | _Standalone-only enabled_ (disabled by default when Core UniFi present). |
 | Last Backup | `gateway_last_backup` | Sensor | — | Diagnostic |  |
 | Memory utilization | `gateway_ram` | Sensor | % | Diagnostic | _Standalone-only enabled_ (disabled by default when Core UniFi present). |
-| Storage Total | `gateway_storage_size` | Sensor | GB | Diagnostic | **Disabled by default.** No LTS (no state_class). |
+| Storage Total | `gateway_storage_size` | Sensor | GB | Diagnostic | **Disabled by default.** No LTS (no state_class). Other display units may be used (e.g. GB). |
 | Storage Used | `gateway_storage_used` | Sensor | GB | Diagnostic |  |
 | Storage Utilization | `gateway_storage_used_pct` | Sensor | % | Diagnostic | Storage used as a percentage of total. |
 | UniFi OS Version | `health_wan_gw_version` | Sensor | — | Diagnostic |  |

@@ -167,7 +167,7 @@ Each sub-device appears as its own device card in Home Assistant, and entity IDs
 >
 > **Not sure what a sensor does?** Many entities carry a short built-in **About** note. Click the sensor to open it, use the **⋮ (three-dots) menu → Details**, and look for the **`about`** attribute - a one-line explanation of that sensor.
 >
->![About Attribute Example](.github/images/unifi_mon_about_attrib_example.png)
+> ![About Attribute Example](.github/images/unifi_mon_about_attrib_example.png)
 >
 > These **About** notes - and a few intentionally large attributes, such as the rogue-AP list on **Strongest Rogue SSID** - are set **unrecorded**. Home Assistant still shows them live in the entity's details, but **never writes them to the history/recorder database**. That keeps bulky or purely-informational values from bloating your database, with no downside to what you see day-to-day.
 
@@ -191,13 +191,14 @@ Enable any disabled entity per-entity when you want it. Your totals also differ 
 
 ---
 
-### ➕ Click to Expand for Screenshot:
+### ➕ Click to Expand for Screenshot
 
 <details><summary>
 &nbsp; &nbsp; ➕ &nbsp; &nbsp; Alerts Screenshot:
 </summary><br>
 
 ![Alerts Screenshot](.github/images/unifi_mon_alert_sensors.png)
+
 </details>
 
 <details><summary>
@@ -205,6 +206,7 @@ Enable any disabled entity per-entity when you want it. Your totals also differ 
 </summary><br>
 
 ![Gateway Screenshot](.github/images/unifi_mon_gateway_dev_plus_dis.png)
+
 </details>
 
 <details><summary>
@@ -242,6 +244,7 @@ Enable any disabled entity per-entity when you want it. Your totals also differ 
 </summary><br>
 
 ![Status Screenshot](.github/images/unifi_mon_status_dev_all.png)
+
 </details>
 
 <details><summary>
@@ -249,9 +252,11 @@ Enable any disabled entity per-entity when you want it. Your totals also differ 
 </summary><br>
 
 ![System Screenshot](.github/images/unifi_mon_system_all.png)
+
 </details>
 
 ---
+
 <br>
 
 > [!NOTE]
