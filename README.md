@@ -180,14 +180,79 @@ Enable any disabled entity per-entity when you want it. Your totals also differ 
 
 | Sub-Device | Enabled / Total | Key Metrics |
 | :-- | :-: | :-- |
+| 🚨 **Alerts** | 4 / 4 | Last High Sev3, Last Very High Sev4, and High/Very High Sev4 Qty Last 24h |
 | 🖥️ **Gateway** | 11 / 18 | CPU, Memory, CPU/Board Temperature, Storage (used/total/%), Uptime, UniFi OS & Network application versions, WAN1/WAN2 SFP diagnostics, Update Available |
 | 🌐 **Internet** | 34 / 39 | WAN1/WAN2 active-uplink & link-up, Local/Public IPs, WAN names, availability, latency, last-restart/uptime, ISP name/org, and daily/monthly data usage; plus Internet Connected / OK, drops, latency, online-since |
-| ⚡ **Speedtest** | 14 / 14 | WAN1/WAN2 Download, Upload, Ping, Last Run, Monitoring Period, Last Run Status/Problem; Run WAN1/WAN2 Speedtest buttons |
 | 🛡️ **Security** | 20 / 20 | Rogue AP Count, Rogue APs New 24h, Strongest Rogue SSID/RSSI, Rogue APs All 24h, Proximity Alert (+ threshold), Rogue Detection Period, Show 2.4/5 GHz + Apply-ignore switches, Threat-Management mode, Ad-blocking, Honeypot, and VPN-connection & firewall-rule counts |
-| 🚨 **Alerts** | 4 / 4 | Last High Sev3, Last Very High Sev4, and High/Very High Sev4 Qty Last 24h |
+| ⚡ **Speedtest** | 14 / 14 | WAN1/WAN2 Download, Upload, Ping, Last Run, Monitoring Period, Last Run Status/Problem; Run WAN1/WAN2 Speedtest buttons |
 | 📊 **Status** | 12 / 23 | Device/guest/WiFi client counts, VLAN & WiFi-network counts, per-SSID status, and the aggregate Network Problem + per-subsystem OK sensors (WAN/Internet/WiFi/LAN) |
 | ⚙️ **System** | 10 / 10 | Integration Health (self-diagnosis), Multi-WAN mode, WAN1/WAN2 Load Balance, Polling Interval, Pause Polling, WAN1 Load-Balance Weight, Refresh Now, Clean Up Unused Entities, Last Updated |
 | 📶 **Per AP / Per Switch** | opt-in | **11 per AP** (Satisfaction Score + 2.4/5 GHz scores, Clients, Guests, 2.4/5 GHz Clients, CPU, Memory, Uptime, Update Available) · **6 per switch** (Clients, CPU, Memory, Uptime, Model, Update Available) - created only when you choose `Add all device sensors` |
+
+---
+
+### ➕ Click to Expand for Screenshot:
+
+<details><summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Alerts Screenshot:
+</summary><br>
+
+![Alerts Screenshot](.github/images/unifi_mon_alert_sensors.png)
+</details>
+
+<details><summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Gateway Screenshot:
+</summary><br>
+
+![Gateway Screenshot](.github/images/unifi_mon_gateway_dev_plus_dis.png)
+</details>
+
+<details><summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Internet Screenshots:
+</summary><br>
+
+| Internet Data Use | Internet Diagnostic Info |
+| :-: | :-: |
+| ![Internet Data Use](.github/images/unifi_mon_internet_dev_data_use_sensors.png) | ![Internet Device Diagnostics](.github/images/unifi_mon_internet_dev_diag.png) |
+
+</details>
+
+<details><summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Security Screenshots:
+</summary><br>
+
+| Security Sensors | Security Configuration | Security Diagnostic Info |
+| :-: | :-: | :-: |
+| ![Security Sensors](.github/images/unifi_mon_security_sensors.png) | ![Security Configuration](.github/images/unifi_mon_security_config.png) | ![Security Diagnostic Info](.github/images/unifi_mon_security_diag.png) |
+
+</details>
+
+<details><summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Speedtest Screenshots:
+</summary><br>
+
+| Speedtest Controls + Sensors | Speedtest Diagnostic Info |
+| :-: | :-: |
+| ![Speedtest Controls + Sensors](.github/images/unifi_mon_speedtest_sensors.png) | ![Speedtest Diagnostic Info](.github/images/unifi_mon_speedtest_diag.png) |
+
+</details>
+
+<details><summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Status Screenshot:
+</summary><br>
+
+![Status Screenshot](.github/images/unifi_mon_status_dev_all.png)
+</details>
+
+<details><summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; System Screenshot:
+</summary><br>
+
+![System Screenshot](.github/images/unifi_mon_system_all.png)
+</details>
+
+---
+<br>
 
 > [!NOTE]
 >
@@ -321,95 +386,11 @@ A deliberately-curated set is **left out of LTS** (no `state_class`) - either it
 
 ## 📸 Screenshots
 
+Screenshots are embedded throughout the document near relevant sections. This is the Integration Overview screen, highlighting the division into seven sub-devices.
+
 ### Integration Overview
 
 ![Main Integration Screen](.github/images/unifi_mon_integration_screen.png)
-
----
-
-</details>
-
-### Alert / About: Attribute
-
-<details>
-
-<summary>
-&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Screenshots:
-</summary><br>
-
-Alert Sensors
-
-![Alert Sensors](.github/images/unifi_mon_alert_sensors.png)
-
----
-
-</details>
-
-### Security / Gateway
-
-<details>
-
-<summary>
-&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Screenshots:
-</summary><br>
-
-| Security Entities | Gateway Diagnostic Info |
-| :-: | :-: |
-| ![Security Entities](.github/images/unifi_mon_security_all.png) | ![Gateway](.github/images/unifi_mon_gateway_dev_plus_dis.png) |
-
----
-
-</details>
-
-### Internet Info
-
-<details>
-
-<summary>
-&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Screenshots:
-</summary><br>
-
-| Internet Data Use | Internet Diagnostic Info |
-| :-: | :-: |
-| ![Internet Data Use](.github/images/unifi_mon_internet_dev_data_use_sensors.png) | ![Internet Device Diagnostics](.github/images/unifi_mon_internet_dev_diag.png) |
-
----
-
-</details>
-
-### Speedtest and System Info
-
-<details>
-
-<summary>
-&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Screenshots:
-</summary><br>
-
-| Speedtest Info | System Info |
-| :-: | :-: |
-| ![Speedtest](.github/images/unifi_mon_speedtest_dev_all.png) | ![System](.github/images/unifi_mon_system_all.png) |
-
----
-
-</details>
-
-### Status Info
-
-<details>
-
-<summary>
-&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Screenshots:
-</summary><br>
-
-| Status Sensors | Status Diagnostic Info |
-| :-: | :-: |
-| ![Status Sensors](.github/images/unifi_mon_status_dev_sensors.png) | ![Status Configuration Diagnostics](.github/images/unifi_mon_status_dev_diag.png) |
-
----
-
-</details>
-
-<br>
 
 ---
 
