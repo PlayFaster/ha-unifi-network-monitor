@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import voluptuous as vol
+from homeassistant.exceptions import ServiceValidationError
 
 from custom_components.unifi_network_monitor.const import (
     ALERT_MAX_PAGES,
@@ -60,8 +61,9 @@ def test_resolve_coordinator_no_entries() -> None:
     call = MagicMock()
     call.data = {}
 
-    with pytest.raises(Exception, match="No UniFi Network Monitor entries are loaded"):
+    with pytest.raises(ServiceValidationError) as err:
         _resolve_coordinator(hass, call)
+    assert err.value.translation_key == "no_entries_loaded"
 
 
 def test_resolve_coordinator_multiple_entries_no_device() -> None:
@@ -73,8 +75,9 @@ def test_resolve_coordinator_multiple_entries_no_device() -> None:
     call = MagicMock()
     call.data = {}
 
-    with pytest.raises(Exception, match="specify a device"):
+    with pytest.raises(ServiceValidationError) as err:
         _resolve_coordinator(hass, call)
+    assert err.value.translation_key == "multiple_entries"
 
 
 def test_resolve_coordinator_single_entry() -> None:
@@ -108,9 +111,10 @@ def test_resolve_coordinator_device_id_unknown() -> None:
             "custom_components.unifi_network_monitor.services.dr.async_get",
             return_value=mock_dev_reg,
         ),
-        pytest.raises(Exception, match="Unknown device id"),
+        pytest.raises(ServiceValidationError) as err,
     ):
         _resolve_coordinator(hass, call)
+    assert err.value.translation_key == "unknown_device"
 
 
 def test_resolve_coordinator_device_id_not_monitor() -> None:
@@ -133,9 +137,10 @@ def test_resolve_coordinator_device_id_not_monitor() -> None:
             "custom_components.unifi_network_monitor.services.dr.async_get",
             return_value=mock_dev_reg,
         ),
-        pytest.raises(Exception, match="not a UniFi Network Monitor device"),
+        pytest.raises(ServiceValidationError) as err,
     ):
         _resolve_coordinator(hass, call)
+    assert err.value.translation_key == "not_a_monitor_device"
 
 
 def test_resolve_coordinator_device_id_success() -> None:
@@ -178,8 +183,9 @@ def test_resolve_entry_no_entries() -> None:
     call = MagicMock()
     call.data = {}
 
-    with pytest.raises(Exception, match="No UniFi Network Monitor entries are loaded"):
+    with pytest.raises(ServiceValidationError) as err:
         _resolve_entry(hass, call)
+    assert err.value.translation_key == "no_entries_loaded"
 
 
 def test_resolve_entry_multiple_entries_no_device() -> None:
@@ -193,8 +199,9 @@ def test_resolve_entry_multiple_entries_no_device() -> None:
     call = MagicMock()
     call.data = {}
 
-    with pytest.raises(Exception, match="specify a device"):
+    with pytest.raises(ServiceValidationError) as err:
         _resolve_entry(hass, call)
+    assert err.value.translation_key == "multiple_entries"
 
 
 def test_resolve_entry_device_id_unknown() -> None:
@@ -214,9 +221,10 @@ def test_resolve_entry_device_id_unknown() -> None:
             "custom_components.unifi_network_monitor.services.dr.async_get",
             return_value=mock_dev_reg,
         ),
-        pytest.raises(Exception, match="Unknown device id"),
+        pytest.raises(ServiceValidationError) as err,
     ):
         _resolve_entry(hass, call)
+    assert err.value.translation_key == "unknown_device"
 
 
 def test_resolve_entry_device_id_not_monitor() -> None:
@@ -241,9 +249,10 @@ def test_resolve_entry_device_id_not_monitor() -> None:
             "custom_components.unifi_network_monitor.services.dr.async_get",
             return_value=mock_dev_reg,
         ),
-        pytest.raises(Exception, match="not a UniFi Network Monitor device"),
+        pytest.raises(ServiceValidationError) as err,
     ):
         _resolve_entry(hass, call)
+    assert err.value.translation_key == "not_a_monitor_device"
 
 
 def test_resolve_entry_device_id_success() -> None:

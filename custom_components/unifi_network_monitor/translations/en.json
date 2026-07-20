@@ -132,9 +132,6 @@
       "gateway_storage_size": {
         "name": "Storage Total"
       },
-      "gateway_scan_interval": {
-        "name": "Polling Interval"
-      },
       "gateway_last_updated": {
         "name": "Last Updated"
       },
@@ -498,14 +495,14 @@
       }
     },
     "number": {
+      "gateway_rogue_proximity_threshold": {
+        "name": "Rogue Proximity Threshold"
+      },
       "gateway_scan_interval": {
         "name": "Polling Interval"
       },
       "wan1_load_balance_weight": {
         "name": "WAN1 Load Balance Weight"
-      },
-      "gateway_rogue_proximity_threshold": {
-        "name": "Rogue Proximity Threshold"
       }
     },
     "switch": {
@@ -539,8 +536,20 @@
     }
   },
   "exceptions": {
+    "multiple_entries": {
+      "message": "Multiple UniFi Network Monitor entries are configured; specify a device to target."
+    },
+    "no_entries_loaded": {
+      "message": "No UniFi Network Monitor entries are loaded."
+    },
+    "not_a_monitor_device": {
+      "message": "Device {device_id} is not a UniFi Network Monitor device."
+    },
     "speedtest_failed": {
       "message": "Failed to trigger speedtest: {error}"
+    },
+    "unknown_device": {
+      "message": "Unknown device id: {device_id}"
     },
     "wan_config_not_loaded": {
       "message": "WAN configuration is not loaded yet; try again in a moment."

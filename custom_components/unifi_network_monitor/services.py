@@ -125,36 +125,8 @@ def _resolve_coordinator(
     Mirrors the ZTE/Huawei SMS actions: a device target is optional and defaults
     to the only configured entry when there is exactly one.
     """
-    entries = [
-        entry
-        for entry in hass.config_entries.async_entries(DOMAIN)
-        if getattr(entry, "runtime_data", None) is not None
-    ]
-    device_id = call.data.get("device_id")
-
-    if device_id:
-        device = dr.async_get(hass).async_get(device_id)
-        if device is None:
-            raise ServiceValidationError(f"Unknown device id: {device_id}")
-        for entry_id in device.config_entries:
-            entry = hass.config_entries.async_get_entry(entry_id)
-            if (
-                entry is not None
-                and entry.domain == DOMAIN
-                and getattr(entry, "runtime_data", None) is not None
-            ):
-                return cast(UnifiNetworkDataUpdateCoordinator, entry.runtime_data)
-        raise ServiceValidationError(
-            f"Device {device_id} is not a UniFi Network Monitor device"
-        )
-
-    if not entries:
-        raise ServiceValidationError("No UniFi Network Monitor entries are loaded")
-    if len(entries) > 1:
-        raise ServiceValidationError(
-            "Multiple UniFi Network Monitor entries configured; specify a device"
-        )
-    return cast(UnifiNetworkDataUpdateCoordinator, entries[0].runtime_data)
+    entry = _resolve_entry(hass, call)
+    return cast(UnifiNetworkDataUpdateCoordinator, entry.runtime_data)
 
 
 async def _fetch_alerts(
@@ -394,7 +366,11 @@ def _resolve_entry(hass: HomeAssistant, call: ServiceCall) -> ConfigEntry:
     if device_id:
         device = dr.async_get(hass).async_get(device_id)
         if device is None:
-            raise ServiceValidationError(f"Unknown device id: {device_id}")
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="unknown_device",
+                translation_placeholders={"device_id": device_id},
+            )
         for entry_id in device.config_entries:
             entry = hass.config_entries.async_get_entry(entry_id)
             if (
@@ -404,13 +380,19 @@ def _resolve_entry(hass: HomeAssistant, call: ServiceCall) -> ConfigEntry:
             ):
                 return entry
         raise ServiceValidationError(
-            f"Device {device_id} is not a UniFi Network Monitor device"
+            translation_domain=DOMAIN,
+            translation_key="not_a_monitor_device",
+            translation_placeholders={"device_id": device_id},
         )
     if not entries:
-        raise ServiceValidationError("No UniFi Network Monitor entries are loaded")
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="no_entries_loaded",
+        )
     if len(entries) > 1:
         raise ServiceValidationError(
-            "Multiple UniFi Network Monitor entries configured; specify a device"
+            translation_domain=DOMAIN,
+            translation_key="multiple_entries",
         )
     return entries[0]
 
