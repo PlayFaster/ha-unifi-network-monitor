@@ -91,13 +91,13 @@ Credential fields (API key, password) use `TextSelectorType.PASSWORD` in all flo
 
 ### Diagnostics Sanitization (§20 of shared dev_standards)
 
-`diagnostics.py` runs a two-pass sanitizer **before** `async_redact_data`. Pass 1 walks the payload and learns identifiers — device MACs, device names, the ISP name, WAN interface names, rogue SSIDs — allocating a stable token for each (`device-1`, `gateway`, `rogue-2`). Pass 2 rewrites: MAC-keyed dictionaries (`entry.data["boot_times"]`, `data["devices"]`) get their **keys** replaced, device records get `mac`/`name` tokenised, the UniFi alert `parameters` subtree is sanitized by block name (`DEVICE` → token, `ISP_NAME`/`WAN_SUBNET`/`WAN_NAME`/`CONSOLE_NAME` → blanked), and free-text `message`/`title` have every learned literal substituted out. A shape-based backstop (MAC regex, RFC1918 + CGNAT regex) covers alert blocks UniFi may add later.
+`diagnostics.py` runs a two-pass sanitizer **before** `async_redact_data`. Pass 1 walks the payload and learns identifiers — device MACs, device names, the ISP name, WAN interface names, rogue SSIDs — allocating a stable token for each (`device-1`, `gateway`, `rogue-2`). Pass 2 rewrites: MAC-keyed dictionaries (`entry.data["boot_times"]`, `data["devices"]`) get their **keys** replaced, device records get `mac`/`name` tokenized, the UniFi alert `parameters` subtree is sanitized by block name (`DEVICE` → token, `ISP_NAME`/`WAN_SUBNET`/`WAN_NAME`/`CONSOLE_NAME` → blanked), and free-text `message`/`title` have every learned literal substituted out. A shape-based backstop (MAC regex, RFC1918 + CGNAT regex) covers alert blocks UniFi may add later.
 
 Tokens are stable across sections, so an alert about `device-4` still resolves against `device-4` in the device list — the file stays diagnostically useful. `TO_REDACT` is retained unchanged and still runs last.
 
 Design constraints: matching is **structural only** (shape and position), so no real identifier is ever hard-coded; the coordinator payload is `deepcopy`'d because diagnostics is a read path; and `strongest_rogue_ssid` is resolved through the learned-literal pass rather than a sentinel check, so a real SSID becomes its token while `"None Detected"` passes through untouched.
 
-Rogue-AP records get particular attention: they describe **other people's** networks. `essid` is tokenised, `bssid` redacted, `detected_by` (a comma-joined list of this user's own AP names) run through the text scrubber. `oui` is deliberately **kept** — vendor alone identifies nobody and is genuinely useful when diagnosing detection behaviour.
+Rogue-AP records get particular attention: they describe **other people's** networks. `essid` is tokenized, `bssid` redacted, `detected_by` (a comma-joined list of this user's own AP names) run through the text scrubber. `oui` is deliberately **kept** — vendor alone identifies nobody and is genuinely useful when diagnosing detection behavior.
 
 ### 3-Strike Resilience
 
@@ -200,7 +200,7 @@ Two bus events let advanced users trigger automations: `EVENT_NEW_ALERT` (per ne
 
 ### Persistent Rogue-AP Appearance History
 
-BSSID-keyed `Store` (`{DOMAIN}.{entry_id}.rogue_history`), loaded in `coordinator.async_initialize()` before the first refresh. `_update_rogue_history` runs each poll on the Security path: first-seen baseline (silent, like the event), `appearances` increment, TTL prune (`rogue_history_ttl_days`, default 90; 0 = forever) + hard max-entries cap (`ROGUE_HISTORY_MAX`, bounds MAC-randomisation churn), saved via **`async_delay_save`** (coalesced — never per-poll `async_save`). It re-keys `new_rogue_ap` so the event fires only for genuinely-new BSSIDs and **survives restarts** (the old in-memory seen-set was removed). `first_seen` = first-seen-**by-HA**, not by the gateway. `clear_rogue_history` action + `async_clear_rogue_history` reset it. **Rogue APs New 24h** (`rogue_new_24h`, `MEASUREMENT`/LTS) counts BSSIDs first-seen within 24 h.
+BSSID-keyed `Store` (`{DOMAIN}.{entry_id}.rogue_history`), loaded in `coordinator.async_initialize()` before the first refresh. `_update_rogue_history` runs each poll on the Security path: first-seen baseline (silent, like the event), `appearances` increment, TTL prune (`rogue_history_ttl_days`, default 90; 0 = forever) + hard max-entries cap (`ROGUE_HISTORY_MAX`, bounds MAC-randomization churn), saved via **`async_delay_save`** (coalesced — never per-poll `async_save`). It re-keys `new_rogue_ap` so the event fires only for genuinely-new BSSIDs and **survives restarts** (the old in-memory seen-set was removed). `first_seen` = first-seen-**by-HA**, not by the gateway. `clear_rogue_history` action + `async_clear_rogue_history` reset it. **Rogue APs New 24h** (`rogue_new_24h`, `MEASUREMENT`/LTS) counts BSSIDs first-seen within 24 h.
 
 ### Ignore-List Management Actions
 
@@ -282,7 +282,7 @@ Both call `plan_device_cleanup`/`apply_cleanup` (`cleanup.py`): entities via `en
 
 - **Free text embeds identifiers no key rule can reach**: the alert `message` reads `Internet connection WAN1 <ISP> on port 9 went down…` — the ISP name inline in prose. Fix: learn identifiers in a first pass, then substitute them out of `message`/`title`.
 
-- **Over-redaction is also a defect**: `boot_times` mixes MAC keys with plain interface labels (`wan1`, `wan2`, `www`). Tokenising those turned every alert mentioning WAN1 into `device-22`, destroying the readability of the text a maintainer reads first, while protecting nothing. Fix: gate key rewriting on `_is_mac()`. General rule — sanitize identifiers, not everything that happens to be a dict key.
+- **Over-redaction is also a defect**: `boot_times` mixes MAC keys with plain interface labels (`wan1`, `wan2`, `www`). Tokenizing those turned every alert mentioning WAN1 into `device-22`, destroying the readability of the text a maintainer reads first, while protecting nothing. Fix: gate key rewriting on `_is_mac()`. General rule — sanitize identifiers, not everything that happens to be a dict key.
 
 - **A single diagnostics capture only proves what that capture contained**: the first regenerated file showed `strongest_rogue_ssid: "None Detected"` and an empty `rogue_aps_list` simply because no rogues were present at that moment; both were latent third-party-SSID leaks. Fix: verify against a capture taken while the optional data is populated (long rogue history selected), not just a quiet one.
 
