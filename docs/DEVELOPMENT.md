@@ -40,6 +40,25 @@ The UniFi API returns overlapping data from two distinct endpoints:
 
 Both endpoints return some version of speedtest and WAN metrics. The architectural decision is: **health endpoint (`/stat/health`) is the authoritative source for network-level metrics**. The gateway device exposes only device-specific sensors. Duplication was removed as part of the initial design phase.
 
+### WAN Usage: UDM Bucket Apportionment & the High-Water Mark (2026-07)
+
+The daily/monthly data-usage sensors read the newest bucket from `/stat/report/daily.gw` and `/stat/report/monthly.gw`. **The UDM does not return a clean cumulative counter here.** Verified against a live UDM Pro (UniFi OS 5.1.19):
+
+- The byte totals are **fractional** — e.g. `wan-tx_bytes = 257019824866.182`, `6762095161.681818`. A byte counter cannot be fractional; the controller is **apportioning** a coarser measurement across the reporting window. The recurring fraction denominators (`/22`, `/14`) are the fingerprint of that interpolation, not float noise.
+- The **current (open) bucket is re-apportioned on every poll.** A recompute can land slightly _below_ the previous reading — observed drops of 0.001 %–0.10 % (a few MB on a multi-GB total). This is upstream behaviour, not a bug in our parsing: `_safe_float`'s 3-dp rounding reproduces the logged values exactly, and daily and monthly (independent endpoints) dropped by byte-identical amounts, proving a shared upstream restatement.
+
+Those tiny downward steps break the `total_increasing` state class, which only treats a drop as a counter reset below ~90 % of the prior value. HA logs _"state is not strictly increasing"_ instead.
+
+**Fix — `_clamp_usage(key, period, raw)` in the coordinator.** A per-counter high-water mark, one entry per `wan{1,2}_{today,month}_{rx,tx}`:
+
+- Holds the running maximum within a reporting period; the value never steps backwards on a within-period wobble.
+- **Resets only when the bucket's `time` moves _forward_** — the genuine day/month rollover, where the new bucket legitimately restarts near zero. Reset detection keys on `time` alone, never on the value. Requiring a _forward_ move (not merely a different one) means a controller re-stamping the current bucket cannot be mistaken for a rollover.
+- The `time` field is a reliable period key: daily buckets are day-start epochs, monthly buckets are calendar-month-start epochs, both pre-aligned by the gateway to local midnight — so no timezone or DST reasoning lives in our code.
+- Rounds to whole bytes (sub-byte apportionment noise is meaningless), and clamps in **bytes** before the GB display conversion (÷1e9 preserves ordering).
+- **Persisted** via `Store` (`{DOMAIN}.{entry_id}.usage_watermark`, loaded in `async_initialize`, coalesced save). Without persistence a restart would re-seed the mark from the current lower open-bucket value and re-emit the very warning against what HA already stored — which is exactly how this was first observed.
+
+The `total` sensors are `rx + tx` of two independently-clamped counters; the sum of two non-decreasing series is non-decreasing, and both reset together at a period boundary.
+
 ### Hybrid API Model (Official API v3 + Classic API)
 
 While UniFi OS v3.0.0 and its Official API (using API Keys) introduces a highly structured endpoint hierarchy (e.g., `get_wan_interfaces`, `get_vpn_tunnels`), the integration uses a **hybrid API model** to fetch the best of both worlds:
@@ -226,7 +245,7 @@ The whole block is wrapped so a malformed payload can't crash the update it diag
 
 **A connectivity probe was considered and rejected.** The reasoning, so it is not relitigated:
 
-- The API client uses `_API_TIMEOUT = ClientTimeout(total=15)`. A probe reusing it would block `async_setup_entry` for up to 15 s against an unreachable gateway — tripping the *"Integration taking more than 10s to set up"* warning §1 exists to prevent. It would need its own 2–3 s timeout.
+- The API client uses `_API_TIMEOUT = ClientTimeout(total=15)`. A probe reusing it would block `async_setup_entry` for up to 15 s against an unreachable gateway — tripping the _"Integration taking more than 10s to set up"_ warning §1 exists to prevent. It would need its own 2–3 s timeout.
 - `ConfigEntryNotReady` triggers HA's setup-retry backoff, so the probe's cost is paid repeatedly while the gateway is down.
 - It would create two failure regimes for one fault: down at boot → retry card; down later → the 3-strike hold. Same condition, different UX.
 - Every healthy restart would pay the probe's latency, forever, to improve one uncommon case.

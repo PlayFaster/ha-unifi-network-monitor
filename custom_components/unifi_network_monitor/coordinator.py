@@ -80,6 +80,8 @@ from .const import (
     ROGUE_HISTORY_STORAGE_VERSION,
     ROGUE_PERIOD_HOURS,
     ROGUE_RAW_WINDOW_HOURS,
+    USAGE_WATERMARK_SAVE_DELAY,
+    USAGE_WATERMARK_STORAGE_VERSION,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -753,6 +755,15 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             f"{DOMAIN}.{entry.entry_id}.rogue_history",
         )
 
+        # Per-counter usage high-water mark: {counter_key: {"period": int,
+        # "value": int}}. See _clamp_usage. Persisted across restarts.
+        self.usage_watermark: dict[str, dict[str, int]] = {}
+        self._usage_store: Store[dict[str, dict[str, int]]] = Store(
+            hass,
+            USAGE_WATERMARK_STORAGE_VERSION,
+            f"{DOMAIN}.{entry.entry_id}.usage_watermark",
+        )
+
         # "Flat Identity" — loaded from entry.data, stable without a network call
         # Canonicalised once here (lowercase, colon-separated) so every consumer
         # — root registration, the device_info helpers, unique_ids — gets a MAC
@@ -930,12 +941,54 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     @callback
     async def async_initialize(self) -> None:
-        """Load persisted rogue-AP appearance history from storage."""
+        """Load persisted rogue-AP history and usage watermarks from storage."""
         stored = await self._rogue_history_store.async_load()
         if isinstance(stored, dict):
             self.rogue_history = {
                 b: dict(v) for b, v in stored.items() if isinstance(v, dict)
             }
+
+        usage = await self._usage_store.async_load()
+        if isinstance(usage, dict):
+            self.usage_watermark = {
+                k: {"period": int(v["period"]), "value": int(v["value"])}
+                for k, v in usage.items()
+                if isinstance(v, dict) and "period" in v and "value" in v
+            }
+
+    def _clamp_usage(
+        self, key: str, period: int | None, raw: float | None
+    ) -> int | None:
+        """Clamp a cumulative usage counter to its running maximum.
+
+        UniFi apportions the open daily/monthly bucket and recomputes it every
+        poll, so ``raw`` can dip slightly below the previous reading within a
+        period — which trips the ``total_increasing`` state class. We hold the
+        running maximum per counter and only let the value fall when the bucket's
+        ``period`` timestamp moves **forward** (a genuine day/month rollover,
+        where the new bucket legitimately restarts near zero).
+
+        Reset detection keys on ``period`` alone, never on the value — a forward
+        period move is the only real reset, and requiring *forward* (not merely
+        *different*) means a controller re-stamping the current bucket cannot be
+        mistaken for one. Bytes are rounded to whole numbers: the source is a
+        byte counter, and sub-byte apportionment noise is meaningless.
+        """
+        if raw is None or period is None:
+            return None if raw is None else round(raw)
+        raw_i = round(raw)
+        prev = self.usage_watermark.get(key)
+        if prev is None or period > prev["period"]:
+            # First sight, or a real rollover — adopt the new value verbatim.
+            self.usage_watermark[key] = {"period": period, "value": raw_i}
+            return raw_i
+        if period == prev["period"]:
+            # Same period — never step backwards.
+            value = max(raw_i, prev["value"])
+            self.usage_watermark[key] = {"period": period, "value": value}
+            return value
+        # period < prev["period"]: a stale/out-of-order bucket — hold last good.
+        return prev["value"]
 
     def _update_rogue_history(
         self, rogue_aps: list[dict[str, Any]], now: datetime
@@ -1527,10 +1580,28 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             reverse=True,
                         )
                         latest_daily = sorted_daily[0]
-                        wan1_today_rx = _safe_float(latest_daily.get("wan-rx_bytes"))
-                        wan1_today_tx = _safe_float(latest_daily.get("wan-tx_bytes"))
-                        wan2_today_rx = _safe_float(latest_daily.get("wan2-rx_bytes"))
-                        wan2_today_tx = _safe_float(latest_daily.get("wan2-tx_bytes"))
+                        day = latest_daily.get("time")
+                        day = int(day) if isinstance(day, (int, float)) else None
+                        wan1_today_rx = self._clamp_usage(
+                            "wan1_today_rx",
+                            day,
+                            _safe_float(latest_daily.get("wan-rx_bytes")),
+                        )
+                        wan1_today_tx = self._clamp_usage(
+                            "wan1_today_tx",
+                            day,
+                            _safe_float(latest_daily.get("wan-tx_bytes")),
+                        )
+                        wan2_today_rx = self._clamp_usage(
+                            "wan2_today_rx",
+                            day,
+                            _safe_float(latest_daily.get("wan2-rx_bytes")),
+                        )
+                        wan2_today_tx = self._clamp_usage(
+                            "wan2_today_tx",
+                            day,
+                            _safe_float(latest_daily.get("wan2-tx_bytes")),
+                        )
                 except (
                     AttributeError,
                     KeyError,
@@ -1557,10 +1628,28 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             reverse=True,
                         )
                         latest_monthly = sorted_monthly[0]
-                        wan1_month_rx = _safe_float(latest_monthly.get("wan-rx_bytes"))
-                        wan1_month_tx = _safe_float(latest_monthly.get("wan-tx_bytes"))
-                        wan2_month_rx = _safe_float(latest_monthly.get("wan2-rx_bytes"))
-                        wan2_month_tx = _safe_float(latest_monthly.get("wan2-tx_bytes"))
+                        month = latest_monthly.get("time")
+                        month = int(month) if isinstance(month, (int, float)) else None
+                        wan1_month_rx = self._clamp_usage(
+                            "wan1_month_rx",
+                            month,
+                            _safe_float(latest_monthly.get("wan-rx_bytes")),
+                        )
+                        wan1_month_tx = self._clamp_usage(
+                            "wan1_month_tx",
+                            month,
+                            _safe_float(latest_monthly.get("wan-tx_bytes")),
+                        )
+                        wan2_month_rx = self._clamp_usage(
+                            "wan2_month_rx",
+                            month,
+                            _safe_float(latest_monthly.get("wan2-rx_bytes")),
+                        )
+                        wan2_month_tx = self._clamp_usage(
+                            "wan2_month_tx",
+                            month,
+                            _safe_float(latest_monthly.get("wan2-tx_bytes")),
+                        )
                 except (
                     AttributeError,
                     KeyError,
@@ -1572,6 +1661,13 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         "%s: Failed to parse monthly gateway data: %s",
                         self.entry.title,
                         err,
+                    )
+
+                # Persist the watermarks the two blocks above just updated, so a
+                # restart does not re-emit a downward step against stored history.
+                if self.usage_watermark:
+                    self._usage_store.async_delay_save(
+                        lambda: self.usage_watermark, USAGE_WATERMARK_SAVE_DELAY
                     )
 
                 # Rogue Access Points — curated view (Security options applied).

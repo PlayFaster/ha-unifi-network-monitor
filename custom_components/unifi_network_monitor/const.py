@@ -135,6 +135,15 @@ ROGUE_HISTORY_MAX = 1000
 ROGUE_HISTORY_SAVE_DELAY = 120
 ROGUE_HISTORY_STORAGE_VERSION = 1
 
+# Per-counter high-water mark for cumulative WAN usage. UniFi apportions the
+# current (open) daily/monthly bucket and re-computes it each poll, so a byte
+# total can drift slightly *downward* within a period — which breaks the
+# total_increasing state class. We clamp each counter to its running maximum and
+# reset only when the bucket's period timestamp moves forward (a real rollover).
+# Persisted so a restart does not re-emit the drop against what HA already stored.
+USAGE_WATERMARK_SAVE_DELAY = 120
+USAGE_WATERMARK_STORAGE_VERSION = 1
+
 # Self-diagnosis: how many consecutive cycles a schema-drift signal must persist
 # before the Integration Health sensor / repair issue flags it (avoids single-
 # cycle false alarms; also gives startup grace).
