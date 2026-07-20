@@ -535,7 +535,27 @@ class UnifiIntegrationHealthBinarySensor(
         self._attr_unique_id = f"{entry.unique_id}_integration_health"
 
     def _health(self) -> dict[str, Any]:
-        return (self.coordinator.data or {}).get("integration_health") or {}
+        """Return the live health snapshot.
+
+        Read from the coordinator attribute, not ``coordinator.data`` — ``data``
+        is None before the first successful fetch and frozen at the last good
+        values during an outage, so it can never describe the failure that is
+        happening now.
+        """
+        return self.coordinator.health_snapshot or {}
+
+    @property
+    def available(self) -> bool:
+        """Always available — this sensor exists to report unavailability.
+
+        Deliberately overrides ``CoordinatorEntity.available`` (which tracks
+        ``last_update_success``). If it followed the coordinator, a total outage
+        would take this sensor unavailable at exactly the moment it has something
+        to say, and an unavailable ``problem`` sensor is not actionable — an
+        automation waits for ``on``, and a user reads ``unavailable`` as a broken
+        sensor rather than a down gateway (§19).
+        """
+        return True
 
     @property
     def is_on(self) -> bool:

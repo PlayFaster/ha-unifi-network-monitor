@@ -17,6 +17,7 @@ from homeassistant.components.sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     PERCENTAGE,
+    SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
     EntityCategory,
     UnitOfDataRate,
     UnitOfInformation,
@@ -590,7 +591,7 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         key="strongest_rogue_rssi",
         translation_key="gateway_strongest_rogue_rssi",
         device_class=SensorDeviceClass.SIGNAL_STRENGTH,
-        native_unit_of_measurement="dBm",
+        native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
         state_class=SensorStateClass.MEASUREMENT,
         min_limit=-100.0,
         max_limit=0.0,

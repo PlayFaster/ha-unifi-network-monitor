@@ -14,6 +14,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers.device_registry import format_mac
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
@@ -694,6 +695,22 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.consecutive_failures = 0
         self.last_update_success_time: datetime | None = None
         self._was_available = True
+        # Integration Health lives OUTSIDE ``self.data`` on purpose. ``data`` is
+        # the fetched payload — it is None before the first success and frozen at
+        # the last good values during an outage, so a health verdict stored in it
+        # cannot report the outage that stopped it being updated. Keeping the
+        # snapshot here lets the health sensor stay available and truthful when
+        # every other entity has correctly gone unavailable (§19).
+        self.health_snapshot: dict[str, Any] = {
+            "problem": False,
+            "severity": None,
+            "issues": [],
+            "degraded_capabilities": [],
+            "drift": [],
+            "auth_mode": None,
+            "v3_available": False,
+            "last_good_update": None,
+        }
         # Snapshot of the options that require a full reload when changed (set in
         # async_setup_entry). Live-tunable options (scan interval, proximity
         # threshold, pause) are excluded so their controls don't force a reload.
@@ -737,7 +754,12 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         )
 
         # "Flat Identity" — loaded from entry.data, stable without a network call
-        self.gateway_mac: str = entry.data.get("mac", "")
+        # Canonicalised once here (lowercase, colon-separated) so every consumer
+        # — root registration, the device_info helpers, unique_ids — gets a MAC
+        # that matches what HA Core's UniFi integration registers. Without this,
+        # an upper-case or colon-free MAC from the controller silently breaks the
+        # device-card merge (dev_standards §3).
+        self.gateway_mac: str = format_mac(entry.data.get("mac", ""))
         self.gateway_model: str = entry.data.get("model", "UDM Pro")
         self.sw_version: str | None = entry.data.get("sw_version")
         self.site_uuid: str | None = None
@@ -1040,6 +1062,41 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             )
         elif self.site_uuid is not None:
             ir.async_delete_issue(self.hass, DOMAIN, "site_resolution_failed")
+
+    def _record_fetch_failure_health(self, err: Exception) -> None:
+        """Flag Integration Health when the whole fetch fails.
+
+        Every other entity is either holding last-known values or has gone
+        unavailable, so this sensor is the only one able to say *why*. It reports:
+
+        * **Cold start** (``self.data`` is None — nothing has ever been fetched):
+          on the **first** failure. There are no values to hold, so waiting three
+          cycles would leave the user with a silent, wholly-unavailable
+          integration for up to three poll intervals.
+        * **Runtime**: on the **third** consecutive failure, matching the §8
+          3-strike rule that governs everything else, so a single blip does not
+          raise an alarm.
+
+        Cleared immediately by the next successful fetch.
+        """
+        cold_start = self.data is None
+        if not cold_start and self.consecutive_failures < FETCH_STRIKE_LIMIT:
+            return
+
+        reason = (
+            "UniFi gateway unreachable since startup — no data has been fetched"
+            if cold_start
+            else f"UniFi gateway unreachable ({self.consecutive_failures} "
+            "consecutive failed updates)"
+        )
+        self.health_snapshot = {
+            **self.health_snapshot,
+            "problem": True,
+            "severity": "serious",
+            "issues": [f"{reason}: {err}"],
+            "degraded_capabilities": ["All — gateway unreachable"],
+            "auth_mode": "api_key" if self.api.api_key else "password",
+        }
 
     def _compute_integration_health(
         self, opts: Mapping[str, Any], raw_drift: dict[str, bool]
@@ -1992,6 +2049,9 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     integration_health = self._compute_integration_health(
                         opts, raw_drift
                     )
+                    # A successful fetch clears any outage verdict immediately —
+                    # the sensor must not stay on until some later cycle.
+                    self.health_snapshot = integration_health
                     self._sync_health_issues(integration_health)
                 except (AttributeError, KeyError, TypeError, ValueError) as err:
                     _LOGGER.debug(
@@ -2010,6 +2070,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         except UnifiAuthError as err:
             self.consecutive_failures += 1
+            self._record_fetch_failure_health(err)
             if self.data is not None and self.consecutive_failures <= 3:
                 log = (
                     _LOGGER.warning if self.consecutive_failures == 1 else _LOGGER.debug
@@ -2026,6 +2087,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         except (UnifiConnectionError, TimeoutError) as err:
             self.consecutive_failures += 1
+            self._record_fetch_failure_health(err)
             if self.data is not None and self.consecutive_failures <= 3:
                 log = (
                     _LOGGER.warning if self.consecutive_failures == 1 else _LOGGER.debug
@@ -2047,6 +2109,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         except Exception as err:
             self.consecutive_failures += 1
+            self._record_fetch_failure_health(err)
             if self.data is not None and self.consecutive_failures <= 3:
                 log = (
                     _LOGGER.warning if self.consecutive_failures == 1 else _LOGGER.debug

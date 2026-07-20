@@ -38,6 +38,12 @@ def _make_coordinator(data: dict[str, Any] | None) -> MagicMock:
     coord.gateway_model = "UDMPRO"
     coord.sw_version = "5.1.19.33549"
     coord.async_add_listener = MagicMock()
+    # Integration Health reads the coordinator's live snapshot, not ``data`` —
+    # ``data`` is None at cold start and frozen at the last good values during an
+    # outage, so it can never describe a failure in progress. Mirror any health
+    # block supplied in ``data`` so callers can keep writing it there; without
+    # this the attribute would be a MagicMock and read as truthy.
+    coord.health_snapshot = (data or {}).get("integration_health") or {}
     return coord
 
 

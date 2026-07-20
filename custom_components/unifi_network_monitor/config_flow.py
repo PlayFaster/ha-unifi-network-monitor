@@ -12,6 +12,7 @@ from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import AbortFlow, section
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.device_registry import format_mac
 from homeassistant.helpers.selector import (
     SelectSelector,
     SelectSelectorConfig,
@@ -307,7 +308,8 @@ class UnifiNetworkConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 try:
                     info = await _validate_connection(self.hass, user_input)
 
-                    unique_id = info["mac"] or user_input[CONF_HOST]
+                    # Canonicalise before it becomes the entry's unique_id (§3).
+                    unique_id = format_mac(info["mac"]) or user_input[CONF_HOST]
                     await self.async_set_unique_id(unique_id)
                     self._abort_if_unique_id_configured()
 

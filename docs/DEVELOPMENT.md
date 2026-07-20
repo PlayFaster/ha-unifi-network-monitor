@@ -208,10 +208,30 @@ BSSID-keyed `Store` (`{DOMAIN}.{entry_id}.rogue_history`), loaded in `coordinato
 
 ### Integration Health & Self-Diagnosis (§19 of shared dev_standards)
 
-`_compute_integration_health(opts, raw_drift)` builds a health snapshot (`problem`/`severity`/`issues`/`degraded_capabilities`/`drift`/`auth_mode`/…) into `coordinator.data["integration_health"]`, surfaced by the **Integration Health** `PROBLEM` binary sensor. It catches **silent** failures HA misses:
+`_compute_integration_health(opts, raw_drift)` builds a health snapshot (`problem`/`severity`/`issues`/`degraded_capabilities`/`drift`/`auth_mode`/…), surfaced by the **Integration Health** `PROBLEM` binary sensor. It catches **silent** failures HA misses:
 
 - **Capability degradation** — `_stale_endpoints − disabled_endpoints(opts)` (so a **user-disabled** group is never flagged; v3 endpoints are excluded under password auth) → moderate, sensor-only.
-- **Schema drift** — a non-empty upstream response that parsed to nothing (gateway stats all-None / rogue all-empty-bssid / alerts no-severity), gated by a **per-source strike counter** (`HEALTH_DRIFT_STRIKE_LIMIT`, 3) to avoid single-cycle trips → serious, **sensor + `schema_drift_detected` repair** (`_sync_health_issues`, auto-clears). `site_resolution_failed` is reflected in the attributes (owned by `_sync_site_issue`). The whole block is wrapped so a malformed payload can't crash the update it diagnoses; the sensor is not endpoint-tagged so it stays available to _report_ staleness.
+- **Schema drift** — a non-empty upstream response that parsed to nothing (gateway stats all-None / rogue all-empty-bssid / alerts no-severity), gated by a **per-source strike counter** (`HEALTH_DRIFT_STRIKE_LIMIT`, 3) to avoid single-cycle trips → serious, **sensor + `schema_drift_detected` repair** (`_sync_health_issues`, auto-clears). `site_resolution_failed` is reflected in the attributes (owned by `_sync_site_issue`). - **Total outage** — the whole fetch failing, not just one endpoint. `_record_fetch_failure_health(err)` runs in all three `except` blocks of `_async_update_data` and flags **immediately at cold start** (`self.data is None` — nothing to hold, so waiting out the strikes would leave the integration silent for up to 3 poll intervals) or **at `FETCH_STRIKE_LIMIT` consecutive failures at runtime** (matching §8, so a blip raises no alarm). The success path assigns the freshly computed snapshot wholesale, clearing the verdict in the same cycle.
+
+The whole block is wrapped so a malformed payload can't crash the update it diagnoses; the sensor is not endpoint-tagged so it stays available to _report_ staleness.
+
+**Two design points that are easy to regress (2026-07-20):**
+
+- **The snapshot lives on `coordinator.health_snapshot`, NOT in `coordinator.data`.** `data` is `None` before the first success and frozen at the last good values during an outage — a verdict stored there cannot describe the failure that stopped it being updated, and would keep asserting the pre-outage state, which was healthy. Both the success path and `_record_fetch_failure_health` write the attribute. A copy is still emitted into `data["integration_health"]` for diagnostics and back-compat; the sensor does not read it.
+- **The sensor overrides `available` to return `True` unconditionally.** `CoordinatorEntity.available` returns `last_update_success` (verified in HA 2026.7.2), which would take the sensor unavailable at exactly the moment it has something to report. An `unavailable` `problem` sensor is not actionable: automations wait for `on`, and users read `unavailable` as a broken sensor rather than a down gateway.
+
+### Startup: No Connectivity Probe (§1 of shared dev_standards)
+
+`async_setup_entry` awaits `coordinator.async_initialize()` — which only loads the persisted rogue-AP history from **local storage**, no network call — registers the gateway root, forwards the platforms, then offloads the first fetch via `entry.async_create_background_task` and returns `True`. No `ConfigEntryNotReady` is raised at setup, so HA shows no native "Retrying setup" card. This is the §1 departure from IQS `test-before-setup`, and it is deliberate.
+
+**A connectivity probe was considered and rejected.** The reasoning, so it is not relitigated:
+
+- The API client uses `_API_TIMEOUT = ClientTimeout(total=15)`. A probe reusing it would block `async_setup_entry` for up to 15 s against an unreachable gateway — tripping the *"Integration taking more than 10s to set up"* warning §1 exists to prevent. It would need its own 2–3 s timeout.
+- `ConfigEntryNotReady` triggers HA's setup-retry backoff, so the probe's cost is paid repeatedly while the gateway is down.
+- It would create two failure regimes for one fault: down at boot → retry card; down later → the 3-strike hold. Same condition, different UX.
+- Every healthy restart would pay the probe's latency, forever, to improve one uncommon case.
+
+**It is also unnecessary here.** Platforms are forwarded (`__init__.py`) **before** the background task is created, and `DataUpdateCoordinator.async_refresh()` swallows `ConfigEntryNotReady` rather than propagating it — so **entities already exist at cold start**, merely unavailable. The Integration Health sensor stays available and turns `on` on the first cold-start failure, which reports the same fact with no startup cost. See the §19 notes above.
 
 ### Force-Refresh Bypasses Pause (Explicit User Actions)
 

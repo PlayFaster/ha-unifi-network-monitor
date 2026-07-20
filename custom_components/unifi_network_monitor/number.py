@@ -12,7 +12,12 @@ from homeassistant.components.number import (
     NumberMode,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import PERCENTAGE, EntityCategory, UnitOfTime
+from homeassistant.const import (
+    PERCENTAGE,
+    SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
+    EntityCategory,
+    UnitOfTime,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -62,7 +67,7 @@ _ROGUE_PROXIMITY_THRESHOLD_DESCRIPTION = NumberEntityDescription(
     native_min_value=-100,
     native_max_value=-30,
     native_step=1,
-    native_unit_of_measurement="dBm",
+    native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
     mode=NumberMode.BOX,
     entity_category=EntityCategory.CONFIG,
 )

@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, DeviceInfo
+from homeassistant.helpers.device_registry import (
+    CONNECTION_NETWORK_MAC,
+    DeviceInfo,
+    format_mac,
+)
 
 from .const import DOMAIN
 
@@ -127,6 +131,9 @@ def build_unifi_device_info(
     for the same physical device where they already exist.
     """
     gateway_mac = coordinator.gateway_mac
+    # Per-device MACs come straight off the controller payload, so canonicalise
+    # here — the gateway MAC is already normalised by the coordinator (§3).
+    device_mac = format_mac(device_mac)
     return DeviceInfo(
         connections={(CONNECTION_NETWORK_MAC, device_mac)},
         identifiers={(DOMAIN, device_mac)},
