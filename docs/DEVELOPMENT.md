@@ -89,6 +89,16 @@ Gateway MAC, model, and firmware version are stored in `entry.data` at setup tim
 
 Credential fields (API key, password) use `TextSelectorType.PASSWORD` in all flows. Edit flows (`reconfigure`, `options`, `reauth`) intentionally leave these fields blank — the stored value cannot be retrieved via the eye icon. If the user submits a blank field, the existing credential is retained via `_merge_credentials()`.
 
+### Diagnostics Sanitization (§20 of shared dev_standards)
+
+`diagnostics.py` runs a two-pass sanitizer **before** `async_redact_data`. Pass 1 walks the payload and learns identifiers — device MACs, device names, the ISP name, WAN interface names, rogue SSIDs — allocating a stable token for each (`device-1`, `gateway`, `rogue-2`). Pass 2 rewrites: MAC-keyed dictionaries (`entry.data["boot_times"]`, `data["devices"]`) get their **keys** replaced, device records get `mac`/`name` tokenised, the UniFi alert `parameters` subtree is sanitized by block name (`DEVICE` → token, `ISP_NAME`/`WAN_SUBNET`/`WAN_NAME`/`CONSOLE_NAME` → blanked), and free-text `message`/`title` have every learned literal substituted out. A shape-based backstop (MAC regex, RFC1918 + CGNAT regex) covers alert blocks UniFi may add later.
+
+Tokens are stable across sections, so an alert about `device-4` still resolves against `device-4` in the device list — the file stays diagnostically useful. `TO_REDACT` is retained unchanged and still runs last.
+
+Design constraints: matching is **structural only** (shape and position), so no real identifier is ever hard-coded; the coordinator payload is `deepcopy`'d because diagnostics is a read path; and `strongest_rogue_ssid` is resolved through the learned-literal pass rather than a sentinel check, so a real SSID becomes its token while `"None Detected"` passes through untouched.
+
+Rogue-AP records get particular attention: they describe **other people's** networks. `essid` is tokenised, `bssid` redacted, `detected_by` (a comma-joined list of this user's own AP names) run through the text scrubber. `oui` is deliberately **kept** — vendor alone identifies nobody and is genuinely useful when diagnosing detection behaviour.
+
 ### 3-Strike Resilience
 
 The coordinator holds last known data for up to 3 consecutive poll failures before raising `UpdateFailed`. On failure 1, a warning is logged. Failures 2–3 log at debug. Failure 4+ triggers Unavailable. A successful poll resets the counter to 0 and logs reconnection if the integration was previously unavailable.
@@ -245,6 +255,16 @@ Both call `plan_device_cleanup`/`apply_cleanup` (`cleanup.py`): entities via `en
 - **Duplicate sensors from dual endpoints**: Both `/stat/device` (uplink object) and `/stat/health` (www/wan subsystems) report speedtest results and WAN latency. Initially both were surfaced, producing 8 duplicate entities split between the Gateway and Network sub-devices. Fix: removed all speedtest/WAN sensors from the gateway layer; health endpoint is authoritative for these.
 
 - **Credential eye-icon exposure**: Using `TextSelectorType.PASSWORD` prevents a field from being read as plain text, but pre-filling the field with the stored value allows the user to reveal it via the browser's eye icon. Fix: split setup schema (`_user_schema`) from edit schema (`_edit_schema`); credential fields always default to `""` in edit flows, with `_merge_credentials()` retaining existing values when blank is submitted.
+
+- **`async_redact_data` redacts values, never keys**: `entry.data["boot_times"]` and `data["devices"]` are both keyed by device MAC, so every MAC passed through in cleartext while the `mac` *values* beside them were correctly redacted — the output looked sanitized. The codebase already knew this (`rogue_history` was flattened from a BSSID-keyed dict to a list of records for exactly this reason) but the insight had not been applied to the other two. Fix: rewrite the keys through the pseudonymiser (`_is_mac()`-gated).
+
+- **Redaction does not reach verbatim vendor payloads**: captured alerts store UniFi's `parameters` blob as-is, and UniFi names its fields `id`, `ip`, `name`. The gateway MAC, internal IPs, ISP name, WAN subnet and WAN interface name all survived inside it despite the same values being redacted at top level. Fix: sanitize the subtree explicitly by block name, plus a shape-based regex backstop for block types not yet mapped.
+
+- **Free text embeds identifiers no key rule can reach**: the alert `message` reads `Internet connection WAN1 <ISP> on port 9 went down…` — the ISP name inline in prose. Fix: learn identifiers in a first pass, then substitute them out of `message`/`title`.
+
+- **Over-redaction is also a defect**: `boot_times` mixes MAC keys with plain interface labels (`wan1`, `wan2`, `www`). Tokenising those turned every alert mentioning WAN1 into `device-22`, destroying the readability of the text a maintainer reads first, while protecting nothing. Fix: gate key rewriting on `_is_mac()`. General rule — sanitize identifiers, not everything that happens to be a dict key.
+
+- **A single diagnostics capture only proves what that capture contained**: the first regenerated file showed `strongest_rogue_ssid: "None Detected"` and an empty `rogue_aps_list` simply because no rogues were present at that moment; both were latent third-party-SSID leaks. Fix: verify against a capture taken while the optional data is populated (long rogue history selected), not just a quiet one.
 
 - **`asyncio.Task` mypy type-arg error**: `asyncio.Task` without a type parameter produces a mypy `type-arg` error under `--strict`. Fix: `asyncio.Task[None]`.
 

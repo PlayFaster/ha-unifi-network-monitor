@@ -135,3 +135,77 @@ async def test_diagnostics_includes_coordinator_state(hass: Any) -> None:
     assert result["coordinator"]["consecutive_failures"] == 3
     assert result["coordinator"]["gateway_model"] == "UDMPRO"
     assert result["coordinator"]["sw_version"] == "5.1.19.33549"
+
+
+# ---------------------------------------------------------------------------
+# _Scrubber helper guards
+# ---------------------------------------------------------------------------
+
+
+def test_device_token_empty_returns_redacted() -> None:
+    """device_token returns REDACTED for empty/falsy value (line 95)."""
+    from custom_components.unifi_network_monitor.diagnostics import (
+        REDACTED,
+        _Scrubber,
+    )
+
+    scrub = _Scrubber()
+    assert scrub.device_token("") == REDACTED
+    assert scrub.device_token(None) == REDACTED
+    assert scrub.device_token(REDACTED) == REDACTED
+
+
+def test_rogue_token_empty_returns_redacted() -> None:
+    """rogue_token returns REDACTED for empty value (line 111)."""
+    from custom_components.unifi_network_monitor.diagnostics import (
+        REDACTED,
+        _Scrubber,
+    )
+
+    scrub = _Scrubber()
+    assert scrub.rogue_token("") == REDACTED
+    assert scrub.rogue_token(None) == REDACTED
+
+
+def test_scrub_device_non_dict_returns_input() -> None:
+    """_scrub_device returns non-dict input unchanged (line 161)."""
+    from custom_components.unifi_network_monitor.diagnostics import _scrub_device
+
+    scrub = MagicMock()
+    assert _scrub_device(scrub, None) is None
+    assert _scrub_device(scrub, "string") == "string"
+    assert _scrub_device(scrub, 42) == 42
+
+
+def test_scrub_alert_block_non_dict_returns_input() -> None:
+    """_scrub_alert_block handles non-dict block (line 174)."""
+    from custom_components.unifi_network_monitor.diagnostics import _scrub_alert_block
+
+    scrub = MagicMock()
+    scrub.text = MagicMock(side_effect=lambda x: f"scrubbed:{x}")
+    result = _scrub_alert_block(scrub, "NAME", "free text")
+    assert result == "scrubbed:free text"
+    result = _scrub_alert_block(scrub, "NAME", None)
+    assert result is None
+    result = _scrub_alert_block(scrub, "NAME", 42)
+    assert result == 42
+
+
+def test_scrub_alert_non_dict_returns_input() -> None:
+    """_scrub_alert returns non-dict input unchanged (line 198)."""
+    from custom_components.unifi_network_monitor.diagnostics import _scrub_alert
+
+    scrub = MagicMock()
+    assert _scrub_alert(scrub, None) is None
+    assert _scrub_alert(scrub, "string") == "string"
+    assert _scrub_alert(scrub, 42) == 42
+
+
+def test_scrub_rogue_entry_non_dict_returns_input() -> None:
+    """_scrub_rogue_entry returns non-dict input unchanged (line 183)."""
+    from custom_components.unifi_network_monitor.diagnostics import _scrub_rogue_entry
+
+    scrub = MagicMock()
+    assert _scrub_rogue_entry(scrub, None) is None
+    assert _scrub_rogue_entry(scrub, "string") == "string"
+    assert _scrub_rogue_entry(scrub, 42) == 42
