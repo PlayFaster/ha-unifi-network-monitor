@@ -138,6 +138,22 @@ Full design: `.notes/design_monitor_setup_options.md`. Cross-project porting gui
 - `_LOGGER` messages are prefixed with `self.entry.title` (`"%s: ..."`) — match that style.
 - The `.notes` and `.shared` symlinks point outside the repo (project notes / shared validation configs) and are not part of the shipped integration.
 
+### README Anchor Links & Emoji Headings
+
+README headings carry emoji, and **many of them are two codepoints** — the glyph plus an invisible variation selector `U+FE0F` (`⏱️ ⚙️ ✂️ 🎛️ 🖥️ 🛡️ ♻️ …`). GitHub strips **both** codepoints when generating the heading anchor, so:
+
+- The anchor for `## ✂️ Tailoring What's Monitored` is **`#-tailoring-whats-monitored`** — leading hyphen (from the space the emoji left behind), apostrophe dropped, no emoji remnant.
+- Writing `#️-tailoring-whats-monitored` (with the `U+FE0F` carried over) produces a **404**. The link checker reports it as `#%EF%B8%8F-…` — `%EF%B8%8F` is the percent-encoded variation selector and is the tell-tale signature of this bug.
+
+Rules:
+
+- **Never copy the emoji into an anchor.** Build the target from the heading text alone: lowercase, drop punctuation, spaces → hyphens, and keep the leading hyphen the stripped emoji leaves.
+- A ` - ` in a heading becomes `---` in the anchor (space→`-`, hyphen, space→`-`).
+- **Prefer single-codepoint emoji for new headings** (`📖 🧰 🔄 🔀 💾 🤝`) over variation-selector ones. It avoids the trap entirely and keeps anchors predictable.
+- After adding or renaming a heading, verify with the link checker rather than by eye — `U+FE0F` is invisible in every editor. To inspect bytes: `grep -n '<text>' README.md | cat -A` and look for `M-oM-8M-^O`.
+
+This has been hit three times (2026-07). Fix the link, not the heading — the emoji renders correctly and GitHub handles it; only hand-written anchors get it wrong.
+
 ### Exception Tuple Syntax — Settled Decision
 
 Always use `except (A, B):` with explicit parentheses for multi-exception catches. Never use the bare-tuple form `except A, B:`.

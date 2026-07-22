@@ -42,7 +42,7 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
   - [🎯 Use Cases](#-use-cases)
   - [✅ Features](#-features)
   - [🔍 What You Get](#-what-you-get)
-  - [✂️ Tailoring What's Monitored](#️-tailoring-whats-monitored)
+  - [✂️ Tailoring What's Monitored](#-tailoring-whats-monitored)
   - [📸 Screenshots](#-screenshots)
   - [📡 Rogue Access Point Monitoring](#-rogue-access-point-monitoring)
   - [💡 Example Automations](#-example-automations)
@@ -388,7 +388,7 @@ A deliberately-curated set is **left out of LTS** (no `state_class`) - either it
 >
 > If you want to see the current value, but have no interest in short or long term history, you can [exclude a value from the Recorder](https://www.home-assistant.io/integrations/recorder/#configure-filter).
 >
-> And of course, if a particular sensor, or group of sensors is of no interest to you, you can very easily disable it. See [Tailoring What's Monitored](#️-tailoring-whats-monitored) above. Remember you don't **need** to do **any** of this. These are _extra_ options for the Home Assistant user who wants _extra_ control.
+> And of course, if a particular sensor, or group of sensors is of no interest to you, you can very easily disable it. See [Tailoring What's Monitored](#-tailoring-whats-monitored) above. Remember you don't **need** to do **any** of this. These are _extra_ options for the Home Assistant user who wants _extra_ control.
 
 ---
 
