@@ -145,14 +145,24 @@ README headings carry emoji, and **many of them are two codepoints** — the gly
 - The anchor for `## ✂️ Tailoring What's Monitored` is **`#-tailoring-whats-monitored`** — leading hyphen (from the space the emoji left behind), apostrophe dropped, no emoji remnant.
 - Writing `#️-tailoring-whats-monitored` (with the `U+FE0F` carried over) produces a **404**. The link checker reports it as `#%EF%B8%8F-…` — `%EF%B8%8F` is the percent-encoded variation selector and is the tell-tale signature of this bug.
 
+**The two validators disagree, and a `U+FE0F` heading cannot satisfy both:**
+
+| Tool                   | Fragment it expects for `## ✂️ Tailoring What's Monitored`  |
+| :--------------------- | :---------------------------------------------------------- |
+| GitHub / link checker  | `#-tailoring-whats-monitored` — strips **both** codepoints  |
+| markdownlint **MD051** | `#%EF%B8%8F-tailoring-whats-monitored` — **keeps** `U+FE0F` |
+
+MD051 builds its slug by discarding everything that is not a Letter, Mark, Number, connector, hyphen or space. `U+FE0F` is category **Mark, nonspacing**, so it survives; the emoji glyph itself (a Symbol) does not. GitHub strips both. Whichever fragment you write, one tool fails — **this cannot be fixed in the link.**
+
 Rules:
 
+- **A heading that is (or may become) a link target must use a single-codepoint emoji** — `📖 🧰 🔄 🔀 💾 🤝 🧩 📊`. Both tools then strip it identically and agree on `#-slug`. This is the only resolution: do **not** try to fix it in the link text, and do not suppress MD051.
 - **Never copy the emoji into an anchor.** Build the target from the heading text alone: lowercase, drop punctuation, spaces → hyphens, and keep the leading hyphen the stripped emoji leaves.
 - A `-` in a heading becomes `---` in the anchor (space→`-`, hyphen, space→`-`).
-- **Prefer single-codepoint emoji for new headings** (`📖 🧰 🔄 🔀 💾 🤝`) over variation-selector ones. It avoids the trap entirely and keeps anchors predictable.
-- After adding or renaming a heading, verify with the link checker rather than by eye — `U+FE0F` is invisible in every editor. To inspect bytes: `grep -n '<text>' README.md | cat -A` and look for `M-oM-8M-^O`.
+- Several existing headings still carry `U+FE0F` (`⏱️ ⚙️ 🎛️ 🖥️ 🛡️`). They are harmless **while nothing links to them**. Before adding a link to one, change its emoji to a single-codepoint one first.
+- Verify against both validators, never by eye — `U+FE0F` is invisible in every editor. To inspect bytes: `grep -n '<text>' README.md | cat -A` and look for `M-oM-8M-^O`.
 
-This has been hit three times (2026-07). Fix the link, not the heading — the emoji renders correctly and GitHub handles it; only hand-written anchors get it wrong.
+Hit four times (2026-07): three as link-checker 404s, then once as MD051 — after "fixing" the link to satisfy the link checker, which is what exposed the conflict.
 
 ### Exception Tuple Syntax — Settled Decision
 

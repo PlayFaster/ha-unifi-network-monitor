@@ -42,7 +42,7 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
   - [🎯 Use Cases](#-use-cases)
   - [✅ Features](#-features)
   - [🔍 What You Get](#-what-you-get)
-  - [✂️ Tailoring What's Monitored](#-tailoring-whats-monitored)
+  - [🧩 Tailoring What's Monitored](#-tailoring-whats-monitored)
   - [📸 Screenshots](#-screenshots)
   - [📡 Rogue Access Point Monitoring](#-rogue-access-point-monitoring)
   - [💡 Example Automations](#-example-automations)
@@ -104,7 +104,7 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
 - **Per-WAN Results**: Download, upload, ping, and last-run time for WAN1 and WAN2.
 - **Manual Runs**: **Run WAN1 Speedtest** and **Run WAN2 Speedtest** buttons trigger a test on the specific interface.
 
-### 🛡️ Network Security & Health
+### 🔐 Network Security & Health
 
 - **Rogue AP Detection**: Your UniFi access points are already scanning for nearby Wi-Fi networks. This turns that into sensors - **how many** unknown networks are around, **which is strongest**, and **how strong its signal is** - plus a **Proximity Alert** that trips when an unknown network is close enough to matter (you set the dBm threshold). That catches an "evil twin" AP imitating your SSID, an unauthorized router plugged into your LAN, or a smart-home device that has factory-reset itself and is sitting there broadcasting its setup network.
 - **Tuned to your neighborhood, and automatable**: Choose how far back to look, drop a band you don't care about, and ignore the networks you already know - your neighbors' Wi-Fi - so the alert means something. Every network seen is remembered, so a **brand-new** arrival is distinguishable from a long-standing neighbor, and both an **event** and an **on-demand query action** are available to drive automations. See [Rogue Access Point Monitoring](#-rogue-access-point-monitoring) for the full picture.
@@ -118,7 +118,7 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
 - **New-alert event**: A `unifi_network_monitor_new_alert` bus event fires for each newly-seen High/Very High alert - trigger notifications or automations on it.
 - **On-demand query**: A `get_alerts` action returns recent alerts on demand (choose severity, quantity, age, keyword, exclude) - see [Actions](#-actions-services).
 
-### 🖥️ Gateway & System Diagnostics
+### 💻 Gateway & System Diagnostics
 
 - **Firmware & Identity**: UniFi OS and Network application version, gateway model, and SFP transceiver diagnostics (SFP info is available but disabled by default).
 - **Hardware Metrics**: Storage utilization (enabled) plus CPU %, memory %, CPU & board (board=phy in core) temperatures, and uptime (disabled as they are also provided by the official integration, but available).
@@ -129,7 +129,7 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
 - **Configurable Update Interval**: Adjust the scan interval from the HA UI or via automation (default `180` seconds, range `10` to `3600`).
 - **Standard System Option**: Also honours Home Assistant's **System options > Enable polling for changes** toggle.
 
-### 🎛️ Scoped Setup (Sensor Groups)
+### 📦 Scoped Setup (Sensor Groups)
 
 Via **Configure**, choose which groups of sensors are created (all default to **on**). A disabled group both hides its sensors **and skips its API calls**:
 
@@ -292,7 +292,7 @@ Below is a quick reference showing how entities are default-enabled depending on
 
 <br>
 
-## ✂️ Tailoring What's Monitored
+## 🧩 Tailoring What's Monitored
 
 **Installed with its defaults, this integration needs no adjustment** - everything works out of the box. But it exposes a lot, and you may not want all of it. You have options.
 
@@ -458,7 +458,7 @@ For each rogue **BSSID**, the integration keeps a small persisted record - `firs
   - while ignoring known SSIDs - like your neighbors' WiFi
 - **Smart Home Troubleshooting**: Since smart home devices occasionally fail and revert to their own internal Wi-Fi broadcast setup (e.g. a Shelly plug broadcasting `shellyplug-s-XXXXXX` when disconnected), this alert can notify you immediately if a smart plug or IoT device has dropped offline and is broadcasting its setup SSID.
 
-### ⚙️ How to use it
+### 📘 How to use it
 
 1. Look at the typical signal levels of your neighbors' Wi-Fi networks in your dashboard. _(Note: You should add their SSIDs to your ignore list but before you do, this is a great way to get a sense of what signal levels "nearby" WiFi has in your set-up)_
 2. Set your **Rogue Proximity Threshold** slightly above this normal background level (e.g. if neighbors average `-75` dBm, set the threshold to `-65` or `-60` dBm).
@@ -519,7 +519,7 @@ target:
 
 Monitor for Rogue Access Points, critical system-log alerts, and Guest WiFi use
 
-#### 🛡️ Rogue AP Proximity Alert
+#### 📶 Rogue AP Proximity Alert
 
 <details>
 
@@ -953,7 +953,7 @@ actions:
 
 </details>
 
-#### 🎛️ Optimize WAN Weight on High Latency
+#### 📈 Optimize WAN Weight on High Latency
 
 <details>
 
@@ -1037,7 +1037,7 @@ actions:
 
 Schedule speedtests to run on the UniFi gateway, get notified if speedtest results are slow and run a speedtest if latency suggests poor performance.
 
-#### ⏱️ Scheduled Speedtests
+#### 📅 Scheduled Speedtests
 
 <details>
 
@@ -1143,7 +1143,7 @@ actions:
 
 </details>
 
-#### ⏱️ Trigger Diagnostic Speedtest
+#### 🏁 Trigger Diagnostic Speedtest
 
 <details>
 
@@ -1789,7 +1789,7 @@ This integration writes **two small JSON files** per configured gateway into Hom
 
 </details>
 
-#### 🖥️ **My gateway CPU / Memory / Temperature / Uptime sensors are disabled**
+#### 💻 **My gateway CPU / Memory / Temperature / Uptime sensors are disabled**
 
 <details>
 
