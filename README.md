@@ -1693,7 +1693,7 @@ This integration writes **two small JSON files** per configured gateway into Hom
 | File | What it stores | Why it exists |
 | :-- | :-- | :-- |
 | `unifi_network_monitor.<entry_id>.rogue_history` | Your **rogue-AP history**, keyed by BSSID: when each neighbouring access point was **first seen**, how many times it has **appeared**, and its last-known SSID label. | Lets the integration tell a **genuinely new** rogue AP from one it has seen before - powering the **Rogue APs New 24h** sensor and the `unifi_network_monitor_new_rogue_ap` event, so they survive restarts instead of re-reporting every rogue as "new". Pruned by the **Rogue History TTL** option (default 90 days; `0` = keep forever) and hard-capped at 1000 BSSIDs. |
-| `unifi_network_monitor.<entry_id>.usage_watermark` | A **high-water mark** for each cumulative WAN usage counter - the highest value seen so far, plus the reporting period it belongs to. | UniFi re-calculates the *current* (open) daily/monthly usage bucket on every poll, so a byte total can drift slightly **downward** within a period. That would break Home Assistant's `total_increasing` counters and log "state is not strictly increasing" warnings. This file holds each counter's running maximum so a restart doesn't re-emit a drop. |
+| `unifi_network_monitor.<entry_id>.usage_watermark` | A **high-water mark** for each cumulative WAN usage counter - the highest value seen so far, plus the reporting period it belongs to. | UniFi re-calculates the _current_ (open) daily/monthly usage bucket on every poll, so a byte total can drift slightly **downward** within a period. This is **normal UniFi controller behaviour, not a fault in this integration or in Home Assistant** - the gateway estimates the in-progress bucket by apportioning a coarser measurement across the reporting window (the totals it reports are even fractional), and refines that estimate on each poll; verified against a live UDM Pro. This file holds each counter's running maximum so those tiny corrections never step the counter backwards, and a restart doesn't re-emit a drop. Otherwise, as these are `total_increasing` counters you would get occasional "state is not strictly increasing" log warnings. |
 
 `<entry_id>` is Home Assistant's internal ID for your config entry - so if you've added more than one gateway, you'll see a pair of files per gateway.
 
@@ -1738,24 +1738,6 @@ This integration writes **two small JSON files** per configured gateway into Hom
 
 </details>
 
-#### ❔ **Why are my firewall, VPN, or WAN-name sensors "unknown"?**
-
-<details>
-
-<summary>
-&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
-</summary><br>
-
-- Likely because you're authenticating with **username / password**. The seven sensors below are served exclusively by the UniFi Integration (v3) API, which is **API-key only**:
-  - **Rules Active**, **Rules Configured**, **Rules Disabled** (firewall)
-  - **VPN Connections Active**, **VPN Connections Total**
-  - **WAN1 Name**, **WAN2 Name**
-- This is a fundamental limitation of the UniFi API, not a bug. **Switch to an API key** (UniFi Network → Integrations → Create New API Key) and reload the integration to enable them.
-
----
-
-</details>
-
 ### 📊 Entities & Values
 
 #### ❔ **Some sensors show "Unknown"**
@@ -1789,6 +1771,24 @@ This integration writes **two small JSON files** per configured gateway into Hom
 
 </details>
 
+#### ❔ **Why are my firewall, VPN, or WAN-name sensors "unknown"?**
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
+
+- Likely because you're authenticating with **username / password**. The seven sensors below are served exclusively by the UniFi Integration (v3) API, which is **API-key only**:
+  - **Rules Active**, **Rules Configured**, **Rules Disabled** (firewall)
+  - **VPN Connections Active**, **VPN Connections Total**
+  - **WAN1 Name**, **WAN2 Name**
+- This is a fundamental limitation of the UniFi API, not a bug. **Switch to an API key** (UniFi Network → Integrations → Create New API Key) and reload the integration to enable them.
+
+---
+
+</details>
+
 #### 🖥️ **My gateway CPU / Memory / Temperature / Uptime sensors are disabled**
 
 <details>
@@ -1798,6 +1798,31 @@ This integration writes **two small JSON files** per configured gateway into Hom
 </summary><br>
 
 - Expected **when the official HA Core UniFi integration is installed**. Six gateway diagnostics (CPU, Memory, CPU Temperature, Board Temperature, Uptime, Update Available) are disabled-by-default in that case because Core already covers the gateway - see [Coexistence](#-coexistence-with-the-official-unifi-integration). Enable any you want from the device's Entities tab. Without Core UniFi, these are enabled by default.
+
+---
+
+</details>
+
+#### 🔀 **I've just installed the official UniFi integration - how do I disable the duplicate sensors here?**
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
+
+Manually, from the device's **Entities** tab - and note that removing and re-adding this integration won't do it for you.
+
+This integration checks whether the official UniFi integration is present **at the moment each entity is first created**. From then on, Home Assistant owns the enabled/disabled state and remembers your choices, so installing Core UniFi later doesn't retrospectively disable this integration's overlapping sensors. That's a Home Assistant design point, not a limitation specific to this integration - and re-adding doesn't reset it either, because those choices are among the things Home Assistant restores (see the previous question).
+
+The entities worth disabling if you now run both:
+
+- The six gateway diagnostics - **CPU utilization, Memory utilization, CPU temperature, Board Temperature, Uptime, Update Available**.
+- If you opted into per-device sensors, the AP/switch **Clients / CPU / Memory / Uptime** entities - these carry a `_mon` suffix in their entity ID specifically so you can tell them from Core's.
+
+Select them in the Entities tab and disable. Everything unique to this integration - WAN usage, speedtests, rogue APs, alerts, internet health - has no Core equivalent and should be left alone.
+
+The same applies in reverse: if you remove the official integration later, this one's equivalents stay disabled until you enable them.
 
 ---
 
@@ -1816,6 +1841,8 @@ This integration writes **two small JSON files** per configured gateway into Hom
 ---
 
 </details>
+
+### 📖 General Info
 
 #### 🚨 **What do "Sev3" and "Sev4" mean on the Alerts sensors?**
 
@@ -1848,6 +1875,8 @@ This integration writes **two small JSON files** per configured gateway into Hom
 ---
 
 </details>
+
+### 🧰 Troubleshooting Tips
 
 #### 🐛 **How do I download diagnostics?**
 
@@ -1897,6 +1926,43 @@ Logs are then visible under **Settings > System > Logs** (click **Load Full Logs
 
 </details>
 
+#### 🔄 **I deleted and re-added the integration for a fresh start - why did my settings and history come back?**
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
+
+Because Home Assistant keeps most of it on purpose. This is **Home Assistant behavior, not something this integration controls**, and for most people it's the desirable outcome: re-add the same gateway and things carry on where they left off, rather than starting from nothing.
+
+| What | How long Home Assistant keeps it | On re-add |
+| :-- | :-- | :-- |
+| **Long-term statistics** (long-range graphs, Energy dashboard) | Indefinitely - these are never deleted | Continue unbroken |
+| **Recent detailed history** | Your recorder retention (10 days by default) | Continues |
+| **Entity IDs** (`sensor.…`) | Reused as long as nothing else has taken the name | Dashboards and automations keep working |
+| Renames, icons, areas, labels, enabled/disabled state | **30 days**, in Home Assistant's entity registry | Restored |
+| **Rogue-AP history** (this integration's own file) | Not kept - deleted with the integration | Starts fresh |
+
+The **30 days** applies only to that fourth row - the entity-registry customizations. Statistics aren't on a timer at all, and your entity IDs come back either way. So re-adding after a year still reconnects your graphs; you would just need to redo any renames. Restarting Home Assistant in between makes no difference to any of this.
+
+**If you actually wanted a clean slate**, Home Assistant doesn't really offer one - and in practice you rarely need it. Two supported options exist:
+
+- **Developer Tools > Statistics** lists statistics whose entity no longer exists as _"There is no state available for this entity"_, and lets you delete them individually. Supported, immediate, no restart required.
+- The **`recorder.purge_entities`** action drops recent history for entities you name. (It does not touch long-term statistics - use the screen above for those.)
+
+Clearing the retained _entity-registry_ customizations is a different matter: it means hand-editing `.storage/core.entity_registry` with Home Assistant stopped. **Don't.** That single file holds the settings for every entity from every integration you run, and the risk of unintended damage far outweighs re-doing a few renames. Nothing about this integration needs it.
+
+> [!TIP]
+>
+> If you're re-adding to fix a problem rather than to reset data, try **⋮ > Reload** on the integration first. It re-reads everything and re-applies your settings without removing anything.
+
+One footnote for completeness: an entity ID is reused unless a **different, still-existing** entity has since taken that name, in which case the new one is created as `…_2` and the old statistics stay attached to the original ID. That's uncommon and generally the result of manual renaming elsewhere - it isn't something a normal remove-and-re-add causes.
+
+---
+
+</details>
+
 <br>
 
 ## ❗ Known Limitations /❔ What's Missing?
@@ -1925,6 +1991,12 @@ To remove the integration from Home Assistant:
 3. Click the **three dots** (⋮) next to the gear icon and select **Delete**.
 4. Confirm deletion.
 
+> [!NOTE]
+>
+> This integration's entities and devices are removed, along with the two [`config/.storage` files](#-files-written-to-configstorage) it created - which means your rogue-AP history is discarded.
+>
+> Home Assistant keeps your recorded history and entity customizations independently, so re-adding later picks up much where it left off. If that matters to you, see [why settings and history come back](#-i-deleted-and-re-added-the-integration-for-a-fresh-start---why-did-my-settings-and-history-come-back).
+
 ---
 
 </details>
@@ -1942,10 +2014,7 @@ To fully uninstall (HACS):
 1. Go to **HACS**.
 2. Find **UniFi Network Monitor** and click into it.
 3. Click the **three dots** (⋮) at the top right and select **Remove**.
-4. Restart Home Assistant.
-5. Home Assistant automatically removes all associated entities and device entries from the registry when the integration is deleted.
-
-  - **State files are cleaned up too:** the two `config/.storage` files described in [Files Written to `config/.storage`](#-files-written-to-configstorage) are deleted automatically when you delete the integration - nothing is left behind.
+4. **Restart** Home Assistant.
 
 ---
 
