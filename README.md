@@ -1024,7 +1024,7 @@ actions:
     data:
       title: "UniFi Data Alert"
       message: |
-        {{ 'WAN1' if trigger.id == 'wan1' else 'WAN2' }} monthly usage has exceeded its limit. Current usage: {{ trigger.state.state }} GB (Limit: {{ 900 if trigger.id == 'wan1' else 500 }} GB).
+        {{ 'WAN1' if trigger.id == 'wan1' else 'WAN2' }} monthly usage has exceeded its limit. Current usage: {{ trigger.to_state.state }} GB (Limit: {{ 900 if trigger.id == 'wan1' else 500 }} GB).
     note: |
       Sends a warning notification showing which interface went over limit and its current usage.
 ```
