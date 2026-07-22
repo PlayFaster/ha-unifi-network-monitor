@@ -53,7 +53,8 @@ def owning_entry_ids(device: dr.DeviceEntry) -> list[str]:
     set. Returned as a list so membership and iteration call sites stay uniform.
     """
     if _HAS_CONFIG_ENTRY_ID:
-        cid = device.config_entry_id
+        # 2026.8+ only; cast past the older type stubs that lack this attribute.
+        cid: str | None = cast(Any, device).config_entry_id
         return [cid] if cid else []
     return list(device.config_entries)
 

@@ -359,6 +359,39 @@ Both call `plan_device_cleanup`/`apply_cleanup` (`cleanup.py`): entities via `en
 - **SSL Verification**: UniFi OS uses self-signed certificates for the local API. The API client sets `ssl=False` for local connectivity.
 - **UniFi OS 3.x+**: API key authentication is only available on UniFi OS 3.x and later (UDM Pro on firmware 3+). Older firmware or CloudKey-based controllers require username/password.
 
+### mypy Checks a Different HA Version Locally vs in CI — By Design
+
+`pyproject.toml` sets `mypy_path = "/ha_core"`, a full Home Assistant **source checkout** (strict mode needs the dev tree, not just the installed package). That checkout tracks the **`dev` branch**, so:
+
+|  | HA that mypy type-checks against |
+| :-- | :-- |
+| **Local** | `/ha_core` on `dev` — the **next** release (currently `2026.8.0.dev0`) |
+| **GitHub CI** | no `/ha_core` on the runner, so the **installed stable** HA (via `pytest-homeassistant-custom-component`) |
+
+**This divergence is deliberate and useful — do not "fix" it by pinning `/ha_core` to a tag.** Pinning would (a) become a bump-every-release maintenance chore, and (b) throw away the early warning. `dev` and stable are the same loop offset by roughly one release: what fails locally this week is what fails on stable next month.
+
+For `_compat.py` specifically it gives **two-version coverage for the price of one run**, which is exactly what the floor-free design needs (see `.notes/device_registry/device_model_2026_08.md`):
+
+- **Local (new HA)** validates the code against the newer API surface.
+- **CI (stable HA)** validates it against the older one — it catches 2026.8-only attribute access that does not exist on 2026.7.
+
+That asymmetry is why a `_compat.py` error can appear on push having passed locally. It is a real finding, not a CI artifact — CI is checking the half local cannot.
+
+**Consequence for the shims:** each version-gated branch must be invisible to the type checker that does not know it. New-API branches use `cast(Any, obj).new_attr` (the type stubs of older HA lack the attribute):
+
+```python
+if _HAS_CONFIG_ENTRY_ID:
+    cid: str | None = cast(Any, device).config_entry_id   # 2026.8+ only
+    return [cid] if cid else []
+return list(device.config_entries)                        # <=2026.7 path
+```
+
+Use `cast(Any, …)` rather than `# type: ignore[attr-defined]`: `warn_unused_ignores = true` means the ignore would itself become an error on the HA version where the attribute _does_ exist. The cast is correct on both.
+
+**When the mirror-image problem arrives.** Verified against `/ha_core` (2026.8-dev): the old APIs are **still present** in 2026.8 — `DeviceEntry.config_entries` is a plain property returning `{config_entry_id}`, `async_get_device(identifiers=)` still exists, `DeviceInfo.via_device` is still a valid key — so the `<=2026.7` fallback branches type-check cleanly there. HA's deprecations are also invisible to mypy: they use HA's own runtime `deprecated_function` decorator, **not** PEP 702 `typing_extensions.deprecated`, so `enable_error_code = ["deprecated"]` never fires on them.
+
+The fallback branches therefore only break when those APIs are **removed in HA Core 2027.8**, at which point they need the same `cast(Any, …)` treatment. Because `/ha_core` tracks `dev`, local mypy will surface that roughly one release before stable users are affected — the loop working as intended.
+
 ## 7. Technical Debt & Future Work
 
 - **GitHub CI**: `.github/workflows/validate.yaml` contains a placeholder `CHANGEME` gist_id that must be updated.
@@ -393,3 +426,4 @@ Both call `plan_device_cleanup`/`apply_cleanup` (`cleanup.py`): entities via `en
 - **[2026-07-21]** — **Device model: no merge, separate but aware (HA 2026.8 single-config-entry).** Dropped the shared `connections={(CONNECTION_NETWORK_MAC, …)}` from the gateway and AP/switch `DeviceInfo` (and the early root registration), so Monitor's devices are **identity-only** and never merge with Core UniFi — one uniform no-merge behaviour on every HA version (HA 2026.8 removed cross-integration merging; not carrying the connection makes ≤2026.7 match). **No minimum-version floor.** New `_compat.py` feature-detects the deprecated registry surfaces (removed in HA 2027.8) and routes them through shims: `device_by_identifier` (→ `async_get_device_by_identifier` on 2026.8+), `owning_entry_ids` (→ `config_entry_id`), and `via_device_link` (→ `via_device_id`; the `via_device` tuple on ≤2026.7). `apply_cleanup` now removes emptied Monitor-owned devices with `async_remove_device` (was the deprecated `async_update_device(remove_config_entry_id=)`). Core-`unifi`-aware disable-by-default is entity-level and **unchanged**. Design + release-time re-verify checklist: `.notes/device_registry/device_model_2026_08.md`. Phase 2 (formal child devices, architecture #1414) tracked, unshipped.
 - **[2026-07-22]** — **`.storage` lifecycle + docs.** Added `async_remove_entry` so the two per-entry `Store` files (`<domain>.<entry_id>.rogue_history`, `…usage_watermark`) are deleted when the config entry is removed, instead of being orphaned (both keys embed `entry_id`, so a re-added entry mints a new id and never reads the old files). Store keys now come from shared helpers `rogue_history_storage_key()` / `usage_watermark_storage_key()` in `const.py`, used by **both** the coordinator (write side) and `async_remove_entry` (delete side) so they cannot drift; the format is pinned by a test. README gained a **Files Written to `config/.storage`** section documenting what each file holds, why it exists, and the effect of deleting it (usage watermark = harmless point-in-time snapshot; rogue history = loses first-seen/appearance history and resets **Rogue APs New 24h**, with the existing rogues recorded as a silent baseline so no event flood).
 - **[2026-07-22]** — **Post-deletion data retention researched** (HA 2026.7.2 source; full reference in `shared/SharedNotes/info/post_deletion_data/post_deletion_data_status.md`). Corrected a misleading README claim that HA "removes all associated entities and device entries" on deletion: it retains them in `deleted_entities`/`deleted_devices` for **30 days** and restores name, `entity_id`, `disabled_by`, icon, area, labels and options on re-add. Recorder never observes registry removal, so **state history** simply ages out on `purge_keep_days` (default **10**, not 7) and **long-term statistics are never purged at all** — orphans surface as `no_state` in Developer Tools → Statistics and are removable only via `recorder/clear_statistics` (note: `recorder.purge_entities` deletes states only, **not** statistics). Also confirmed HA **never sweeps `.storage`** — `Store.async_remove()` is the only deletion path, so `async_remove_entry` is mandatory or files orphan forever. Documented in the per-device-defaults section **why delete/re-add cannot re-trigger `entity_registry_enabled_default`**, and why it is a risky troubleshooting step (`…_2` entity ids + permanently orphaned LTS).
+- **[2026-07-22]** — **`_compat.py` typing + the local/CI mypy split.** CI flagged `DeviceEntry has no attribute "config_entry_id"` on a file that passed locally. Root cause: `mypy_path = "/ha_core"` points at an HA **source checkout tracking `dev`** (2026.8-dev), while CI has no `/ha_core` and falls back to the installed **stable** HA — so the two check against different API surfaces. This is **deliberate and retained**: it yields two-version coverage for one run, which is what the floor-free `_compat.py` design requires; pinning `/ha_core` to a tag would add a per-release chore and discard the early warning. Fixed the remaining unguarded branch with `cast(Any, device).config_entry_id` (matching the two existing `async_get_device_by_identifier` guards) — `cast` rather than `type: ignore`, because `warn_unused_ignores = true` would turn the ignore into an error on the HA version where the attribute exists. Verified the `<=2026.7` fallbacks stay clean on 2026.8 (old APIs still present as shims; HA's deprecations use a runtime decorator, not PEP 702, so mypy never sees them) — they break only at their **2027.8 removal**, which `dev` will surface a release early. Documented in §6.
