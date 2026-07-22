@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
-from homeassistant.helpers.device_registry import (
-    CONNECTION_NETWORK_MAC,
-    DeviceInfo,
-    format_mac,
-)
+from homeassistant.helpers.device_registry import DeviceInfo, format_mac
 
+from ._compat import via_device_link
 from .const import DOMAIN
 
 if TYPE_CHECKING:
@@ -62,12 +59,15 @@ def build_gateway_device_info(
 ) -> DeviceInfo:
     """Build DeviceInfo for the UDM Pro gateway device.
 
-    Uses CONNECTION_NETWORK_MAC so HA merges this device with any existing
-    entry registered by the native UniFi integration for the same hardware.
+    The gateway is the root of Monitor's own device tree. It is identified solely
+    by its domain identifier — deliberately no shared MAC ``connections`` — so it
+    is never merged with the core ``unifi`` integration's device. Monitor owns its
+    devices identically on every HA version (HA 2026.8 removed cross-integration
+    merging; not sharing the connection makes older HA behave the same way). See
+    ``.notes/device_registry/device_model_2026_08.md``.
     """
     mac = coordinator.gateway_mac
     return DeviceInfo(
-        connections={(CONNECTION_NETWORK_MAC, mac)},
         identifiers={(DOMAIN, mac)},
         name=f"{entry.title} Gateway",
         manufacturer="Ubiquiti",
@@ -83,12 +83,15 @@ def build_network_device_info(
 ) -> DeviceInfo:
     """Build DeviceInfo for the virtual Network Health sub-device."""
     mac = coordinator.gateway_mac
-    return DeviceInfo(
+    info = DeviceInfo(
         identifiers={(DOMAIN, f"{mac}_network")},
         name=f"{entry.title} Network",
         manufacturer="Ubiquiti",
-        via_device=(DOMAIN, mac),
     )
+    cast(dict[str, Any], info).update(
+        via_device_link(coordinator.hass, DOMAIN, mac, coordinator.entry.entry_id)
+    )
+    return info
 
 
 def build_sub_device_info(
@@ -111,12 +114,15 @@ def build_sub_device_info(
     }
     suffix = suffixes.get(device_key, "System")
 
-    return DeviceInfo(
+    info = DeviceInfo(
         identifiers={(DOMAIN, f"{mac}_{device_key}")},
         name=f"{entry.title} {suffix}",
         manufacturer="Ubiquiti",
-        via_device=(DOMAIN, mac),
     )
+    cast(dict[str, Any], info).update(
+        via_device_link(coordinator.hass, DOMAIN, mac, coordinator.entry.entry_id)
+    )
+    return info
 
 
 def build_unifi_device_info(
@@ -127,18 +133,25 @@ def build_unifi_device_info(
 ) -> DeviceInfo:
     """Build DeviceInfo for a dynamic UniFi device (AP or switch).
 
-    Uses CONNECTION_NETWORK_MAC so HA merges with native integration entries
-    for the same physical device where they already exist.
+    Identified by its own domain identifier only — deliberately no shared MAC
+    ``connections`` — so it is never merged with the core ``unifi`` integration on
+    any HA version. Linked to the gateway as genuine connectivity (hardware behind
+    the gateway): ``via_device_id`` on 2026.8+, the ``via_device`` tuple on older
+    HA (see ``_compat.via_device_link``).
     """
     gateway_mac = coordinator.gateway_mac
     # Per-device MACs come straight off the controller payload, so canonicalise
     # here — the gateway MAC is already normalised by the coordinator (§3).
     device_mac = format_mac(device_mac)
-    return DeviceInfo(
-        connections={(CONNECTION_NETWORK_MAC, device_mac)},
+    info = DeviceInfo(
         identifiers={(DOMAIN, device_mac)},
         name=device_name,
         manufacturer="Ubiquiti",
         model=device_model or None,
-        via_device=(DOMAIN, gateway_mac),
     )
+    cast(dict[str, Any], info).update(
+        via_device_link(
+            coordinator.hass, DOMAIN, gateway_mac, coordinator.entry.entry_id
+        )
+    )
+    return info

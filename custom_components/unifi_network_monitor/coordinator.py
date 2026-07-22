@@ -82,6 +82,8 @@ from .const import (
     ROGUE_RAW_WINDOW_HOURS,
     USAGE_WATERMARK_SAVE_DELAY,
     USAGE_WATERMARK_STORAGE_VERSION,
+    rogue_history_storage_key,
+    usage_watermark_storage_key,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -752,7 +754,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._rogue_history_store: Store[dict[str, dict[str, Any]]] = Store(
             hass,
             ROGUE_HISTORY_STORAGE_VERSION,
-            f"{DOMAIN}.{entry.entry_id}.rogue_history",
+            rogue_history_storage_key(entry.entry_id),
         )
 
         # Per-counter usage high-water mark: {counter_key: {"period": int,
@@ -761,7 +763,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._usage_store: Store[dict[str, dict[str, int]]] = Store(
             hass,
             USAGE_WATERMARK_STORAGE_VERSION,
-            f"{DOMAIN}.{entry.entry_id}.usage_watermark",
+            usage_watermark_storage_key(entry.entry_id),
         )
 
         # "Flat Identity" — loaded from entry.data, stable without a network call
@@ -955,6 +957,17 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 for k, v in usage.items()
                 if isinstance(v, dict) and "period" in v and "value" in v
             }
+
+    async def async_flush_stores(self) -> None:
+        """Write any pending delayed store saves immediately.
+
+        Called on unload. A coalesced ``async_delay_save`` is flushed by the
+        HOMEASSISTANT_STOP event on a restart, but a config-entry reload fires no
+        such event — so without this, the most recent usage watermark could be
+        lost across a reload and re-emit the very counter step it prevents.
+        """
+        await self._usage_store.async_save(self.usage_watermark)
+        await self._rogue_history_store.async_save(self.rogue_history)
 
     def _clamp_usage(
         self, key: str, period: int | None, raw: float | None

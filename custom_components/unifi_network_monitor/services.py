@@ -26,6 +26,7 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.util import dt as dt_util
 
+from ._compat import owning_entry_ids
 from .alerts import build_alert_response
 from .const import (
     ALERT_MAX_PAGES,
@@ -371,7 +372,7 @@ def _resolve_entry(hass: HomeAssistant, call: ServiceCall) -> ConfigEntry:
                 translation_key="unknown_device",
                 translation_placeholders={"device_id": device_id},
             )
-        for entry_id in device.config_entries:
+        for entry_id in owning_entry_ids(device):
             entry = hass.config_entries.async_get_entry(entry_id)
             if (
                 entry is not None

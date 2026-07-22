@@ -13,6 +13,7 @@ from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
 
 from .api import UnifiError, UnifiNetworkAPI
@@ -32,7 +33,11 @@ from .const import (
     DEFAULT_SITE,
     DEFAULT_UNIFI_DEVICE_MODE,
     DOMAIN,
+    ROGUE_HISTORY_STORAGE_VERSION,
+    USAGE_WATERMARK_STORAGE_VERSION,
     clamp_device_mode,
+    rogue_history_storage_key,
+    usage_watermark_storage_key,
 )
 from .coordinator import UnifiNetworkDataUpdateCoordinator
 from .services import async_register_services
@@ -171,14 +176,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.async_on_unload(entry.add_update_listener(_async_reload_on_settings_change))
     entry.async_on_unload(coordinator._cancel_scheduled_refresh)
 
-    # Register the gateway root device early so via_device links work when
-    # platforms forward their sub-devices (Standard 3 — Early Root Registration)
+    # Register the gateway root device early so via_device links resolve when
+    # platforms forward their sub-devices (Standard 3 — Early Root Registration).
+    # Identity is the domain identifier only — no shared MAC connection — so the
+    # gateway is never merged with the core `unifi` integration, uniformly on
+    # every HA version (see .notes/device_registry/device_model_2026_08.md).
     mac = coordinator.gateway_mac
     if mac:
         device_registry = dr.async_get(hass)
         device_registry.async_get_or_create(
             config_entry_id=entry.entry_id,
-            connections={(dr.CONNECTION_NETWORK_MAC, mac)},
             identifiers={(DOMAIN, mac)},
             name=f"{entry.title} Gateway",
             manufacturer="Ubiquiti",
@@ -208,9 +215,34 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     coordinator: UnifiNetworkDataUpdateCoordinator = entry.runtime_data
+
+    # Flush any pending delayed store writes now. A reload (options change, the
+    # cleanup button) fires no HOMEASSISTANT_STOP event, so a coalesced save
+    # could otherwise be lost — re-emitting a usage-counter step the watermark
+    # exists to prevent. Restart is already covered by the STOP flush.
+    await coordinator.async_flush_stores()
+
     try:
         await coordinator.api.logout()
     except UnifiError as err:
         _LOGGER.debug("%s: Logout failed (non-fatal): %s", entry.title, err)
 
     return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Delete the entry's persisted `.storage` files when it is removed.
+
+    Both store keys embed the entry_id, so once the entry is gone the files are
+    unreachable — re-adding the integration mints a new entry_id and writes fresh
+    ones. Leaving them behind would only accumulate orphaned files, so removal
+    loses nothing the user could have recovered. Neither holds credentials:
+    `rogue_history` is the BSSID first-seen/appearance history, `usage_watermark`
+    a derived per-counter maximum. `Store.async_remove` suppresses
+    FileNotFoundError, so a store that was never written is a no-op.
+    """
+    for version, key in (
+        (ROGUE_HISTORY_STORAGE_VERSION, rogue_history_storage_key(entry.entry_id)),
+        (USAGE_WATERMARK_STORAGE_VERSION, usage_watermark_storage_key(entry.entry_id)),
+    ):
+        await Store(hass, version, key).async_remove()

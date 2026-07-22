@@ -17,6 +17,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
 
+from ._compat import device_by_identifier, owning_entry_ids
 from .binary_sensor import DEVICE_BINARY_SENSORS
 from .const import (
     CONF_UNIFI_DEVICE_MODE,
@@ -110,8 +111,8 @@ def plan_device_cleanup(
 
         # If Monitor keeps nothing for this device, detach its device entry too.
         if not desired:
-            device = dev_reg.async_get_device(identifiers={(DOMAIN, mac)})
-            if device is not None and entry.entry_id in device.config_entries:
+            device = device_by_identifier(dev_reg, DOMAIN, mac, entry.entry_id)
+            if device is not None and entry.entry_id in owning_entry_ids(device):
                 plan.device_ids.append(device.id)
 
     # Gateway-level entities whose feature toggle is currently off (orphans left
@@ -146,8 +147,8 @@ def plan_device_cleanup(
     if gateway_mac:
         already = set(plan.entity_ids)
         for card in disabled_device_keys(entry.options):
-            device = dev_reg.async_get_device(
-                identifiers={(DOMAIN, f"{gateway_mac}_{card}")}
+            device = device_by_identifier(
+                dev_reg, DOMAIN, f"{gateway_mac}_{card}", entry.entry_id
             )
             if device is None:
                 continue
@@ -158,7 +159,7 @@ def plan_device_cleanup(
                     plan.entity_ids.append(reg_entry.entity_id)
                     already.add(reg_entry.entity_id)
             # The card is Monitor-only; once emptied, detach it.
-            if entry.entry_id in device.config_entries:
+            if entry.entry_id in owning_entry_ids(device):
                 plan.device_ids.append(device.id)
 
     return plan
@@ -166,10 +167,13 @@ def plan_device_cleanup(
 
 @callback
 def apply_cleanup(hass: HomeAssistant, entry: ConfigEntry, plan: CleanupPlan) -> None:
-    """Remove the planned entities, then detach the planned devices.
+    """Remove the planned entities, then remove the planned devices.
 
-    Detaching via ``remove_config_entry_id`` removes a Monitor-only device
-    outright, but only drops Monitor's link on a device shared with core.
+    Monitor never shares a device with the core ``unifi`` integration (its devices
+    carry only the domain identifier, no shared MAC connection), so every planned
+    device is Monitor-only. Removing it outright with ``async_remove_device`` is
+    therefore correct on every HA version — and avoids the deprecated
+    ``async_update_device(remove_config_entry_id=...)`` path.
     """
     ent_reg = er.async_get(hass)
     dev_reg = dr.async_get(hass)
@@ -178,6 +182,4 @@ def apply_cleanup(hass: HomeAssistant, entry: ConfigEntry, plan: CleanupPlan) ->
             ent_reg.async_remove(entity_id)
     for device_id in plan.device_ids:
         if dev_reg.async_get(device_id) is not None:
-            dev_reg.async_update_device(
-                device_id, remove_config_entry_id=entry.entry_id
-            )
+            dev_reg.async_remove_device(device_id)

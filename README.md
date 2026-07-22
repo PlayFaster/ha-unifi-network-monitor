@@ -22,7 +22,7 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
 > **Is this the right integration for you?**
 >
 > - **If you run a UniFi Network on a UDM Gateway** and want infrastructure-level monitoring - data usage, WAN/internet quality, speedtests, and network security info - directly in Home Assistant, then **yes**.
-> - It is designed to run **alongside** the official Home Assistant UniFi Network integration. Where both cover the same physical device, entities **merge onto one device card** - no duplicate device entries.
+> - It is designed to run **alongside** the official Home Assistant UniFi Network integration. It registers its **own separate device cards** (it does not merge with Core's), and where Core already covers something, the overlapping sensors are **created but disabled by default** - so you get extra insight without redundant, duplicated entities.
 > - **This integration is for you if** you want:
 >   - **Internet Data usage** - Daily and monthly download, upload and totals (per WAN if in dual WAN mode).
 >   - **Speedtest tracking** - per-WAN download/upload/ping history, plus one-click manual runs.
@@ -1502,7 +1502,7 @@ data:
   dry_run: false
 ```
 
-> A device shared with the official UniFi integration is **not** deleted - only Monitor's link and entities are removed, leaving the shared device card intact.
+> Cleanup only ever touches Monitor's own devices and entities. The official UniFi integration has its own separate device cards, which are never affected.
 
 ![Cleanup Action](.github/images/unifi_mon_action_cleanup.png)
 
@@ -1652,11 +1652,11 @@ Beyond passive entities, the integration exposes on-demand **actions** and fire-
 
 ### 🤝 Coexistence with the Official UniFi Integration
 
-The gateway and all physical devices use `connections={(CONNECTION_NETWORK_MAC, mac)}`, so Home Assistant **merges** this integration's device entries with the official UniFi integration's entries for the same MAC - one device card, both integrations' entities. Duplicate per-device sensors are opt-in and, when created, carry a `_mon` entity-ID suffix.
+This integration registers its **own separate device cards** - a Gateway device plus its sub-devices (Internet, Speedtest, Security, Alerts, Status, System) - and **never merges** with the official UniFi integration. If you run Core UniFi, it keeps its own cards; the two sit side by side. Co-existence here means **separate but aware**: Monitor doesn't share a device card with Core, but it _does_ detect when Core is installed and adjusts which sensors are enabled by default so you don't get redundant, duplicated entities.
 
-**Gateway card:** when Core UniFi is installed, this integration's **Gateway** sub-device merges into Core's gateway card (it shows under Core's device name, e.g. `MyUniFiGW`, and Core's firmware string). The other six sub-devices (Internet, Speedtest, Security, Alerts, Status, System) use identifiers only, so they remain separate cards hanging off the gateway.
+**Gateway card:** Monitor's **Gateway** device is always its own card, showing Monitor's discovered name, model, and the Network-application firmware version - it does not adopt Core's card, name, or UniFi-OS version. The sub-devices hang off it.
 
-**Disabled-by-default when Core is present:** to avoid duplicating what Core already provides on that shared card, six gateway diagnostics - **CPU utilization, Memory utilization, CPU temperature, Board Temperature, Uptime, and Update Available** - are **disabled-by-default whenever Core UniFi is installed**, and enabled-by-default only when it isn't. Core surfaces the gateway's CPU and memory and temperatures - enable them (from either integration) if you want them.
+**Disabled-by-default when Core is present:** to avoid duplicating what Core already provides, six gateway diagnostics - **CPU utilization, Memory utilization, CPU temperature, Board Temperature, Uptime, and Update Available** - are **created but disabled by default whenever Core UniFi is installed**, and enabled by default only when it isn't. Core surfaces the gateway's CPU, memory and temperatures - enable Monitor's on its Gateway device if you want them too. Duplicate per-device sensors are opt-in and, when created, carry a `_mon` entity-ID suffix so you can tell Monitor's copy from Core's.
 
 ### 🩺 Self-diagnosis (Integration Health)
 
@@ -1685,6 +1685,26 @@ A custom `DataUpdateCoordinator` fetches everything per cycle and applies two re
 - Gateway **MAC**, model, and firmware version are stored at setup and loaded without a network call, so device metadata is stable immediately at boot.
 - **Guard bands**: numeric sensors validate against min/max limits; out-of-range readings are ignored (returned as unknown) to keep history clean.
 - **`unknown` vs `unavailable`**: a value that's legitimately absent while the source is healthy reads `unknown` (e.g. Strongest Rogue RSSI with no rogues present); a stale/unreachable endpoint reads `unavailable`.
+
+### 💾 Files Written to `config/.storage`
+
+This integration writes **two small JSON files** per configured gateway into Home Assistant's `config/.storage` folder. They hold state that must survive a restart but doesn't belong in the config entry:
+
+| File | What it stores | Why it exists |
+| :-- | :-- | :-- |
+| `unifi_network_monitor.<entry_id>.rogue_history` | Your **rogue-AP history**, keyed by BSSID: when each neighbouring access point was **first seen**, how many times it has **appeared**, and its last-known SSID label. | Lets the integration tell a **genuinely new** rogue AP from one it has seen before - powering the **Rogue APs New 24h** sensor and the `unifi_network_monitor_new_rogue_ap` event, so they survive restarts instead of re-reporting every rogue as "new". Pruned by the **Rogue History TTL** option (default 90 days; `0` = keep forever) and hard-capped at 1000 BSSIDs. |
+| `unifi_network_monitor.<entry_id>.usage_watermark` | A **high-water mark** for each cumulative WAN usage counter - the highest value seen so far, plus the reporting period it belongs to. | UniFi re-calculates the *current* (open) daily/monthly usage bucket on every poll, so a byte total can drift slightly **downward** within a period. That would break Home Assistant's `total_increasing` counters and log "state is not strictly increasing" warnings. This file holds each counter's running maximum so a restart doesn't re-emit a drop. |
+
+`<entry_id>` is Home Assistant's internal ID for your config entry - so if you've added more than one gateway, you'll see a pair of files per gateway.
+
+**Both files are recreated automatically if deleted** - the integration does not need them to start, and neither contains credentials or configuration.
+
+- **`usage_watermark` can be deleted without lasting impact.** It's a point-in-time snapshot; the next poll rebuilds it from whatever the controller currently reports. At worst you may see a single "not strictly increasing" warning for a usage sensor if the controller's current figure sits below what Home Assistant already recorded - it self-corrects from the next poll onward.
+- **Deleting `rogue_history` loses your rogue-AP history** - every stored **first seen** date and **appearance count**. Nothing breaks, and the file rebuilds from the next poll, but the "have I seen this access point before?" knowledge is gone: **Rogue APs New 24h** resets and starts counting again from scratch. The existing rogues visible at that moment are recorded silently as the new baseline, so you won't get a flood of `new_rogue_ap` events.
+
+**On uninstall**, both files are **deleted automatically** when you delete the integration from Home Assistant - no orphaned files are left in `.storage`. (They are keyed to the config entry's internal ID, so a re-added integration writes fresh files and never reads the old ones - which is why keeping them would serve no purpose.)
+
+> 💡 To clear rogue history deliberately, use the **`unifi_network_monitor.clear_rogue_history`** action rather than deleting the file by hand - it does the same job cleanly while Home Assistant is running. Editing or deleting anything in `.storage` should be done with Home Assistant **stopped**.
 
 ---
 
@@ -1924,6 +1944,8 @@ To fully uninstall (HACS):
 3. Click the **three dots** (⋮) at the top right and select **Remove**.
 4. Restart Home Assistant.
 5. Home Assistant automatically removes all associated entities and device entries from the registry when the integration is deleted.
+
+  - **State files are cleaned up too:** the two `config/.storage` files described in [Files Written to `config/.storage`](#-files-written-to-configstorage) are deleted automatically when you delete the integration - nothing is left behind.
 
 ---
 

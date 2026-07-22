@@ -144,6 +144,16 @@ ROGUE_HISTORY_STORAGE_VERSION = 1
 USAGE_WATERMARK_SAVE_DELAY = 120
 USAGE_WATERMARK_STORAGE_VERSION = 1
 
+
+def rogue_history_storage_key(entry_id: str) -> str:
+    """Build the ``.storage`` key for an entry's persisted rogue-AP history."""
+    return f"{DOMAIN}.{entry_id}.rogue_history"
+
+
+def usage_watermark_storage_key(entry_id: str) -> str:
+    """Build the ``.storage`` key for an entry's persisted usage watermarks."""
+    return f"{DOMAIN}.{entry_id}.usage_watermark"
+
 # Self-diagnosis: how many consecutive cycles a schema-drift signal must persist
 # before the Integration Health sensor / repair issue flags it (avoids single-
 # cycle false alarms; also gives startup grace).

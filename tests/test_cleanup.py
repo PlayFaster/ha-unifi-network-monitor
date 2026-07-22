@@ -473,9 +473,7 @@ def test_apply_cleanup_removes_entities_and_devices() -> None:
     assert mock_ent_reg.async_remove.call_count == 2
     mock_ent_reg.async_remove.assert_any_call("sensor.test1")
     mock_ent_reg.async_remove.assert_any_call("sensor.test2")
-    mock_dev_reg.async_update_device.assert_called_once_with(
-        "device1", remove_config_entry_id="entry123"
-    )
+    mock_dev_reg.async_remove_device.assert_called_once_with("device1")
 
 
 def test_apply_cleanup_entity_not_found() -> None:
@@ -526,7 +524,7 @@ def test_apply_cleanup_device_not_found() -> None:
     ):
         apply_cleanup(hass, entry, plan)
 
-    mock_dev_reg.async_update_device.assert_not_called()
+    mock_dev_reg.async_remove_device.assert_not_called()
 
 
 def test_apply_cleanup_empty_plan() -> None:
@@ -551,7 +549,7 @@ def test_apply_cleanup_empty_plan() -> None:
         apply_cleanup(hass, entry, plan)
 
     mock_ent_reg.async_remove.assert_not_called()
-    mock_dev_reg.async_update_device.assert_not_called()
+    mock_dev_reg.async_remove_device.assert_not_called()
 
 
 # ---------------------------------------------------------------------------

@@ -392,7 +392,7 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         suggested_display_precision=2,
         min_limit=0.0,
         value_fn=lambda d: (
-            d.get("wan1_today_rx", 0) + d.get("wan1_today_tx", 0)
+            (d.get("wan1_today_rx") or 0) + (d.get("wan1_today_tx") or 0)
             if d.get("wan1_today_rx") is not None or d.get("wan1_today_tx") is not None
             else None
         ),
@@ -432,7 +432,7 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         suggested_display_precision=2,
         min_limit=0.0,
         value_fn=lambda d: (
-            d.get("wan2_today_rx", 0) + d.get("wan2_today_tx", 0)
+            (d.get("wan2_today_rx") or 0) + (d.get("wan2_today_tx") or 0)
             if d.get("wan2_today_rx") is not None or d.get("wan2_today_tx") is not None
             else None
         ),
@@ -472,7 +472,7 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         state_class=SensorStateClass.TOTAL_INCREASING,
         min_limit=0.0,
         value_fn=lambda d: (
-            d.get("wan1_month_rx", 0) + d.get("wan1_month_tx", 0)
+            (d.get("wan1_month_rx") or 0) + (d.get("wan1_month_tx") or 0)
             if d.get("wan1_month_rx") is not None or d.get("wan1_month_tx") is not None
             else None
         ),
@@ -512,7 +512,7 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         state_class=SensorStateClass.TOTAL_INCREASING,
         min_limit=0.0,
         value_fn=lambda d: (
-            d.get("wan2_month_rx", 0) + d.get("wan2_month_tx", 0)
+            (d.get("wan2_month_rx") or 0) + (d.get("wan2_month_tx") or 0)
             if d.get("wan2_month_rx") is not None or d.get("wan2_month_tx") is not None
             else None
         ),

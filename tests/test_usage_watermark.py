@@ -134,3 +134,29 @@ async def test_watermark_survives_a_reload(hass: Any) -> None:
     assert coord.usage_watermark == persisted
     # First post-restart poll reads the open bucket slightly lower — held.
     assert coord._clamp_usage(KEY, P2, 256_713_823_164.182) == 256_719_487_164
+
+
+async def test_flush_stores_forces_immediate_save(hass: Any) -> None:
+    """Unload flushes pending delayed saves, so a reload cannot lose them.
+
+    A config-entry reload fires no HOMEASSISTANT_STOP event, so a coalesced
+    ``async_delay_save`` would otherwise be dropped. ``async_flush_stores`` writes
+    both stores immediately with the current in-memory state.
+    """
+    from unittest.mock import AsyncMock, patch
+
+    from custom_components.unifi_network_monitor.coordinator import (
+        UnifiNetworkDataUpdateCoordinator,
+    )
+
+    with patch.object(UnifiNetworkDataUpdateCoordinator, "__init__", return_value=None):
+        coord = UnifiNetworkDataUpdateCoordinator()
+        coord.usage_watermark = {KEY: {"period": P2, "value": 256_719_487_164}}
+        coord.rogue_history = {"aa:bb:cc:dd:ee:ff": {"appearances": 3}}
+        coord._usage_store = type("S", (), {"async_save": AsyncMock()})()
+        coord._rogue_history_store = type("S", (), {"async_save": AsyncMock()})()
+
+        await coord.async_flush_stores()
+
+    coord._usage_store.async_save.assert_awaited_once_with(coord.usage_watermark)
+    coord._rogue_history_store.async_save.assert_awaited_once_with(coord.rogue_history)

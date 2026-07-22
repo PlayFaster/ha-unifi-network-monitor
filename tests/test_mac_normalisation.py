@@ -1,9 +1,11 @@
 """MAC canonicalisation tests (dev_standards §3).
 
-Home Assistant matches devices on a canonical MAC — lowercase, colon-separated.
-If the controller returns any other form, the device-card merge with HA Core's
-UniFi integration silently fails and the user gets duplicate cards. These tests
-pin the normalisation at every point a MAC enters the integration.
+A canonical MAC — lowercase, colon-separated — is what Monitor uses as the stable
+device *identifier* and as the value in every derived id (sub-devices, per-device
+cards) and parent link. Pinning the normalisation at every entry point keeps those
+identifiers consistent across restarts and payload-format quirks. (Monitor no
+longer relies on a shared MAC connection to merge with core unifi — it owns its
+own devices — so canonicalisation is about identifier stability, not merging.)
 """
 
 from __future__ import annotations
@@ -11,7 +13,7 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import MagicMock
 
-from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC
+from custom_components.unifi_network_monitor import _compat
 
 CANONICAL = "aa:bb:cc:dd:ee:ff"
 # The same address in the forms a controller or firmware might legitimately emit.
@@ -35,6 +37,7 @@ def _coordinator(mac: str) -> Any:
     coord.gateway_model = entry.data["model"]
     coord.sw_version = entry.data["sw_version"]
     coord.hass = hass
+    coord.entry = entry
     return coord
 
 
@@ -50,7 +53,7 @@ def test_gateway_mac_tolerates_missing_value() -> None:
 
 
 def test_device_info_uses_canonical_mac() -> None:
-    """Use the canonical MAC in both the gateway identifier and connection."""
+    """Use the canonical MAC in the gateway identifier."""
     from custom_components.unifi_network_monitor.helpers import (
         build_gateway_device_info,
     )
@@ -60,7 +63,7 @@ def test_device_info_uses_canonical_mac() -> None:
     entry.options = {"host": "192.168.1.1"}
     info = build_gateway_device_info(_coordinator("AA:BB:CC:DD:EE:FF"), entry)
 
-    assert (CONNECTION_NETWORK_MAC, CANONICAL) in info["connections"]
+    assert "connections" not in info
     assert any(i[1] == CANONICAL for i in info["identifiers"])
 
 
@@ -74,12 +77,12 @@ def test_per_device_mac_is_canonicalised() -> None:
         _coordinator(CANONICAL), "F4:92:BF:11:22:33", "AP-Alpha", "U6-LR"
     )
 
-    assert (CONNECTION_NETWORK_MAC, "f4:92:bf:11:22:33") in info["connections"]
+    assert "connections" not in info
     assert any(i[1] == "f4:92:bf:11:22:33" for i in info["identifiers"])
 
 
 def test_sub_device_identifiers_derive_from_canonical_mac() -> None:
-    """Derive sub-device ids and via_device from the canonical gateway MAC."""
+    """Derive sub-device ids and the parent link from the canonical gateway MAC."""
     from custom_components.unifi_network_monitor.helpers import build_sub_device_info
 
     entry = MagicMock()
@@ -88,4 +91,6 @@ def test_sub_device_identifiers_derive_from_canonical_mac() -> None:
     info = build_sub_device_info(_coordinator("AABBCCDDEEFF"), entry, "security")
 
     assert any(i[1] == f"{CANONICAL}_security" for i in info["identifiers"])
-    assert info["via_device"][1] == CANONICAL
+    # ≤2026.7 links by the via_device tuple; 2026.8+ by via_device_id.
+    if not _compat._HAS_BY_IDENTIFIER:
+        assert info["via_device"][1] == CANONICAL

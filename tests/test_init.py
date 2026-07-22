@@ -540,3 +540,83 @@ async def test_setup_entry_does_not_clamp_valid_mode(
 
     assert result is True
     mock_update.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# async_remove_entry — delete the entry's persisted .storage files
+# ---------------------------------------------------------------------------
+
+
+async def test_remove_entry_deletes_both_stores(hass: Any) -> None:
+    """Removing the entry removes the rogue-history and usage-watermark stores.
+
+    Both keys embed the entry_id, so once the entry is gone the files are
+    unreachable — leaving them behind would only orphan them in .storage.
+    """
+    from custom_components.unifi_network_monitor import async_remove_entry
+    from custom_components.unifi_network_monitor.const import (
+        rogue_history_storage_key,
+        usage_watermark_storage_key,
+    )
+
+    entry = MagicMock()
+    entry.entry_id = "entry123"
+    removed: list[str] = []
+
+    def _make_store(_hass: Any, _version: int, key: str) -> Any:
+        store = MagicMock()
+        store.async_remove = AsyncMock(side_effect=lambda: removed.append(key))
+        return store
+
+    with patch(
+        "custom_components.unifi_network_monitor.Store", side_effect=_make_store
+    ):
+        await async_remove_entry(hass, entry)
+
+    assert removed == [
+        rogue_history_storage_key("entry123"),
+        usage_watermark_storage_key("entry123"),
+    ]
+
+
+def test_storage_key_format_is_pinned() -> None:
+    """Pin the on-disk key format so it cannot change silently.
+
+    Both the coordinator (which writes the stores) and ``async_remove_entry``
+    (which deletes them) build their keys from these two helpers, so they cannot
+    drift apart — but a change here would orphan every existing user's files.
+    """
+    from custom_components.unifi_network_monitor.const import (
+        DOMAIN,
+        rogue_history_storage_key,
+        usage_watermark_storage_key,
+    )
+
+    assert rogue_history_storage_key("abc") == f"{DOMAIN}.abc.rogue_history"
+    assert usage_watermark_storage_key("abc") == f"{DOMAIN}.abc.usage_watermark"
+
+
+async def test_coordinator_stores_use_the_shared_key_helpers(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """The coordinator's Store keys are exactly what async_remove_entry deletes.
+
+    Guards the classic drift bug: if the write-side and delete-side keys were
+    built independently, removal would silently delete nothing.
+    """
+    from custom_components.unifi_network_monitor.const import (
+        rogue_history_storage_key,
+        usage_watermark_storage_key,
+    )
+    from custom_components.unifi_network_monitor.coordinator import (
+        UnifiNetworkDataUpdateCoordinator,
+    )
+
+    mock_config_entry.add_to_hass(hass)
+    coordinator = UnifiNetworkDataUpdateCoordinator(
+        hass, mock_config_entry, MagicMock()
+    )
+
+    entry_id = mock_config_entry.entry_id
+    assert coordinator._rogue_history_store.key == rogue_history_storage_key(entry_id)
+    assert coordinator._usage_store.key == usage_watermark_storage_key(entry_id)
