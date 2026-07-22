@@ -25,7 +25,6 @@ jobs:
     with:
       category: integration
       component_name: unifi_network_monitor
-      ## CHANGEME
       gist_id: a26a356246076e5172fc9342fb019361
     secrets:
       GIST_SECRET: ${{ secrets.GIST_SECRET }}
