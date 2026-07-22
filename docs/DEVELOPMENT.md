@@ -363,7 +363,7 @@ Both call `plan_device_cleanup`/`apply_cleanup` (`cleanup.py`): entities via `en
 
 `pyproject.toml` sets `mypy_path = "/ha_core"`, a full Home Assistant **source checkout** (strict mode needs the dev tree, not just the installed package). That checkout tracks the **`dev` branch**, so:
 
-| | HA that mypy type-checks against |
+|  | HA that mypy type-checks against |
 | :-- | :-- |
 | **Local** | `/ha_core` on `dev` — the **next** release (currently `2026.8.0.dev0`) |
 | **GitHub CI** | no `/ha_core` on the runner, so the **installed stable** HA (via `pytest-homeassistant-custom-component`) |
@@ -386,7 +386,7 @@ if _HAS_CONFIG_ENTRY_ID:
 return list(device.config_entries)                        # <=2026.7 path
 ```
 
-Use `cast(Any, …)` rather than `# type: ignore[attr-defined]`: `warn_unused_ignores = true` means the ignore would itself become an error on the HA version where the attribute *does* exist. The cast is correct on both.
+Use `cast(Any, …)` rather than `# type: ignore[attr-defined]`: `warn_unused_ignores = true` means the ignore would itself become an error on the HA version where the attribute _does_ exist. The cast is correct on both.
 
 **When the mirror-image problem arrives.** Verified against `/ha_core` (2026.8-dev): the old APIs are **still present** in 2026.8 — `DeviceEntry.config_entries` is a plain property returning `{config_entry_id}`, `async_get_device(identifiers=)` still exists, `DeviceInfo.via_device` is still a valid key — so the `<=2026.7` fallback branches type-check cleanly there. HA's deprecations are also invisible to mypy: they use HA's own runtime `deprecated_function` decorator, **not** PEP 702 `typing_extensions.deprecated`, so `enable_error_code = ["deprecated"]` never fires on them.
 

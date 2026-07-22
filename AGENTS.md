@@ -148,7 +148,7 @@ README headings carry emoji, and **many of them are two codepoints** — the gly
 Rules:
 
 - **Never copy the emoji into an anchor.** Build the target from the heading text alone: lowercase, drop punctuation, spaces → hyphens, and keep the leading hyphen the stripped emoji leaves.
-- A ` - ` in a heading becomes `---` in the anchor (space→`-`, hyphen, space→`-`).
+- A `-` in a heading becomes `---` in the anchor (space→`-`, hyphen, space→`-`).
 - **Prefer single-codepoint emoji for new headings** (`📖 🧰 🔄 🔀 💾 🤝`) over variation-selector ones. It avoids the trap entirely and keeps anchors predictable.
 - After adding or renaming a heading, verify with the link checker rather than by eye — `U+FE0F` is invisible in every editor. To inspect bytes: `grep -n '<text>' README.md | cat -A` and look for `M-oM-8M-^O`.
 
