@@ -2,57 +2,28 @@
 
 This file provides guidance to AI coding agents when working with code in this repository.
 
+> **Read the shared conventions first:** [`.shared/dev_std/agent_conventions.md`](.shared/dev_std/agent_conventions.md) — commands (tests, lint, mypy, validation), the Windows-host `docker exec` workflow, devcontainer access, HAB/MCP for interrogating the running HA instance, the post-modification SCOPE table, code conventions, and the markdown/Python rules. That file is the single source of truth for everything shared across the integration projects; this file covers only what is specific to **ha-unifi-network-monitor**.
+
 ## What This Integration Does
 
-A Home Assistant custom integration (`unifi_network_monitor`) for Ubiquiti UniFi networks anchored by a UDM Pro (or similar gateway). It is a `local_polling` `hub` integration distributed via HACS. It replaces a previous shell-command + 20+ template sensor setup, exposing **128 base entities** (sensors, binary sensors, buttons, numbers, switches, and a select) across **seven** sub-devices — Gateway, Internet, Speedtest, **Security**, **Alerts**, Status, System — plus optional per-AP/switch sensors. Auth supports both API key (`X-API-Key` header — preferred) and username/password (TOKEN cookie + X-CSRF-Token). There are no external `requirements` beyond `aiohttp` and HA core.
+A Home Assistant custom integration (`unifi_network_monitor`) for Ubiquiti UniFi networks anchored by a UDM Pro (or similar gateway). It is a `local_polling` `hub` integration distributed via HACS. It replaces a previous shell-command + template sensor setup, exposing sensors, binary sensors, buttons, numbers, switches, and a select across **seven** sub-devices — Gateway, Internet, Speedtest, **Security**, **Alerts**, Status, System — plus optional per-AP/switch sensors. Auth supports both API key (`X-API-Key` header — preferred) and username/password (TOKEN cookie + X-CSRF-Token). There are no external `requirements` beyond `aiohttp` and HA core.
+
+> **Entity and service inventory lives in [`docs/all_sensors.md`](docs/all_sensors.md)** — it is authoritative and kept current against live HA by `sensor_review.md`. This file deliberately carries no entity counts or service descriptions; the sections below describe architecture and behaviour.
 
 Setup/reconfigure options let users scope which per-device sensors and gateway sensor groups are created (a disabled group also skips its API calls), with per-endpoint hold-then-`unavailable` resilience, an explicit cleanup button/service, and the UI device-delete hook. See **Setup Options, Sensor-Group Scoping & Cleanup** below.
 
-Beyond passive entities it also exposes: **on-demand response actions** (`get_alerts`, `get_rogue_aps` — both with `keyword`/`exclude` comma-list filters + `total_matched`; `get_alerts` also has opt-in `count_total`); **list-management actions** (`clear_rogue_history`, and `add_rogue_ignore` / `remove_rogue_ignore` / `set_rogue_ignore` with a `target: ssids|aps`); two **bus events** (`unifi_network_monitor_new_alert`, `unifi_network_monitor_new_rogue_ap`); a **persistent rogue-AP appearance history** (BSSID-keyed `Store` → `first_seen`/`appearances` + the **Rogue APs New 24h** sensor); and an **Integration Health** self-diagnosis binary sensor (`problem`) backed by the `site_resolution_failed` + `schema_drift_detected` repair issues. See **Architecture** and the sections below.
+Beyond passive entities there are four capability classes, each with architectural consequences (names, parameters and filters: `docs/all_sensors.md`):
+
+- **On-demand response actions** — self-contained fetches, deliberately **decoupled from the feature toggles**, so they work even when the matching sensor group is disabled.
+- **List-management actions** — mutate `entry.options`; the reload listener applies the change.
+- **Bus events** — fire from the coordinator parse with a first-poll/re-enable baseline plus bounded dedup, gated on the owning feature flag.
+- **Self-diagnosis** — an Integration Health `problem` binary sensor backed by the `site_resolution_failed` + `schema_drift_detected` repair issues, plus a **persistent** BSSID-keyed rogue-AP appearance history in a `Store` that survives restarts.
+
+See **Architecture** and the sections below.
 
 ## Commands
 
-### Tests
-
-```bash
-# Run the full test suite
-pytest
-
-# Run a single test file / test
-pytest tests/test_coordinator.py
-pytest tests/test_api.py::test_login -q
-```
-
-### Linting & Formatting
-
-```bash
-# Lint + autofix and format (config in pyproject.toml)
-ruff check --fix .
-ruff format .
-
-# Type check (only custom_components; needs /ha_core mounted)
-mypy custom_components/
-
-# Run all configured checks at once
-pre-commit run --all-files
-```
-
-### Running tools from a Windows host
-
-These commands only work **inside** the devcontainer — HA imports `fcntl`, so `pytest` (and other tools) cannot run on a Windows host directly. From Windows, run everything through `docker exec` against the running container. See [`.shared/prompts/devcon_run_gen.md`](.shared/prompts/devcon_run_gen.md) for the full mini-skill. Quick reference:
-
-```bash
-# Confirm the container is up first
-docker ps --filter "name=<CONTAINER_NAME>" --format "{{.Names}}"
-
-# Run a tool inside the container (-w sets the in-container working dir)
-docker exec -w /workspaces/<PROJECT_DIR> <CONTAINER_NAME> bash -c "PYTHONPATH=. pytest tests/"
-docker exec -w /workspaces/<PROJECT_DIR> <CONTAINER_NAME> bash -c "ruff check ."
-```
-
-Container identity values (`CONTAINER_NAME`, `PROJECT_DIR`) are in `.devcontainer/.env`.
-
-Do not install or run these tools on the host as a workaround.
+Standard for all integration projects — see [shared conventions §2](.shared/dev_std/agent_conventions.md). Nothing about this project's commands differs.
 
 ## Architecture
 
@@ -60,7 +31,7 @@ Data flows in one direction: **`api.py` → `coordinator.py` → platform entiti
 
 - **`api.py` (`UnifiNetworkAPI`)** — async HTTP client for the UniFi Network API. Key behaviors:
   - Two auth modes: API key (`X-API-Key: <key>` header) or username/password (POST `/api/auth/login`, store TOKEN cookie + X-CSRF-Token header). API key is preferred.
-  - **Auth mode gates the v3 endpoints — not a bug:** the Integration (v1) endpoints (`get_sites`/`get_wan_interfaces`/`get_vpn_*`/`get_firewall_policies`) are **API-key only**. Under username/password, `site_uuid` latches `"failed"` and 7 sensors (Rules Active/Configured/Disabled, VPN Connections Active/Total, WAN1/WAN2 Name) are legitimately `unknown` — expected, don't "fix" it. `coordinator._sync_site_issue` only raises the repair issue in API-key mode. See `DEVELOPMENT.md` §5 Gotcha.
+  - **Auth mode gates the v3 endpoints — not a bug:** the Integration (v1) endpoints (`get_sites`/`get_wan_interfaces`/`get_vpn_*`/`get_firewall_policies`) are **API-key only**. Under username/password, `site_uuid` latches `"failed"` and the sensors fed by them (Rules Active/Configured/Disabled, VPN Connections Active/Total, WAN1/WAN2 Name) are legitimately `unknown` — expected, don't "fix" it. `coordinator._sync_site_issue` only raises the repair issue in API-key mode. See `DEVELOPMENT.md` §5 Gotcha.
   - `_get(path)` handles auto re-auth on 401 for username/password mode.
   - Three data endpoints: `/proxy/network/api/s/{site}/stat/device`, `/stat/health`, `/stat/sysinfo`.
   - `validate_connection()` — fetches devices + sysinfo, finds gateway device, returns `{mac, model, sw_version}`. Used only at config flow time.
@@ -122,7 +93,7 @@ Why the change: merging depended on the shared MAC connection, which 2026.8 no l
 
 ## Setup Options, Sensor-Group Scoping & Cleanup (2026-07 rework)
 
-Full design: `.notes/design_monitor_setup_options.md`. Cross-project porting guide: `shared/SharedNotes/issues/setup_cleanup_options.md`.
+Full design: `.notes/design_monitor_setup_options.md`. Cross-project porting guide: `.shared/issues/setup_cleanup_options.md`.
 
 - **Per-UniFi-device sensors** (`unifi_device_mode`): `none` (default — create nothing per-device), `satisfaction_only` (AP Satisfaction Score keys only), `all` (everything). Core-detected setup offers all three; core-absent offers `none`/`all`. `sensor.py`'s `_device_descs(dev_type, mode)` returns the descriptions to create; both the static loop and the dynamic listener use it. Superseded the old "always create disabled" behavior (the `standalone` flag now only affects `entity_registry_enabled_default`).
 - **Feature toggles** each map to a _sensor group_ **and** its endpoint(s): `enable_speedtest`→`get_speedtest_results`; `enable_wan_usage`→daily/monthly gateway; `enable_security_monitoring`→rogue APs + VPN + firewall + settings; `enable_logs_alerts`→`system-log/all` (Alerts). Off = sensors not created **and** the fetch skipped. `enable_dual_wan` is the exception — WAN2 rides the _shared_ endpoints, so it's a creation/cleanup **key-set** filter (removes WAN2 + load-balance entities), never routed through `disabled_endpoints`.
@@ -133,73 +104,13 @@ Full design: `.notes/design_monitor_setup_options.md`. Cross-project porting gui
 
 ## Key Patterns & Conventions
 
-- Ruff is strict: `D`, `N`, `ASYNC`, `T20`, `SIM`, `UP` enabled. Target `py314`, line length 88.
-- mypy runs in strict mode over `custom_components/` only.
-- `_LOGGER` messages are prefixed with `self.entry.title` (`"%s: ..."`) — match that style.
-- The `.notes` and `.shared` symlinks point outside the repo (project notes / shared validation configs) and are not part of the shipped integration.
+Shared conventions (ruff/mypy strictness, `_LOGGER` prefixing, `PARALLEL_UPDATES`, `translation_key`, icons, exception tuple syntax, markdown emoji rules) are in [shared conventions §4–5](.shared/dev_std/agent_conventions.md). Nothing in this project deviates.
 
-### Emoji in Headings — Single Codepoint Only
-
-**Two-codepoint ("complex") emoji are banned from Markdown headings.** `⚙️` is a glyph plus an invisible `U+FE0F` variation selector; `📘` is a single codepoint.
-
-Heading anchors are generated by stripping the emoji, and the two validators strip **different amounts** — GitHub / `markdown-link-check` remove both codepoints, `markdownlint` **MD051** keeps the `U+FE0F` (Unicode category _Mark_). No link fragment satisfies both, so a linked heading is **unfixable in the link**: only changing the emoji resolves it. Never rewrite the fragment; never suppress MD051. A `%EF%B8%8F` in a link-checker error is the signature.
-
-The ban is absolute, not only for linked headings — adding a link later is a normal edit that would silently break. This README was cleaned of all ten occurrences on 2026-07-22.
-
-Detect mechanically; `U+FE0F` is invisible in every editor, so never review for it by eye:
-
-```bash
-grep -n "^#" README.md | cat -A | grep "M-oM-8M-^O"
-```
-
-Body text, tables and link labels are unaffected — headings only.
-
-Full background and the sense-preserving replacement table: `shared/SharedNotes/info/markdown_anchor_emoji/anchor_emoji_conflict.md`. Enforced by `readme_review.md` Step 1e.
-
-### Exception Tuple Syntax — Settled Decision
-
-Always use `except (A, B):` with explicit parentheses for multi-exception catches. Never use the bare-tuple form `except A, B:`.
-
-- **Do not flag or change this** — it has been researched and decided.
-- `except A, B:` silently catches only `A` on Python 3.12–3.13 (what HA runs on in production), making it a correctness issue, not just style.
-- `except (A, B):` is correct and unambiguous across Python 2.6 through 3.14+.
-- Full background: `shared/SharedNotes/info/py_exception_tuple_syntax/issue_summary.md`
+Note: this project's README was cleaned of all ten VS16-emoji occurrences on 2026-07-22.
 
 ## Development Environment
 
-The project uses a VS Code devcontainer (`.devcontainer/`, image `ha-dev-base:latest`; see `.devcontainer/docker-compose.yml`) running a Home Assistant instance for live testing. HA core source is mounted read-only at `/ha_core`; mypy resolves HA types against it via `mypy_path = "/ha_core"` and will not typecheck correctly outside an environment where that path exists.
-
-### MCP Access (ha-mcp-dev)
-
-When the devcontainer is running, the `ha-mcp-dev` MCP server automatically connects to the HA instance inside it (`http://localhost:8123`). Use it to verify integration changes without leaving the editor.
-
-**After any modification, follow the post-modification process** — see [`.shared/prompts/post_mod_process.md`](.shared/prompts/post_mod_process.md). Specify a `SCOPE` when invoking it:
-
-| SCOPE      | What runs                                                 |
-| :--------- | :-------------------------------------------------------- |
-| `None`     | Changes only — no validation                              |
-| `Basic`    | HA restart + error check + lint/format fixes              |
-| `Full`     | Basic + mypy (standard) + pytest (fix failing tests only) |
-| `Complete` | Full + pre-commit --all-files + mypy --strict             |
-
-Additional tools useful during development:
-
-- `ha_get_state` / `ha_search_entities` — verify entity states and attributes after a reload
-- `ha_call_service` — trigger service calls to exercise platform callbacks directly
-
-Live HA for manual testing runs at `http://localhost:8123`; the integration is mounted into `/config/custom_components/`. Tests use `pytest-homeassistant-custom-component` with `asyncio_mode = "auto"` (no `@pytest.mark.asyncio` needed).
-
-Validation reports are written to the `.reports/` directory (gitignored outputs from lint/test runs).
-
-### Skill Prompts
-
-Three reusable prompts are available via `.shared/prompts/` for working within this devcontainer:
-
-| Prompt | Purpose |
-| :-- | :-- |
-| `devcon_run_gen.md` | Run any single command inside the container |
-| `devcon_run_and_fix.md` | Full test + lint cycle: pytest, ruff, prettier, validate — with auto-fix |
-| `devcon_coverage.md` | Coverage report, target file selection, and new test writing |
+Standard for all integration projects — see [shared conventions §3](.shared/dev_std/agent_conventions.md). Nothing about this project's environment differs.
 
 ## API Endpoints Reference
 

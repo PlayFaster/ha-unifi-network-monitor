@@ -492,10 +492,7 @@ For each rogue **BSSID**, the integration keeps a small persisted record - `firs
 <details>
 
 <summary>&nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Notification Options:
-
-</summary>
-
-<br>
+</summary><br>
 
 Replace
 
@@ -525,7 +522,6 @@ Monitor for Rogue Access Points, critical system-log alerts, and Guest WiFi use
 
 <summary> &nbsp; &nbsp; Notify when an unknown access point is detected nearby (signal at/above your threshold)<br>
 &nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
-
 </summary><br>
 
 ```yaml
@@ -564,7 +560,6 @@ actions:
 
 <summary> &nbsp; &nbsp; Notify on each new <b>Very High (Sev4)</b> UniFi system-log alert, using the <code>new_alert</code> event.<br>
 &nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
-
 </summary><br>
 
 ```yaml
@@ -600,7 +595,6 @@ actions:
 
 <summary> &nbsp; &nbsp; Receive an Alert Summary each morning.<br>
 &nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
-
 </summary><br>
 
 If you prefer one summary a day over a notification per alert, this calls the **`get_alerts`** action on a schedule and formats the returned list into a single message, turning the action's JSON response into a readable notification.
@@ -648,7 +642,6 @@ actions:
 
 <summary> &nbsp; &nbsp; Each morning, send the <b>top 3 strongest rogue APs</b> seen in the last 24 hours. The <code>get_rogue_aps</code> action already returns results strongest-first, so `quantity: 3` gives the top three.<br>
 &nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
-
 </summary><br>
 
 ```yaml
@@ -696,7 +689,6 @@ actions:
 
 <summary> &nbsp; &nbsp; Identify <b>factory-reset or newly powered-on</b> WiFi based smart home devices.<br>
 &nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
-
 </summary><br>
 
 When **factory-reset or newly powered-on**, many WiFi based smart home devices drop into setup/pairing mode and broadcast their **own Wi-Fi AP** (e.g. `shelly-1A2B3C`, `esp_1234`).
@@ -769,7 +761,6 @@ actions:
 
 <summary> &nbsp; &nbsp; Notify if there are active guests on the guest network for consecutive poll periods.<br>
 &nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
-
 </summary><br>
 
 ```yaml
@@ -810,7 +801,6 @@ Get notified if the internet is down, if it's performing slowly, if you are oper
 
 <summary> &nbsp; &nbsp; Alerts when any of the latency sensors exceed 100ms for consecutive poll periods (dynamic delay calculation).<br>
 &nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
-
 </summary><br>
 
 ```yaml
@@ -851,7 +841,6 @@ actions:
 
 <summary> &nbsp; &nbsp; Notify when the gateway fails over to WAN2, and again when it returns to WAN1.<br>
 &nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
-
 </summary><br>
 
 ```yaml
@@ -909,7 +898,6 @@ actions:
 
 <summary> &nbsp; &nbsp; Get an alert when the internet goes down.<br>
 &nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
-
 </summary><br>
 
 If your internet is down, and your Home Assistant system has no way to reach the internet, then sending external notifications will generally not work. So this example does depend on your connectivity. It will work on LAN, internally, but may not notify you externally.
@@ -959,7 +947,6 @@ actions:
 
 <summary> &nbsp; &nbsp; Shifts traffic load balance weight away from WAN2 if its average latency exceeds 180ms for consecutive poll periods.<br>
 &nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
-
 </summary><br>
 
 This is just one worked example. If you do use WAN load-balancing between WAN1 and WAN2 and your ISPs are prone to variable performance, this is an approach that you can tailor to your situation. Maybe one ISP has poor daytime performance, but no data-cap off-peak, maybe one ISP struggles during the peak 6pm to 9pm period, etc. etc.
@@ -999,7 +986,6 @@ actions:
 
 <summary> &nbsp; &nbsp; Monitor Internet Data Usage against a Monthly Data Cap.<br>
 &nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
-
 </summary><br>
 
 This can be set for WAN1, WAN2 or both. Set the cap / limit (900GB and 500GB below) to whatever your target(s) are. The default data unit is **GB**, adjust accordingly if you have changed the data unit display.
@@ -1043,7 +1029,6 @@ Schedule speedtests to run on the UniFi gateway, get notified if speedtest resul
 
 <summary> &nbsp; &nbsp; Run speedtests automatically per a schedule to build a regular performance baseline - no need to open the UI.<br>
 &nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
-
 </summary><br>
 
 By default a UniFi gateway runs a speedtest per WAN once per day, generally around 6am, but you can change this, in the UDM web GUI. This example runs additional speedtests, regardless of what schedule is (or is not) set on the UDM itself. Once this integration is running, all UDM speedtests, whether kicked off via the UDM schedule, web GUI or via Home Assistant get recorded in Home Assistant.
@@ -1095,7 +1080,6 @@ actions:
 
 <summary> &nbsp; &nbsp; Alert if a WAN1 speedtest comes back below your expected download speed - useful for catching an ISP not delivering the plan you pay for.<br>
 &nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
-
 </summary><br>
 
 The approach in this example works very well if your ISP is consistent, a speed drop, verified with a second test is notifiable. If your ISP is more variable, with notable speed differences between peak and off-peak, you can still use this general format, either by setting the limit to the lowest expected or by using different limits at different times of day.
@@ -1149,7 +1133,6 @@ actions:
 
 <summary> &nbsp; &nbsp; Automatically runs a WAN speedtest if internet latency spikes, helping to diagnose bandwidth degradation dynamically without scheduling constant speedtests.<br>
 &nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
-
 </summary><br>
 
 This example does not notify, by itself, deliberately. It works well in conjunction with the notify on slow speedtest example above though.
@@ -1204,7 +1187,6 @@ Reset polling and get notified if your backup is over a week old
 
 <summary> &nbsp; &nbsp; Resume Polling if paused or Reset Polling Interval if Changed.<br>
 &nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
-
 </summary><br>
 
 Polling and the Polling Interval are selectable entities. This example sets them to default after one hour, if changed. Polling interval can also be set based on time of day, or ISP performance (i.e. set high frequency polling if you are monitoring an ISP high latency outage event).
@@ -1258,7 +1240,6 @@ actions:
 
 <summary> &nbsp; &nbsp; Notify if the gateway has not compiled a backup for more than 10 days.<br>
 &nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
-
 </summary><br>
 
 ```yaml
@@ -1276,6 +1257,49 @@ actions:
       title: "UniFi Backup Stale"
       message: "The last local backup is over 10 days old!"
     note: Sends a notification warning that the backup is stale.
+```
+
+---
+
+</details>
+
+### 🩺 Diagnostics & Health Automations
+
+#### 🩺 Integration Health Problem Alert
+
+<details>
+
+<summary> &nbsp; &nbsp; Be told when the integration detects a fault in its own data.<br>
+&nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
+</summary><br>
+
+The `Integration Health` binary sensor turns on when the integration's self-checks find a problem — a missing interface, a change in the shape or units API response, or a scan that returned nothing. It stays available even when scanning has failed, so it can report the fault that made the other entities unreliable.
+
+```yaml
+alias: "UniFi: Integration Health Problem"
+description: "Notifies when the integration's self-checks detect a problem"
+mode: single
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.unifi_network_system_integration_health
+    to: "on"
+    for:
+      minutes: 10
+    note: |
+      The 10 minute duration is deliberate. A single failed scan can set the sensor briefly
+      and clear on the next cycle; this reports only problems that persist. Shorten it if
+      you would rather hear about transient faults too.
+actions:
+  - action: persistent_notification.create
+    data:
+      title: UniFi Network Monitor needs attention
+      message: |
+        {{ state_attr('binary_sensor.unifi_network_system_integration_health', 'issues')
+           | join(', ') }}
+        Last good scan: {{ state_attr('binary_sensor.unifi_network_system_integration_health', 'last_good_scan') }}
+    note: |
+      issues is a list of human-readable problem descriptions. The sensor also carries
+      severity, checks_failed (the check names, for filtering), and other details.
 ```
 
 ---
@@ -1667,7 +1691,7 @@ Some failures are **silent** - a fetch succeeds but the data is wrong (e.g. a Un
 
 It's deliberately cautious: it **ignores capabilities you turned off**, ignores v3/firewall/VPN under username-password auth (expected), and only flags drift after it persists (no single-cycle false alarms). Details - `issues`, `severity`, `degraded_capabilities`, `drift`, `auth_mode` - live in the sensor's attributes; put it on a dashboard or alert on it to catch breakage early instead of months later.
 
-### 🔄 Data Polling & 3-Strike Resilience 🩹
+### 🔄 Data Polling & 3-Strike Resilience
 
 A custom `DataUpdateCoordinator` fetches everything per cycle and applies two resilience layers:
 
@@ -1704,7 +1728,7 @@ This integration writes **two small JSON files** per configured gateway into Hom
 
 **On uninstall**, both files are **deleted automatically** when you delete the integration from Home Assistant - no orphaned files are left in `.storage`. (They are keyed to the config entry's internal ID, so a re-added integration writes fresh files and never reads the old ones - which is why keeping them would serve no purpose.)
 
-> 💡 To clear rogue history deliberately, use the **`unifi_network_monitor.clear_rogue_history`** action rather than deleting the file by hand - it does the same job cleanly while Home Assistant is running. Editing or deleting anything in `.storage` should be done with Home Assistant **stopped**.
+> 💡 To clear rogue history deliberately, use the **`unifi_network_monitor.clear_rogue_history`** action rather than deleting the file by hand - it does the same job cleanly while Home Assistant is running. Editing or deleting anything in `.storage` is a bad idea and not recommended.
 
 ---
 
@@ -1765,7 +1789,7 @@ This integration writes **two small JSON files** per configured gateway into Hom
 &nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
 </summary><br>
 
-- That endpoint has failed its retry strikes (see [Resilience](#-data-polling--3-strike-resilience-)) - the rest keep working. It recovers automatically when the endpoint responds again.
+- That endpoint has failed its retry strikes (see [Resilience](#-data-polling--3-strike-resilience)) - the rest keep working. It recovers automatically when the endpoint responds again.
 
 ---
 
@@ -1967,6 +1991,12 @@ One footnote for completeness: an entity ID is reused unless a **different, stil
 
 ## ❗ Known Limitations /❔ What's Missing?
 
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
+
 - **Tested hardware**: developed and tested on the **UDM Pro** only; other UniFi OS gateways are expected-compatible but unverified.
 - **Firmware/endpoint variance**: available data depends on your UniFi OS / Network application version; some v3 configuration sensors require newer controllers.
 - **Auth mode gates the v3 sensors**: the UniFi Integration (v3) API is API-key only. Under **username / password** auth, the seven firewall-rule, VPN-connection, and WAN-name sensors are permanently unavailable. Use an API key to enable them. See [FAQ](#-why-are-my-firewall-vpn-or-wan-name-sensors-unknown).
@@ -1975,6 +2005,10 @@ One footnote for completeness: an entity ID is reused unless a **different, stil
 - **Early/RC UniFi OS**: As with the official UniFi Integration, Early Access and Release Candidate versions of UniFi OS or the Network Application are [not supported](https://www.home-assistant.io/integrations/unifi/#software-support)
 
 ---
+
+</details>
+
+<br>
 
 ## ❌ Removal
 
@@ -2041,6 +2075,8 @@ This integration stands on the shoulders of several excellent open-source projec
 - 🙏 **[UniFi WAN](https://github.com/holdestmade/Unifi-WAN)** Custom Component (@holdestmade , and contributors): Insight into what Speedtest endpoints are available.
 
 - 🙏 **[UniFi Network Rules](https://github.com/sirkirby/unifi-network-rules)** Custom Component (@sirkirby , and contributors): Insight into the wide range of rules information available.
+
+- **Personal prior work**: The structure and integration architecture draw on my own custom components [ZTE Router 5G](https://github.com/PlayFaster/ha-zte-router-5g-monitor) and [WiFi SSID](https://github.com/PlayFaster/ha-wifi-ssid-monitor) Monitors.
 
 - This project was developed with the assistance of AI to ensure code quality and adherence to best practices.
 
