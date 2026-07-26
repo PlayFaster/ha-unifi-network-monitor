@@ -4,6 +4,12 @@ All changes to this project will be documented in this file. This is the detaile
 
 ---
 
+## [1.0.1-dev2] - 2026-07-26 - Unreleased - No Manifest Bump
+
+### Changed
+
+- **README**: Moved Control and Actions Section. Added many internal links to the example automations.
+
 ## [1.0.1-dev1] - 2026-07-26 - Unreleased - No Manifest Bump
 
 ### Changed
