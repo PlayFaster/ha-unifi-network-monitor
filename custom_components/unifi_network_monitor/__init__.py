@@ -145,7 +145,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     session = async_get_clientsession(hass)
     options = entry.options
 
-    # Normalise a stored per-device mode that's invalid for the current
+    # Normalize a stored per-device mode that's invalid for the current
     # environment (e.g. satisfaction_only stored, then core UniFi removed).
     # Done before the update listener is registered so the corrective write
     # cannot trigger a reload loop; only writes when the value actually changes.

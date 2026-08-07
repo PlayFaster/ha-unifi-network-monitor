@@ -1,5 +1,7 @@
 {
+  "filename": "unifi_network_monitor.zip",
   "hide_default_branch": true,
   "name": "UniFi Network Monitor",
-  "render_readme": true
+  "render_readme": true,
+  "zip_release": true
 }

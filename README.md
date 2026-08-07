@@ -262,7 +262,7 @@ Each sub-device appears as its own device card in Home Assistant, and entity IDs
 >
 > ![About Attribute Example](.github/images/unifi_mon_about_attrib_example.png)
 >
-> These **About** notes - and a few intentionally large attributes, such as the rogue-AP list on **Strongest Rogue SSID** - are set **unrecorded**. Home Assistant still shows them live in the entity's details, but **never writes them to the history/recorder database**. That keeps bulky or purely-informational values from bloating your database, with no downside to what you see day-to-day.
+> These **About** notes - and all other entity attributes, such as the rogue-AP list on **Strongest Rogue SSID** - are set **unrecorded**. Home Assistant still shows them live in the entity's details, but **never writes them to the history/recorder database**. That keeps bulky or purely-informational values from bloating your database, with no downside to what you see day-to-day.
 
 ---
 
@@ -373,7 +373,7 @@ A deliberately-curated set is **left out of LTS** (no `state_class`) - either it
 
 > [!TIP]
 >
-> **Want to force a sensor into Long Term Statistics anyway?**
+> **Want to add a sensor to Long Term Statistics?**
 >
 > Add a `state_class` override via [Manual Customization](https://www.home-assistant.io/integrations/homeassistant/#manual-customization) in your `configuration.yaml`. For example, to track WAN2 Load Balance in LTS:
 >
@@ -475,7 +475,7 @@ For each rogue **BSSID**, the integration keeps a small persisted record - `firs
 
 ## 🔘 Controls & Settings
 
-Several settings are exposed as control entities so you can drive them from dashboards or automations:
+Several settings are exposed as control entities so you can drive them from dashboards or automations, rather than reopening Configure:
 
 - **Clean Up Unused Entities** (`button`, System) - remove orphaned entities (see [Actions](#-actions-services)).
 - **Pause Polling** (`switch`, System) - halt scheduled polling temporarily. Manual actions (below) still fetch while paused. See the [Auto-Resume Polling](#-auto-resume-polling) example.
@@ -537,7 +537,7 @@ Removes entities the current options no longer provide - per-device sensors excl
 | :-- | :-- | :-- | :-- |
 | `dry_run` | No | `true` | When `true`, only reports what would be removed (nothing is changed). Set `false` to actually remove. |
 
-The action supports **Action Responses**, returning the entities/devices it removed (or would remove) - visible in **Developer Tools → Actions**.
+The action supports **Action Responses**, returning the entities/devices it removed (or would remove) - visible in **Tools → Actions**.
 
 ```yaml
 # Preview what would be removed (safe - changes nothing)
@@ -1061,14 +1061,18 @@ triggers:
     to: "on"
     id: failover
     note: |
-      Fires instantly when WAN2 transitions from off to on (primary WAN down).
+      Fires instantly when WAN2 transitions from off to on
+      (primary WAN down). Specify both from and to to avoid
+      unknown or unavailable state transitions.
   - trigger: state
     entity_id: binary_sensor.unifi_network_internet_wan2_active_uplink
     from: "on"
     to: "off"
     id: restored
     note: |
-      Fires instantly when WAN2 transitions from on to off (primary WAN restored).
+      Fires instantly when WAN2 transitions from off to on
+      (primary WAN down). Specify both from and to to avoid
+      unknown or unavailable state transitions.
 actions:
   - action: button.press
     target:
@@ -1119,8 +1123,12 @@ triggers:
   - trigger: state
     entity_id: binary_sensor.unifi_network_internet_internet_connected
     to: "off"
+    not_from:
+      - "unknown"
+      - "unavailable"
     note: |
-      Triggers instantly the moment the gateway reports an outage.
+      Triggers instantly the moment the gateway reports an outage. Suppresses transitions
+      coming directly out of unknown or unavailable states.
 actions:
   - action: button.press
     target:
@@ -1216,9 +1224,9 @@ actions:
     data:
       title: "UniFi Data Alert"
       message: |
-        {{ 'WAN1' if trigger.id == 'wan1' else 'WAN2' }} monthly usage has exceeded its limit. Current usage: {{ trigger.to_state.state }} GB (Limit: {{ 900 if trigger.id == 'wan1' else 500 }} GB).
+        {{ 'WAN1' if trigger.id == 'wan1' else 'WAN2' }} monthly usage has exceeded its limit. Current usage: {{ trigger.to_state.state | float(0) | round(0) }} GB (Limit: {{ 900 if trigger.id == 'wan1' else 500 }} GB).
     note: |
-      Sends a warning notification showing which interface went over limit and its current usage.
+      Sends a warning notification showing which interface went over limit and its current usage rounded to whole GB.
 ```
 
 ---
@@ -1324,7 +1332,7 @@ actions:
         data:
           title: "UniFi: Slow WAN1 speedtest"
           message: |
-            WAN1 download speed has been verified slow at {{ states('sensor.unifi_network_speedtest_wan1_download') }} Mbps, below the 100 Mbps threshold.
+            WAN1 download speed has been verified slow at {{ states('sensor.unifi_network_speedtest_wan1_download') | float(0) | round(0) }} Mbps, below the 100 Mbps threshold.
         note: |
           Sends the verified download speed so you can decide whether it's worth contacting your ISP.
 ```
@@ -1502,10 +1510,11 @@ actions:
       message: |
         {{ state_attr('binary_sensor.unifi_network_system_integration_health', 'issues')
            | join(', ') }}
-        Last good scan: {{ state_attr('binary_sensor.unifi_network_system_integration_health', 'last_good_scan') }}
+        Last good scan: {{ state_attr('binary_sensor.unifi_network_system_integration_health', 'last_good_update') }}
     note: |
       issues is a list of human-readable problem descriptions. The sensor also carries
-      severity, checks_failed (the check names, for filtering), and other details.
+      severity, degraded_capabilities (the affected capability names, for filtering),
+      last_good_update, drift, auth_mode and v3_available.
 ```
 
 ---
@@ -1520,7 +1529,7 @@ actions:
 
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=PlayFaster&repository=ha-unifi-network-monitor&category=integration)
 
-Use the **shortcut badge** above , and then proceed to Step #3 or just ...
+Use the **shortcut badge** above, and then proceed to Step #3 or just ...
 
 1. Add this [repository](https://github.com/PlayFaster/ha-unifi-network-monitor) as a **Custom Repository** in HACS:
    - Open HACS in Home Assistant
@@ -1980,7 +1989,7 @@ The **30 days** applies only to that fourth row - the entity-registry customizat
 
 **If you actually wanted a clean slate**, Home Assistant doesn't really offer one - and in practice you rarely need it. Two supported options exist:
 
-- **Developer Tools > Statistics** lists statistics whose entity no longer exists as _"There is no state available for this entity"_, and lets you delete them individually. Supported, immediate, no restart required.
+- **Tools > Statistics** lists statistics whose entity no longer exists as _"There is no state available for this entity"_, and lets you delete them individually. Supported, immediate, no restart required.
 - The **`recorder.purge_entities`** action drops recent history for entities you name. (It does not touch long-term statistics - use the screen above for those.)
 
 Clearing the retained _entity-registry_ customizations is a different matter: it means hand-editing `.storage/core.entity_registry` with Home Assistant stopped. **Don't.** That single file holds the settings for every entity from every integration you run, and the risk of unintended damage far outweighs re-doing a few renames. Nothing about this integration needs it.
@@ -1989,7 +1998,7 @@ Clearing the retained _entity-registry_ customizations is a different matter: it
 >
 > If you're re-adding to fix a problem rather than to reset data, try **⋮ > Reload** on the integration first. It re-reads everything and re-applies your settings without removing anything.
 
-One footnote for completeness: an entity ID is reused unless a **different, still-existing** entity has since taken that name, in which case the new one is created as `…_2` and the old statistics stay attached to the original ID. That's uncommon and generally the result of manual renaming elsewhere - it isn't something a normal remove-and-re-add causes.
+Also note: an entity ID is reused unless a **different, still-existing** entity has since taken that name, in which case the new one is created as `…_2` and the old statistics stay attached to the original ID. That's uncommon and generally the result of manual renaming elsewhere - it isn't something a normal remove-and-re-add causes.
 
 ---
 
@@ -2067,6 +2076,12 @@ To fully uninstall (HACS):
 ## 📝 Maintenance Status
 
 This is a **personal project**. Support and updates are provided on a **"best-effort"** basis only. While I use this integration daily and aim to keep it functional with the latest Home Assistant and UniFi releases, I cannot guarantee immediate fixes for issues or compatibility with all UniFi firmware versions.
+
+### 📖 Documentation Accuracy
+
+- This README is updated whenever the integration changes, and is intended to describe the current release accurately.
+- Two things can put it out of step: a passage this document missed during a revision, or a Home Assistant screen or setting that has been renamed or moved since it was written.
+- If you find either, please [open an issue](https://github.com/PlayFaster/ha-unifi-network-monitor/issues). It will be corrected.
 
 ---
 

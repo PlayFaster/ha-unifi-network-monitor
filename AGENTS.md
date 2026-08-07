@@ -2,13 +2,18 @@
 
 This file provides guidance to AI coding agents when working with code in this repository.
 
+> [!CAUTION]
+>
+> **Never run `git checkout`, `git restore`, `git reset`, `git stash` or `git clean`. Ask first, every time — no exceptions, whoever's changes you think they are.** Reading git (`status`, `diff`, `log`, `show`) is always fine. Full rule and the incident behind it: [`agent_conventions.md`](.shared/dev_std/agent_conventions.md).
+
+
 > **Read the shared conventions first:** [`.shared/dev_std/agent_conventions.md`](.shared/dev_std/agent_conventions.md) — commands (tests, lint, mypy, validation), the Windows-host `docker exec` workflow, devcontainer access, HAB/MCP for interrogating the running HA instance, the post-modification SCOPE table, code conventions, and the markdown/Python rules. That file is the single source of truth for everything shared across the integration projects; this file covers only what is specific to **ha-unifi-network-monitor**.
 
 ## What This Integration Does
 
 A Home Assistant custom integration (`unifi_network_monitor`) for Ubiquiti UniFi networks anchored by a UDM Pro (or similar gateway). It is a `local_polling` `hub` integration distributed via HACS. It replaces a previous shell-command + template sensor setup, exposing sensors, binary sensors, buttons, numbers, switches, and a select across **seven** sub-devices — Gateway, Internet, Speedtest, **Security**, **Alerts**, Status, System — plus optional per-AP/switch sensors. Auth supports both API key (`X-API-Key` header — preferred) and username/password (TOKEN cookie + X-CSRF-Token). There are no external `requirements` beyond `aiohttp` and HA core.
 
-> **Entity and service inventory lives in [`docs/all_sensors.md`](docs/all_sensors.md)** — it is authoritative and kept current against live HA by `sensor_review.md`. This file deliberately carries no entity counts or service descriptions; the sections below describe architecture and behaviour.
+> **Entity and service inventory lives in [`docs/all_sensors.md`](docs/all_sensors.md)** — it is authoritative and kept current against live HA by `sensor_review.md`. This file deliberately carries no entity counts or service descriptions; the sections below describe architecture and behavior.
 
 Setup/reconfigure options let users scope which per-device sensors and gateway sensor groups are created (a disabled group also skips its API calls), with per-endpoint hold-then-`unavailable` resilience, an explicit cleanup button/service, and the UI device-delete hook. See **Setup Options, Sensor-Group Scoping & Cleanup** below.
 
@@ -83,9 +88,9 @@ Read credentials from `entry.options`, not `entry.data`. Config flow is `VERSION
 
 ### Device Co-existence — separate but aware (2026-07 rework)
 
-Monitor **does not merge** its devices with the core `unifi` integration. Devices are **identity-only** (`identifiers={(DOMAIN, …)}`, deliberately **no** `connections={(CONNECTION_NETWORK_MAC, …)}`), so they never collide with core UniFi's devices and Monitor owns its own device tree. This is uniform on every HA version: HA 2026.8 removed cross-integration device merging outright, and not carrying the shared connection makes older HA behave the same way — one behaviour, no version branch.
+Monitor **does not merge** its devices with the core `unifi` integration. Devices are **identity-only** (`identifiers={(DOMAIN, …)}`, deliberately **no** `connections={(CONNECTION_NETWORK_MAC, …)}`), so they never collide with core UniFi's devices and Monitor owns its own device tree. This is uniform on every HA version: HA 2026.8 removed cross-integration device merging outright, and not carrying the shared connection makes older HA behave the same way — one behavior, no version branch.
 
-Why the change: merging depended on the shared MAC connection, which 2026.8 no longer honours. Keeping it would have produced two behaviours across the 2026.8 line (merged on ≤2026.7, split on 2026.8+); dropping it gives one no-merge model everywhere, with **no minimum-version floor**. Full rationale and the deprecated-API migration: `.notes/device_registry/device_model_2026_08.md`.
+Why the change: merging depended on the shared MAC connection, which 2026.8 no longer honours. Keeping it would have produced two behaviors across the 2026.8 line (merged on ≤2026.7, split on 2026.8+); dropping it gives one no-merge model everywhere, with **no minimum-version floor**. Family-wide analysis, the three deprecated APIs and the 2026.8.0 re-verification checklist: `.shared/issues/x_project/device_registry_2026_08.md`. This project's Phase 1 mechanics, implementation and validation records: `.notes/device_registry/device_model_2026_08.md`.
 
 **Still core-aware** (entity-level, independent of device grouping): when core `unifi` is installed (`"unifi" in hass.config_entries.async_domains()`), sensors that duplicate what it already provides are **created but disabled by default** (`entity_registry_enabled_default=False` + `enable_in_standalone=True`, flipped on only when standalone). So Monitor avoids redundant entities/polling without ever sharing a device card.
 
@@ -93,7 +98,7 @@ Why the change: merging depended on the shared MAC connection, which 2026.8 no l
 
 ## Setup Options, Sensor-Group Scoping & Cleanup (2026-07 rework)
 
-Full design: `.notes/design_monitor_setup_options.md`. Cross-project porting guide: `.shared/issues/setup_cleanup_options.md`.
+Full design: `.notes/design_monitor_setup_options.md`. Cross-project porting guide: `.shared/issues/x_project/setup_cleanup_options.md`.
 
 - **Per-UniFi-device sensors** (`unifi_device_mode`): `none` (default — create nothing per-device), `satisfaction_only` (AP Satisfaction Score keys only), `all` (everything). Core-detected setup offers all three; core-absent offers `none`/`all`. `sensor.py`'s `_device_descs(dev_type, mode)` returns the descriptions to create; both the static loop and the dynamic listener use it. Superseded the old "always create disabled" behavior (the `standalone` flag now only affects `entity_registry_enabled_default`).
 - **Feature toggles** each map to a _sensor group_ **and** its endpoint(s): `enable_speedtest`→`get_speedtest_results`; `enable_wan_usage`→daily/monthly gateway; `enable_security_monitoring`→rogue APs + VPN + firewall + settings; `enable_logs_alerts`→`system-log/all` (Alerts). Off = sensors not created **and** the fetch skipped. `enable_dual_wan` is the exception — WAN2 rides the _shared_ endpoints, so it's a creation/cleanup **key-set** filter (removes WAN2 + load-balance entities), never routed through `disabled_endpoints`.
@@ -114,15 +119,15 @@ Standard for all integration projects — see [shared conventions §3](.shared/d
 
 ## API Endpoints Reference
 
-| Endpoint | Purpose |
-| :-- | :-- |
-| `GET /proxy/network/api/s/{site}/stat/device` | All adopted devices (UDM, APs, switches) with live stats |
-| `GET /proxy/network/api/s/{site}/stat/health` | Network health subsystems (wan, www, wlan, lan, vpn) |
-| `GET /proxy/network/api/s/{site}/stat/sysinfo` | System info including firmware version |
-| `POST /proxy/network/api/s/{site}/stat/rogueap` | Rogue APs within `{within}` hours (Security; queried at the live period + a fixed 24h for the raw sensor) |
+| Endpoint                                                | Purpose                                                                                                      |
+| :------------------------------------------------------ | :----------------------------------------------------------------------------------------------------------- |
+| `GET /proxy/network/api/s/{site}/stat/device`           | All adopted devices (UDM, APs, switches) with live stats                                                     |
+| `GET /proxy/network/api/s/{site}/stat/health`           | Network health subsystems (wan, www, wlan, lan, vpn)                                                         |
+| `GET /proxy/network/api/s/{site}/stat/sysinfo`          | System info including firmware version                                                                       |
+| `POST /proxy/network/api/s/{site}/stat/rogueap`         | Rogue APs within `{within}` hours (Security; queried at the live period + a fixed 24h for the raw sensor)    |
 | `POST /proxy/network/v2/api/site/{site}/system-log/all` | System-log alerts (Alerts group; `EP_SYSLOG` polls HIGH/VERY_HIGH; `get_alerts` queries all four severities) |
-| `POST /api/auth/login` | Obtain TOKEN cookie + X-CSRF-Token (username/password auth only) |
-| `POST /api/auth/logout` | Invalidate session |
+| `POST /api/auth/login`                                  | Obtain TOKEN cookie + X-CSRF-Token (username/password auth only)                                             |
+| `POST /api/auth/logout`                                 | Invalidate session                                                                                           |
 
 Full endpoint reference (incl. speedtest, reports, config, v3): `docs/api_endpoints.md`.
 

@@ -1385,12 +1385,24 @@ class UnifiSensorBase(
 class UnifiGatewaySensor(UnifiSensorBase):
     """Sensor entity bound to the UDM Pro gateway sub-dict."""
 
-    # Keep bulky / per-poll-changing attributes out of the recorder: the rogue
-    # list churns every poll, and parameters/udm_version add nothing to history
-    # (the get_alerts action and About note cover the intent). "about" is always
-    # excluded via the mixin; repeated here for clarity.
+    # Section 14: every attribute this entity can publish, with no exceptions.
+    # `application_version`, `application_build` and `device_type` were
+    # previously recorded — not by decision, they were simply never added when
+    # the attribute set grew past the original bulky/churning ones. Attributes
+    # carry detail that does not merit its own entity; a value whose history is
+    # genuinely wanted belongs in an entity or a user template sensor.
+    # "about" is contributed by the mixin; repeated here for clarity.
     _unrecorded_attributes = frozenset(
-        {"about", "rogue_aps", "rogue_aps_truncated", "parameters", "udm_version"}
+        {
+            "about",
+            "rogue_aps",
+            "rogue_aps_truncated",
+            "parameters",
+            "udm_version",
+            "application_version",
+            "application_build",
+            "device_type",
+        }
     )
 
     def __init__(

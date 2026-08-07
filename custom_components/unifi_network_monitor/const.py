@@ -199,7 +199,7 @@ def clamp_device_mode(value: str | None, core_present: bool) -> str:
 
     ``satisfaction_only`` is only meaningful when the HA-native UniFi (core)
     integration is present. Lives here (not config_flow) so both the flow and
-    the runtime load-time normaliser can share it without an import cycle.
+    the runtime load-time normalizer can share it without an import cycle.
     """
     valid = (
         {DEVICE_MODE_NONE, DEVICE_MODE_SATISFACTION, DEVICE_MODE_ALL}

@@ -98,7 +98,7 @@ class _Scrubber:
     """
 
     def __init__(self) -> None:
-        """Initialise an empty token map."""
+        """Initialize an empty token map."""
         self._tokens: dict[str, str] = {}
         self._literals: set[str] = set()
         self._devices = 0

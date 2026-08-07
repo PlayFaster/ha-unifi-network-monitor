@@ -3,7 +3,7 @@
 HA 2026.8 makes a device belong to a single config entry and deprecates several
 registry surfaces (removed in 2027.8): the ambiguous ``async_get_device``,
 ``DeviceEntry.config_entries``, and the ``DeviceInfo.via_device`` identifier
-tuple. UniFi Network Monitor stays **floor-free** — one behaviour on <=2026.7 and
+tuple. UniFi Network Monitor stays **floor-free** — one behavior on <=2026.7 and
 on post-2027.8 alike — by feature-detecting each surface and using the new API
 where present, the old one otherwise.
 

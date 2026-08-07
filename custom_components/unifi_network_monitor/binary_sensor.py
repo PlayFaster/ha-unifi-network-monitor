@@ -435,6 +435,12 @@ class UnifiRogueProximityBinarySensor(
         "On when a rogue AP at or above the Proximity Threshold survives your "
         "band/SSID/AP ignore settings."
     )
+    # Section 14. `strongest_rogue_rssi` is an RSSI that moves on every poll —
+    # the same churn that already excluded `rogue_aps` on the gateway sensor,
+    # where the reasoning was applied but never carried across to here.
+    # "about" comes from the mixin; this class previously declared no set of
+    # its own, so both keys below were recorded.
+    _unrecorded_attributes = frozenset({"about", "strongest_rogue_rssi", "threshold"})
 
     def __init__(
         self,

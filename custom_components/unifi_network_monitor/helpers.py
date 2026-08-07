@@ -20,7 +20,7 @@ class UnifiAboutEntity:
 
     Set the text via ``_attr_about`` (class-level for single-instance entities)
     or an ``about`` field on the entity description (for description-driven
-    entities). The note shows in Developer Tools / the More Info dialog but is
+    entities). The note shows in Tools / the More Info dialog but is
     listed in ``_unrecorded_attributes`` so the recorder never writes it to
     history — zero cost no matter how often the state changes.
 
@@ -141,7 +141,7 @@ def build_unifi_device_info(
     """
     gateway_mac = coordinator.gateway_mac
     # Per-device MACs come straight off the controller payload, so canonicalise
-    # here — the gateway MAC is already normalised by the coordinator (§3).
+    # here — the gateway MAC is already normalized by the coordinator (§3).
     device_mac = format_mac(device_mac)
     info = DeviceInfo(
         identifiers={(DOMAIN, device_mac)},

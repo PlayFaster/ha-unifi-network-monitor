@@ -2180,7 +2180,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except UnifiAuthError as err:
             self.consecutive_failures += 1
             self._record_fetch_failure_health(err)
-            if self.data is not None and self.consecutive_failures <= 3:
+            if self.data is not None and self.consecutive_failures <= FETCH_STRIKE_LIMIT:
                 log = (
                     _LOGGER.warning if self.consecutive_failures == 1 else _LOGGER.debug
                 )
@@ -2197,7 +2197,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except (UnifiConnectionError, TimeoutError) as err:
             self.consecutive_failures += 1
             self._record_fetch_failure_health(err)
-            if self.data is not None and self.consecutive_failures <= 3:
+            if self.data is not None and self.consecutive_failures <= FETCH_STRIKE_LIMIT:
                 log = (
                     _LOGGER.warning if self.consecutive_failures == 1 else _LOGGER.debug
                 )
@@ -2219,7 +2219,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except Exception as err:
             self.consecutive_failures += 1
             self._record_fetch_failure_health(err)
-            if self.data is not None and self.consecutive_failures <= 3:
+            if self.data is not None and self.consecutive_failures <= FETCH_STRIKE_LIMIT:
                 log = (
                     _LOGGER.warning if self.consecutive_failures == 1 else _LOGGER.debug
                 )

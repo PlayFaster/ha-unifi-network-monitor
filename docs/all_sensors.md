@@ -214,7 +214,7 @@ _Group: `system`_
 >
 > **Repair issues (Settings → Repairs):** `site_resolution_failed` (v3 site unreachable — VPN/firewall/WAN-name sensors unavailable) and `schema_drift_detected` (a controller update appears to have changed the data format; some sensors may be wrong). Both are also reflected in the **Integration Health** sensor's attributes.
 >
-> **`about` attribute:** ~20 entities carry an unrecorded `about:` attribute — a one-line explanation shown in More Info / Developer Tools but excluded from the recorder (`_unrecorded_attributes`). The Strongest Rogue SSID `rogue_aps` list attribute is capped at 25 (`rogue_aps_truncated` flags overflow) and is also unrecorded.
+> **`about` attribute:** ~20 entities carry an unrecorded `about:` attribute — a one-line explanation shown in More Info / Tools but excluded from the recorder (`_unrecorded_attributes`). The Strongest Rogue SSID `rogue_aps` list attribute is capped at 25 (`rogue_aps_truncated` flags overflow) and is also unrecorded.
 
 ## Part II: Dynamic UniFi Devices (APs & Switches)
 

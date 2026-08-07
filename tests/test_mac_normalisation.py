@@ -68,7 +68,7 @@ def test_device_info_uses_canonical_mac() -> None:
 
 
 def test_per_device_mac_is_canonicalised() -> None:
-    """Normalise per-device MACs, which come straight off the payload."""
+    """Normalize per-device MACs, which come straight off the payload."""
     from custom_components.unifi_network_monitor.helpers import (
         build_unifi_device_info,
     )
