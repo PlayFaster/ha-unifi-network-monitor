@@ -2,12 +2,13 @@
 
 This file provides guidance to AI coding agents when working with code in this repository.
 
+> **Read the shared conventions first:** [`.shared/dev_std/agent_conventions.md`](.shared/dev_std/agent_conventions.md) — commands (tests, lint, mypy, validation), the Windows-host `docker exec` workflow, devcontainer access, HAB/MCP for interrogating the running HA instance, the post-modification SCOPE table, code conventions, and the markdown/Python rules. That file is the single source of truth for everything shared across the integration projects; this file covers only what is specific to **ha-unifi-network-monitor**.
+
+---
+
 > [!CAUTION]
 >
 > **Never run `git checkout`, `git restore`, `git reset`, `git stash` or `git clean`. Ask first, every time — no exceptions, whoever's changes you think they are.** Reading git (`status`, `diff`, `log`, `show`) is always fine. Full rule and the incident behind it: [`agent_conventions.md`](.shared/dev_std/agent_conventions.md).
-
-
-> **Read the shared conventions first:** [`.shared/dev_std/agent_conventions.md`](.shared/dev_std/agent_conventions.md) — commands (tests, lint, mypy, validation), the Windows-host `docker exec` workflow, devcontainer access, HAB/MCP for interrogating the running HA instance, the post-modification SCOPE table, code conventions, and the markdown/Python rules. That file is the single source of truth for everything shared across the integration projects; this file covers only what is specific to **ha-unifi-network-monitor**.
 
 ## What This Integration Does
 
@@ -119,15 +120,15 @@ Standard for all integration projects — see [shared conventions §3](.shared/d
 
 ## API Endpoints Reference
 
-| Endpoint                                                | Purpose                                                                                                      |
-| :------------------------------------------------------ | :----------------------------------------------------------------------------------------------------------- |
-| `GET /proxy/network/api/s/{site}/stat/device`           | All adopted devices (UDM, APs, switches) with live stats                                                     |
-| `GET /proxy/network/api/s/{site}/stat/health`           | Network health subsystems (wan, www, wlan, lan, vpn)                                                         |
-| `GET /proxy/network/api/s/{site}/stat/sysinfo`          | System info including firmware version                                                                       |
-| `POST /proxy/network/api/s/{site}/stat/rogueap`         | Rogue APs within `{within}` hours (Security; queried at the live period + a fixed 24h for the raw sensor)    |
+| Endpoint | Purpose |
+| :-- | :-- |
+| `GET /proxy/network/api/s/{site}/stat/device` | All adopted devices (UDM, APs, switches) with live stats |
+| `GET /proxy/network/api/s/{site}/stat/health` | Network health subsystems (wan, www, wlan, lan, vpn) |
+| `GET /proxy/network/api/s/{site}/stat/sysinfo` | System info including firmware version |
+| `POST /proxy/network/api/s/{site}/stat/rogueap` | Rogue APs within `{within}` hours (Security; queried at the live period + a fixed 24h for the raw sensor) |
 | `POST /proxy/network/v2/api/site/{site}/system-log/all` | System-log alerts (Alerts group; `EP_SYSLOG` polls HIGH/VERY_HIGH; `get_alerts` queries all four severities) |
-| `POST /api/auth/login`                                  | Obtain TOKEN cookie + X-CSRF-Token (username/password auth only)                                             |
-| `POST /api/auth/logout`                                 | Invalidate session                                                                                           |
+| `POST /api/auth/login` | Obtain TOKEN cookie + X-CSRF-Token (username/password auth only) |
+| `POST /api/auth/logout` | Invalidate session |
 
 Full endpoint reference (incl. speedtest, reports, config, v3): `docs/api_endpoints.md`.
 

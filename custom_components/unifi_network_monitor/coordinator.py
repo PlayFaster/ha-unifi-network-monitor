@@ -2180,12 +2180,15 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except UnifiAuthError as err:
             self.consecutive_failures += 1
             self._record_fetch_failure_health(err)
-            if self.data is not None and self.consecutive_failures <= FETCH_STRIKE_LIMIT:
+            if (
+                self.data is not None
+                and self.consecutive_failures <= FETCH_STRIKE_LIMIT
+            ):
                 log = (
                     _LOGGER.warning if self.consecutive_failures == 1 else _LOGGER.debug
                 )
                 log(
-                    "%s: Authentication error fetching UniFi data (failure %d/3), holding last values: %s",  # noqa: E501
+                    "%s: Authentication error fetching UniFi data (failure %d/3), holding last values: %s",
                     self.entry.title,
                     self.consecutive_failures,
                     err,
@@ -2197,12 +2200,15 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except (UnifiConnectionError, TimeoutError) as err:
             self.consecutive_failures += 1
             self._record_fetch_failure_health(err)
-            if self.data is not None and self.consecutive_failures <= FETCH_STRIKE_LIMIT:
+            if (
+                self.data is not None
+                and self.consecutive_failures <= FETCH_STRIKE_LIMIT
+            ):
                 log = (
                     _LOGGER.warning if self.consecutive_failures == 1 else _LOGGER.debug
                 )
                 log(
-                    "%s: Error fetching UniFi data (failure %d/3), holding last values: %s",  # noqa: E501
+                    "%s: Error fetching UniFi data (failure %d/3), holding last values: %s",
                     self.entry.title,
                     self.consecutive_failures,
                     err,
@@ -2219,7 +2225,10 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except Exception as err:
             self.consecutive_failures += 1
             self._record_fetch_failure_health(err)
-            if self.data is not None and self.consecutive_failures <= FETCH_STRIKE_LIMIT:
+            if (
+                self.data is not None
+                and self.consecutive_failures <= FETCH_STRIKE_LIMIT
+            ):
                 log = (
                     _LOGGER.warning if self.consecutive_failures == 1 else _LOGGER.debug
                 )

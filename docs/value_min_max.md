@@ -26,9 +26,17 @@ We use a **Declarative Validation** approach. Limits are defined directly within
 `UnifiSensorEntityDescription` carries `min_limit: float | None` and `max_limit: float | None`. The base class checks:
 
 ```python
-if desc.min_limit is not None and isinstance(val, (int, float)) and val < desc.min_limit:
+if (
+    desc.min_limit is not None
+    and isinstance(val, (int, float))
+    and val < desc.min_limit
+):
     return None
-if desc.max_limit is not None and isinstance(val, (int, float)) and val > desc.max_limit:
+if (
+    desc.max_limit is not None
+    and isinstance(val, (int, float))
+    and val > desc.max_limit
+):
     return None
 ```
 

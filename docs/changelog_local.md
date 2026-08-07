@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: UniFi Network Monitor](#internal-detailed-changelog-unifi-network-monitor)
+  - [\[1.0.1-dev9\] - 2026-08-07 - Readme Automation Corrections; Formats](#101-dev9---2026-08-07---readme-automation-corrections-formats)
   - [\[1.0.1-dev8\] - 2026-08-07 - CI Bumps; Github Zipfile; PyTest Branch \& Mutation Testing](#101-dev8---2026-08-07---ci-bumps-github-zipfile-pytest-branch--mutation-testing)
   - [\[1.0.1-dev7\] - 2026-07-28 - Automation Example Glitch Guards \& Float Rounding in README](#101-dev7---2026-07-28---automation-example-glitch-guards--float-rounding-in-readme)
   - [\[1.0.1-dev6\] - 2026-07-27 - Device-Registry Record Split](#101-dev6---2026-07-27---device-registry-record-split)
@@ -16,6 +17,13 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-07-22 - Initial Public Release](#100---2026-07-22---initial-public-release)
 
 ---
+
+## [1.0.1-dev9] - 2026-08-07 - Readme Automation Corrections; Formats
+
+### Changed
+
+- **Formats**: Formats and Lints for previous dev8
+- **README**: Corrected Automation Examples in `README.md` , several used `sensor.unifi_network_system_polling_interval`instead of `number.`.
 
 ## [1.0.1-dev8] - 2026-08-07 - CI Bumps; Github Zipfile; PyTest Branch & Mutation Testing
 
@@ -37,7 +45,7 @@ All changes to this project will be documented in this file. This is the detaile
 - **AGENTS No git:** Updated `AGENTS.md` to clarify strict restrictive rules around write git use.
 - **US UK Spelling**: Updated spelling to US standard (z vs s, color vs colour etc), to match HA standard.
 - **Tools not Dev Tools**: Changed References to "Developer Tools" to "Tools" to align with HA 2026.8+
-- **`changelog_local` ToC**: Added Table of Contents to `changelog_local` (top-of-file) and to end of `CHANGELOG`. 
+- **`changelog_local` ToC**: Added Table of Contents to `changelog_local` (top-of-file) and to end of `CHANGELOG`.
 
 ## [1.0.1-dev7] - 2026-07-28 - Automation Example Glitch Guards & Float Rounding in README
 
@@ -98,6 +106,7 @@ Six sections now carry a `**Test:**` tag — tagged only where breaking the stan
 - **§14 / §21** — tests exist but have never been executed (container down), so neither has cleared the §11 mutation bar. `UNVERIFIED`, deliberately not `DONE`.
 
 > [!IMPORTANT]
+>
 > `UNVERIFIED` in the Standards Test Coverage matrix means "the test exists but has not been shown to fail on a real regression". It is **not** the same as `PARTIAL` in the Section Conformance matrix, which means "implemented, but a bullet unmet". The two tables sit close together and the tokens were deliberately kept distinct.
 
 ## [1.0.1-dev4] - 2026-07-27 - §14 Attributes Are Unrecorded by Default
@@ -105,6 +114,7 @@ Six sections now carry a `**Test:**` tag — tagged only where breaking the stan
 Implements `dev_standards` §14 as revised at **Standard Version 1.12.0**: `_unrecorded_attributes` must cover every key an entity can publish, with no per-attribute judgement and no undocumented exceptions.
 
 > [!IMPORTANT]
+>
 > **Unvalidated.** This project's devcontainer was not running, so no pytest, mypy or coverage run backs these changes — including the new test file, which has **never been executed**. `ruff format` and `ruff check` were run against this project's own `pyproject.toml` and `.validate/pyproject_common.toml` by copying the files into a running sibling container; both clean. The new test's `MIN_ENTITIES_SWEPT` floor is a guess at this project's fixture richness and may need tuning on first run.
 
 ### Fixed

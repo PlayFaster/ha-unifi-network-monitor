@@ -20,8 +20,9 @@ entity description, and no static check can see through that.
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-from custom_components.unifi_network_monitor.const import DOMAIN
 from homeassistant.core import HomeAssistant
+
+from custom_components.unifi_network_monitor.const import DOMAIN
 
 # Attributes deliberately left recorded, with the justification Section 14
 # requires. Empty by design — adding an entry here is a visible, reviewable

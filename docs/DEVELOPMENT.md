@@ -381,9 +381,9 @@ That asymmetry is why a `_compat.py` error can appear on push having passed loca
 
 ```python
 if _HAS_CONFIG_ENTRY_ID:
-    cid: str | None = cast(Any, device).config_entry_id   # 2026.8+ only
+    cid: str | None = cast(Any, device).config_entry_id  # 2026.8+ only
     return [cid] if cid else []
-return list(device.config_entries)                        # <=2026.7 path
+return list(device.config_entries)  # <=2026.7 path
 ```
 
 Use `cast(Any, …)` rather than `# type: ignore[attr-defined]`: `warn_unused_ignores = true` means the ignore would itself become an error on the HA version where the attribute _does_ exist. The cast is correct on both.

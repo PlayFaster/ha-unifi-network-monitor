@@ -739,9 +739,10 @@ triggers:
   - trigger: state
     entity_id: binary_sensor.unifi_network_security_rogue_ap_proximity_alert
     to: "on"
+    from: "off"
     for:
       seconds: |
-        {{ [120, (states('sensor.unifi_network_system_polling_interval') | int(180)) + 5] | max }}
+        {{ [120, (states('number.unifi_network_system_polling_interval') | int(180)) + 5] | max }}
     note: |
       Triggers when a rogue AP exceeds the proximity threshold. Dynamic delay ensures waiting
       for consecutive polls to confirm it is a sustained threat rather than a passing vehicle.
@@ -751,7 +752,7 @@ actions:
       title: "Rogue AP detected nearby"
       message: |
         Strongest Rogue AP: {{ states('sensor.unifi_network_security_strongest_rogue_ssid') }}
-        at {{ states('sensor.unifi_network_security_strongest_rogue_rssi') }} dBm.
+        at {{ states('sensor.unifi_network_security_strongest_rogue_rssi') | int(0) }} dBm.
     note: |
       Sends a notification containing the SSID and RSSI signal level of the strongest rogue AP.
 ```
@@ -980,7 +981,7 @@ triggers:
     above: 0
     for:
       seconds: |
-        {{ [120, (states('sensor.unifi_network_system_polling_interval') | int(180)) + 5] | max }}
+        {{ [120, (states('number.unifi_network_system_polling_interval') | int(180)) + 5] | max }}
     note: |
       Triggers when guest user count goes above 0. Evaluates the duration dynamically using
       the polling interval plus a 5-second buffer (minimum 120-second floor) to confirm
@@ -989,7 +990,7 @@ actions:
   - action: persistent_notification.create
     data:
       title: "Guest Network Active"
-      message: "There are currently {{ states('sensor.unifi_network_status_wifi_guests') }} active guest(s) on your Wi-Fi."
+      message: "There are currently {{ states('sensor.unifi_network_status_wifi_guests') | int(0) }} active guest(s) on your Wi-Fi."
     note: Sends a push notification indicating active guest count.
 ```
 
@@ -1023,7 +1024,7 @@ triggers:
     above: 100
     for:
       seconds: |
-        {{ [120, (states('sensor.unifi_network_system_polling_interval') | int(180)) + 5] | max }}
+        {{ [120, (states('number.unifi_network_system_polling_interval') | int(180)) + 5] | max }}
     note: |
       Triggers when latency exceeds 100ms. The duration matches your custom poll interval
       plus a 5-second buffer (enforcing a minimum 120-second floor) to confirm the 
@@ -1033,7 +1034,7 @@ actions:
     data:
       title: "High Latency Detected"
       message: |
-        Latency alert triggered! Current Internet Latency: {{ states('sensor.unifi_network_internet_internet_latency') }} ms.
+        Latency alert triggered! Current Internet Latency: {{ states('sensor.unifi_network_internet_internet_latency') | int(0) }} ms.
     note: "Alerts you which interface is experiencing high latency."
 ```
 
@@ -1175,7 +1176,7 @@ triggers:
     above: 180
     for:
       seconds: |
-        {{ [120, (states('sensor.unifi_network_system_polling_interval') | int(180)) + 5] | max }}
+        {{ [120, (states('number.unifi_network_system_polling_interval') | int(180)) + 5] | max }}
     note: |
       Triggers when WAN2 latency averages above 180ms. Checks across consecutive polls
       (minimum 2 minutes) to ensure it is a sustained performance drop rather than a spike.
@@ -1362,7 +1363,7 @@ triggers:
     above: 100
     for:
       seconds: |
-        {{ [120, (states('sensor.unifi_network_system_polling_interval') | int(180)) + 5] | max }}
+        {{ [120, (states('number.unifi_network_system_polling_interval') | int(180)) + 5] | max }}
     id: wan1
     note: |
       Triggers when WAN1 latency exceeds 100ms. Dynamic delay ensures we wait for
@@ -1372,7 +1373,7 @@ triggers:
     above: 100
     for:
       seconds: |
-        {{ [120, (states('sensor.unifi_network_system_polling_interval') | int(180)) + 5] | max }}
+        {{ [120, (states('number.unifi_network_system_polling_interval') | int(180)) + 5] | max }}
     id: wan2
     note: |
       Triggers when WAN2 latency exceeds 100ms. Dynamic delay ensures we wait for
