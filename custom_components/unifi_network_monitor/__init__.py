@@ -8,10 +8,16 @@ from typing import Any
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, Platform
-from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
+from homeassistant.core import (
+    HomeAssistant,
+    ServiceCall,
+    SupportsResponse,
+    callback,
+)
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
@@ -33,9 +39,11 @@ from .const import (
     DEFAULT_SITE,
     DEFAULT_UNIFI_DEVICE_MODE,
     DOMAIN,
+    REPAIR_ISSUE_NAMES,
     ROGUE_HISTORY_STORAGE_VERSION,
     USAGE_WATERMARK_STORAGE_VERSION,
     clamp_device_mode,
+    repair_issue_id,
     rogue_history_storage_key,
     usage_watermark_storage_key,
 )
@@ -212,9 +220,29 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
+@callback
+def _clear_repair_issues(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Take down every repair this entry could have raised.
+
+    A repair outlives the thing that raised it. On unload the coordinator that
+    would re-raise it is gone, so a stale warning would sit in the panel until
+    the next successful poll; on **removal** there is nothing left that could
+    ever clear it, and the user is left with a permanent warning about an
+    integration they no longer have. Both ids are entry-scoped, so this clears
+    only this entry's — a second UniFi entry keeps its own.
+
+    ``async_delete_issue`` is a no-op for an issue that was never raised, so
+    this needs no "was it raised?" bookkeeping.
+    """
+    for name in REPAIR_ISSUE_NAMES:
+        ir.async_delete_issue(hass, DOMAIN, repair_issue_id(entry.entry_id, name))
+
+
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     coordinator: UnifiNetworkDataUpdateCoordinator = entry.runtime_data
+
+    _clear_repair_issues(hass, entry)
 
     # Flush any pending delayed store writes now. A reload (options change, the
     # cleanup button) fires no HOMEASSISTANT_STOP event, so a coalesced save
@@ -240,7 +268,11 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     `rogue_history` is the BSSID first-seen/appearance history, `usage_watermark`
     a derived per-counter maximum. `Store.async_remove` suppresses
     FileNotFoundError, so a store that was never written is a no-op.
+
+    Also clears the entry's repair issues — after removal nothing remains that
+    could, so a raised repair would otherwise be permanent.
     """
+    _clear_repair_issues(hass, entry)
     for version, key in (
         (ROGUE_HISTORY_STORAGE_VERSION, rogue_history_storage_key(entry.entry_id)),
         (USAGE_WATERMARK_STORAGE_VERSION, usage_watermark_storage_key(entry.entry_id)),

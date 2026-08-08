@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: UniFi Network Monitor](#internal-detailed-changelog-unifi-network-monitor)
+  - [\[1.0.1-dev12\] - 2026-08-08 - WAN Write Path Hardened; Repairs Scoped; Projected Usage](#101-dev12---2026-08-08---wan-write-path-hardened-repairs-scoped-projected-usage)
   - [\[1.0.1-dev11\] - 2026-08-08 - Green Suite: Device-Registry Test Shape; Ruff Clean](#101-dev11---2026-08-08---green-suite-device-registry-test-shape-ruff-clean)
   - [\[1.0.1-dev9\] - 2026-08-07 - Readme Automation Corrections; Formats](#101-dev9---2026-08-07---readme-automation-corrections-formats)
   - [\[1.0.1-dev8\] - 2026-08-07 - CI Bumps; Github Zipfile; PyTest Branch \& Mutation Testing](#101-dev8---2026-08-07---ci-bumps-github-zipfile-pytest-branch--mutation-testing)
@@ -18,6 +19,33 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-07-22 - Initial Public Release](#100---2026-07-22---initial-public-release)
 
 ---
+
+## [1.0.1-dev12] - 2026-08-08 - WAN Write Path Hardened; Repairs Scoped; Projected Usage
+
+Phase 1 of the August 2026 update plan — the behaviour changes. A failing test was written and seen to fail for every item before any source changed.
+
+### Fixed
+
+- **The WAN load-balance write no longer PUTs stale held state.** `networkconf` is a degradable endpoint, so the object the coordinator was holding could be minutes old — and the write PUT that whole object back with one field replaced, silently reverting every other controller-side change made since. It now re-reads `networkconf` immediately before composing the PUT. Both refusal paths (no WAN objects, no `_id`) fire before any write, so a bad read writes nothing at all.
+- **A cancelled debounce could leave WAN1 and WAN2 disagreeing.** The entity cancels its own debounce task on every slider move, and once the two-second wait had elapsed that cancellation landed _between the two weight PUTs_ — WAN1 written, WAN2 not, the pair no longer summing to 100, and nothing reporting it. Two slider moves about two seconds apart were enough. The pair is now awaited through `asyncio.shield`: the caller can still be cancelled, but the write completes.
+- **A pending debounced write is now flushed on removal, not discarded.** Both number entities cancelled their buffer in `async_will_remove_from_hass`. A reload triggers removal and an options change triggers a reload, so a value set inside the two-second window was routinely lost while the UI went on showing it. The flush is conditional on the write not having started, so an in-flight write is never issued twice.
+- **Repair issues are cleared on unload and on removal.** Neither teardown path touched the issue registry. After removal in particular there was nothing left that could ever clear a raised repair, leaving a permanent Repairs warning about an integration the user had deleted.
+- **The reauth screen explains what a blank field does.** `config.step.reauth_confirm` had no `data_description` at all — on the one screen where a blank submit re-tries the credential that just failed. The new text says so explicitly rather than copying reconfigure's reassuring "leave blank to keep the current value".
+
+### Added
+
+- **WAN1 and WAN2 Projected Usage sensors.** Projected end-of-calendar-month usage, derived from the monthly counters already polled — no new API call. Deliberately carries **no `state_class`**: a forecast is not a measurement and must never reach statistics or long-term storage. Confidence is published as an attribute (`confidence`, `basis`, `cycle_day`, `cycle_start`) rather than withheld as `unknown`, because a blank sensor on the 1st of the month reads as broken. WAN2 is gated on the existing dual-WAN toggle. Ported from the ZTE integration, with `cycle_bounds` reduced to a calendar-month form since UniFi's counters roll on the 1st.
+
+### Changed
+
+- **Repair issue IDs are scoped to the config entry** (`f"{entry_id}_{name}"`), via a shared `repair_issue_id()` helper so raise-side and clear-side ids cannot drift. Multi-entry is reachable — the config flow sets `unique_id` from the gateway MAC, so two UDMs are two entries — and a bare id let one entry's repair overwrite the other's. The `translation_key` stays bare, so the user-visible text is unchanged.
+- **WAN weight writes are read back**, returning one of three distinct outcomes. **Unverified is not failed**: a read-back that could not be taken says nothing about whether the write landed, so it is logged as a warning rather than an error that would send the user chasing a change that already applied.
+- **`_DebouncedWriteEntity`** factors the debounce-and-flush machinery shared by the two number entities.
+
+### Verified
+
+- `pytest tests/` — **676 passed**, 0 failed (624 before; 55 new tests across five files, 3 superseded ones removed).
+- `ruff check`, `ruff format --check` and `mypy --strict` all clean.
 
 ## [1.0.1-dev11] - 2026-08-08 - Green Suite: Device-Registry Test Shape; Ruff Clean
 

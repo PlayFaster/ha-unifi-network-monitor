@@ -8,7 +8,7 @@ import logging
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime, timedelta
 from fnmatch import fnmatchcase
-from typing import Any
+from typing import Any, Literal
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
@@ -72,6 +72,9 @@ from .const import (
     FETCH_STRIKE_LIMIT,
     GATEWAY_MODELS,
     HEALTH_DRIFT_STRIKE_LIMIT,
+    PROJECTION_CONFIDENCE_LOW,
+    PROJECTION_CONFIDENCE_MEDIUM,
+    PROJECTION_CREDIBILITY_DAYS,
     ROGUE_ESSID_PLACEHOLDER,
     ROGUE_HIDDEN_PREFIX,
     ROGUE_HIDDEN_SSID,
@@ -82,11 +85,18 @@ from .const import (
     ROGUE_RAW_WINDOW_HOURS,
     USAGE_WATERMARK_SAVE_DELAY,
     USAGE_WATERMARK_STORAGE_VERSION,
+    repair_issue_id,
     rogue_history_storage_key,
     usage_watermark_storage_key,
 )
+from .helpers import calendar_cycle_bounds, project_cycle_usage
 
 _LOGGER = logging.getLogger(__name__)
+
+#: How a device write ended. ``"unverified"`` is deliberately **not**
+#: ``"failed"`` — it means the read-back could not be taken, so the write may
+#: well have landed (dev_standards.md §22).
+WriteOutcome = Literal["confirmed", "unverified", "failed"]
 
 
 def disabled_endpoints(options: Mapping[str, Any]) -> frozenset[str]:
@@ -409,6 +419,88 @@ def _safe_int(val: Any, default: int | None = None) -> int | None:
         return int(float(val))
     except (TypeError, ValueError):
         return default
+
+
+def _extract_wan_networkconf(
+    raw: list[dict[str, Any]] | None,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """Pick the WAN1 and WAN2 network-configuration objects out of ``networkconf``.
+
+    One place rather than two: the poll parses these for the weight/mode sensors
+    and the write path re-reads them immediately before composing its PUT, and
+    the two must agree on what counts as a WAN object.
+    """
+    wan1: dict[str, Any] | None = None
+    wan2: dict[str, Any] | None = None
+    for net in raw or []:
+        if net.get("purpose") != "wan":
+            continue
+        group = net.get("wan_networkgroup")
+        if group == "WAN":
+            wan1 = net
+        elif group == "WAN2":
+            wan2 = net
+    return wan1, wan2
+
+
+def _sum_optional(rx: float | None, tx: float | None) -> float | None:
+    """Total two byte counters, or None when neither side reported.
+
+    A missing direction counts as zero rather than voiding the total — the same
+    rule the wan*_month_total sensors already use, so the projection cannot
+    disagree with the figure it projects from.
+    """
+    if rx is None and tx is None:
+        return None
+    return (rx or 0) + (tx or 0)
+
+
+def build_usage_projection(
+    used: float | None, now: datetime
+) -> tuple[int | None, dict[str, Any]]:
+    """Project this calendar month's WAN usage to its end, with its context.
+
+    Returns ``(projected_bytes, attributes)``. ``used`` of ``None`` — no monthly
+    counter yet — yields ``(None, {})`` rather than an invented zero; that is the
+    one case where there is genuinely nothing to forecast from.
+
+    Everything else produces a figure, **including the first hour of a new
+    month**. A projection on day one is weak, but an ``unknown`` that clears
+    itself a day later reads as a broken sensor, and users treat it as one. The
+    caveat is published as ``confidence`` alongside the number instead, which is
+    the same call ZTE made and for the same reason.
+    """
+    if used is None:
+        return None, {}
+
+    start, _end, length = calendar_cycle_bounds(now)
+    elapsed = (now - start).total_seconds() / 86400.0
+    # No stored previous-cycle total yet, so the blend has no prior to work
+    # from; the one-day denominator floor inside project_cycle_usage carries the
+    # early-cycle bound on its own.
+    prior_rate: float | None = None
+
+    projected = project_cycle_usage(
+        used=used,
+        elapsed_days=elapsed,
+        cycle_length_days=length,
+        prior_rate=prior_rate,
+        credibility_days=PROJECTION_CREDIBILITY_DAYS,
+    )
+    weight = elapsed / (elapsed + PROJECTION_CREDIBILITY_DAYS)
+    if weight < PROJECTION_CONFIDENCE_LOW:
+        confidence = "low"
+    elif weight < PROJECTION_CONFIDENCE_MEDIUM:
+        confidence = "medium"
+    else:
+        confidence = "high"
+
+    return int(projected), {
+        "confidence": confidence,
+        "basis": "run_rate_only" if prior_rate is None else "blended",
+        "cycle_day": f"{int(elapsed) + 1} of {length}",
+        "cycle_start": start.date().isoformat(),
+    }
 
 
 def _derive_boot_time(uptime_secs: int | None, reference: datetime) -> datetime | None:
@@ -859,26 +951,102 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """True once both WAN networkconf objects are loaded (weights writable)."""
         return self._networkconf_wan is not None and self._networkconf_wan2 is not None
 
-    async def async_set_wan_weights(self, wan1_weight: int) -> None:
-        """Write WAN1/WAN2 load balance weights — always sums to 100."""
+    async def async_set_wan_weights(self, wan1_weight: int) -> WriteOutcome:
+        """Write the WAN1/WAN2 load-balance weights as a pair; always sums to 100.
+
+        Three properties this deliberately holds, each one a defect it replaces:
+
+        - **Composed from a fresh read, never from held state.** ``networkconf``
+          is a *degradable* endpoint, so the held object can be minutes old; a
+          PUT of the whole object built from it would silently revert every
+          other controller-side change made since. The GET happens immediately
+          before the PUT and also refreshes the held copies.
+        - **The pair is non-interruptible once the first PUT has gone out.** The
+          caller is a debounce task that cancels itself on the next slider move,
+          and the cancellation lands wherever the task is suspended — which,
+          after the debounce sleep, is *between* the two writes. Cancelling
+          there used to write WAN1 and not WAN2, leaving a pair that no longer
+          summed to 100 with nothing reporting it. ``asyncio.shield`` lets the
+          caller be cancelled while the pair still completes.
+        - **The write is read back, and the three outcomes stay distinct.**
+          Returns ``"confirmed"``, ``"unverified"`` or ``"failed"``.
+          **Unverified is not failed** — a read-back that could not be taken
+          says nothing about whether the write landed, and reporting it as a
+          failure sends the user chasing a change that already applied.
+        """
         wan2_weight = 100 - wan1_weight
-        if self._networkconf_wan is None or self._networkconf_wan2 is None:
+        wan1_net, wan2_net = _extract_wan_networkconf(await self.api.get_networkconf())
+        if wan1_net is None or wan2_net is None:
             raise ValueError("WAN network configuration not yet loaded")
-        wan1_id = self._networkconf_wan.get("_id")
-        wan2_id = self._networkconf_wan2.get("_id")
+        self._networkconf_wan = wan1_net
+        self._networkconf_wan2 = wan2_net
+        wan1_id = wan1_net.get("_id")
+        wan2_id = wan2_net.get("_id")
         if not wan1_id or not wan2_id:
             raise ValueError("WAN network configuration missing _id")
-        await self.api.update_networkconf(
-            wan1_id,
-            {**self._networkconf_wan, "wan_load_balance_weight": wan1_weight},
+
+        await asyncio.shield(
+            self._write_wan_pair(
+                (wan1_id, wan1_net, wan1_weight), (wan2_id, wan2_net, wan2_weight)
+            )
         )
-        await self.api.update_networkconf(
-            wan2_id,
-            {**self._networkconf_wan2, "wan_load_balance_weight": wan2_weight},
-        )
-        # Brief pause to let the UDM Pro commit the change before re-polling
+
+        # Brief pause to let the UDM Pro commit the change before reading back.
         await asyncio.sleep(1.5)
+        outcome = await self._confirm_wan_weights(wan1_weight, wan2_weight)
         await self.async_force_refresh()
+        return outcome
+
+    async def _write_wan_pair(
+        self,
+        wan1: tuple[str, dict[str, Any], int],
+        wan2: tuple[str, dict[str, Any], int],
+    ) -> None:
+        """PUT both weights. Shielded by the caller — must not be split."""
+        for net_id, net, weight in (wan1, wan2):
+            await self.api.update_networkconf(
+                net_id, {**net, "wan_load_balance_weight": weight}
+            )
+
+    async def _confirm_wan_weights(
+        self, wan1_weight: int, wan2_weight: int
+    ) -> WriteOutcome:
+        """Read the weights back and classify the write.
+
+        ``"unverified"`` covers both a read-back that could not be taken and one
+        that came back without the WAN objects — in neither case is there any
+        evidence about the write, which is exactly what distinguishes it from
+        ``"failed"``.
+        """
+        try:
+            fresh = await self.api.get_networkconf()
+        except (UnifiConnectionError, UnifiAuthError) as err:
+            _LOGGER.info(
+                "%s: WAN weights were sent but could not be read back: %s",
+                self.entry.title,
+                err,
+            )
+            return "unverified"
+        wan1_net, wan2_net = _extract_wan_networkconf(fresh)
+        if wan1_net is None or wan2_net is None:
+            _LOGGER.info(
+                "%s: WAN weights were sent but the read-back carried no WAN config",
+                self.entry.title,
+            )
+            return "unverified"
+        got1 = _safe_int(wan1_net.get("wan_load_balance_weight"))
+        got2 = _safe_int(wan2_net.get("wan_load_balance_weight"))
+        if got1 == wan1_weight and got2 == wan2_weight:
+            return "confirmed"
+        _LOGGER.warning(
+            "%s: WAN weights did not take — sent %s/%s, controller reports %s/%s",
+            self.entry.title,
+            wan1_weight,
+            wan2_weight,
+            got1,
+            got2,
+        )
+        return "failed"
 
     async def async_force_refresh(self) -> None:
         """Refresh now, bypassing the pause guard (explicit user action)."""
@@ -1117,17 +1285,18 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         under username/password auth this failure is *expected* and not
         actionable — suppress the repair issue entirely in that mode.
         """
+        issue_id = repair_issue_id(self.entry.entry_id, "site_resolution_failed")
         if self.site_uuid == "failed" and self.api.api_key:
             ir.async_create_issue(
                 self.hass,
                 DOMAIN,
-                "site_resolution_failed",
+                issue_id,
                 is_fixable=False,
                 severity=ir.IssueSeverity.WARNING,
                 translation_key="site_resolution_failed",
             )
         elif self.site_uuid is not None:
-            ir.async_delete_issue(self.hass, DOMAIN, "site_resolution_failed")
+            ir.async_delete_issue(self.hass, DOMAIN, issue_id)
 
     def _record_fetch_failure_health(self, err: Exception) -> None:
         """Flag Integration Health when the whole fetch fails.
@@ -1232,18 +1401,19 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         (The v3 ``site_resolution_failed`` repair is owned by ``_sync_site_issue``;
         it is reflected in the health sensor's attributes, not double-raised here.)
         """
+        issue_id = repair_issue_id(self.entry.entry_id, "schema_drift_detected")
         if health.get("drift"):
             ir.async_create_issue(
                 self.hass,
                 DOMAIN,
-                "schema_drift_detected",
+                issue_id,
                 is_fixable=False,
                 severity=ir.IssueSeverity.WARNING,
                 translation_key="schema_drift_detected",
                 translation_placeholders={"capabilities": ", ".join(health["drift"])},
             )
         else:
-            ir.async_delete_issue(self.hass, DOMAIN, "schema_drift_detected")
+            ir.async_delete_issue(self.hass, DOMAIN, issue_id)
 
     def endpoint_available(self, source: str | None) -> bool:
         """Return False when an optional endpoint has exhausted its retry strikes.
@@ -1557,18 +1727,16 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 wan_mode: str | None = None
                 wan1_weight: int | None = None
                 wan2_weight: int | None = None
-                for net in networkconf_raw or []:
-                    if net.get("purpose") == "wan":
-                        net_group = net.get("wan_networkgroup")
-                        if net_group == "WAN":
-                            wan1_weight = _safe_int(net.get("wan_load_balance_weight"))
-                            wan_mode = net.get("wan_load_balance_type")
-                            self._networkconf_wan = net
-                        elif net_group == "WAN2":
-                            wan2_weight = _safe_int(net.get("wan_load_balance_weight"))
-                            if not wan_mode:
-                                wan_mode = net.get("wan_load_balance_type")
-                            self._networkconf_wan2 = net
+                wan1_net, wan2_net = _extract_wan_networkconf(networkconf_raw)
+                if wan1_net is not None:
+                    wan1_weight = _safe_int(wan1_net.get("wan_load_balance_weight"))
+                    wan_mode = wan1_net.get("wan_load_balance_type")
+                    self._networkconf_wan = wan1_net
+                if wan2_net is not None:
+                    wan2_weight = _safe_int(wan2_net.get("wan_load_balance_weight"))
+                    if not wan_mode:
+                        wan_mode = wan2_net.get("wan_load_balance_type")
+                    self._networkconf_wan2 = wan2_net
 
                 # Parse threat management settings
                 ips_mode: str | None = None
@@ -1675,6 +1843,20 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         self.entry.title,
                         err,
                     )
+
+                # End-of-month usage projections. Derived from the monthly
+                # counters above rather than fetched, so they cost nothing and
+                # degrade with EP_MONTHLY exactly as their inputs do.
+                wan1_month_projected, wan1_month_projected_attrs = (
+                    build_usage_projection(
+                        _sum_optional(wan1_month_rx, wan1_month_tx), update_time
+                    )
+                )
+                wan2_month_projected, wan2_month_projected_attrs = (
+                    build_usage_projection(
+                        _sum_optional(wan2_month_rx, wan2_month_tx), update_time
+                    )
+                )
 
                 # Persist the watermarks the two blocks above just updated, so a
                 # restart does not re-emit a downward step against stored history.
@@ -2073,6 +2255,10 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             "wan2_today_tx": wan2_today_tx,
                             "wan1_month_rx": wan1_month_rx,
                             "wan1_month_tx": wan1_month_tx,
+                            "wan1_month_projected": wan1_month_projected,
+                            "wan1_month_projected_attrs": wan1_month_projected_attrs,
+                            "wan2_month_projected": wan2_month_projected,
+                            "wan2_month_projected_attrs": wan2_month_projected_attrs,
                             "wan2_month_rx": wan2_month_rx,
                             "wan2_month_tx": wan2_month_tx,
                             "rogue_ap_count": rogue_ap_count,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, cast
 
 from homeassistant.helpers.device_registry import DeviceInfo, format_mac
@@ -155,3 +156,77 @@ def build_unifi_device_info(
         )
     )
     return info
+
+
+def calendar_cycle_bounds(now: datetime) -> tuple[datetime, datetime, int]:
+    """Return (start, end, length_in_days) of the calendar month containing ``now``.
+
+    UniFi's monthly counters roll on the 1st, so — unlike ZTE, which this is
+    ported from — there is no router-reported clear day to discover and no
+    fallback assumption to publish. Dropping the parameter is deliberate: a
+    ``clear_day`` argument only ever called with ``1`` would be untestable
+    generality carrying its own unreachable branches.
+
+    ``now`` must be timezone-aware and in the user's local zone. Boundaries are
+    **local** midnight; computing them in UTC would shift the reset day by up to
+    a day for anyone not on UTC.
+
+    Length is measured in **calendar days** by date subtraction rather than by
+    dividing seconds, so a month containing a DST transition is still 30 or 31
+    days rather than 30.04.
+    """
+
+    def _first_of(year: int, month: int) -> datetime:
+        return now.replace(
+            year=year, month=month, day=1, hour=0, minute=0, second=0, microsecond=0
+        )
+
+    start = _first_of(now.year, now.month)
+    next_year, next_month = (
+        (start.year + 1, 1) if start.month == 12 else (start.year, start.month + 1)
+    )
+    end = _first_of(next_year, next_month)
+    return start, end, (end.date() - start.date()).days
+
+
+def project_cycle_usage(
+    used: float,
+    elapsed_days: float,
+    cycle_length_days: int,
+    prior_rate: float | None,
+    credibility_days: float,
+) -> float:
+    """Project end-of-cycle usage from usage so far.
+
+    The naive form — ``used / elapsed * length`` — divides by a number
+    approaching zero, so its error early in a cycle is unbounded: half a
+    gigabyte one second after a reset projects to over a million. Two things
+    tame it.
+
+    First, the denominator is floored at one day. That alone bounds the result
+    without inventing a cap.
+
+    Second, when a previous cycle is known, its daily rate is blended in — but
+    **only into the unobserved remainder**. Blending the whole projection would
+    be wrong: by day 20 most of the figure is a meter reading rather than a
+    forecast, and shrinking observed bytes toward last cycle is meaningless.
+    Applying it to the remainder alone makes the prior's influence decay
+    structurally, because it is multiplied by a shrinking number of days. No
+    clamp and no cliff: at day 20 of 30 the prior moves the answer by around one
+    percent, and by day 28 it is noise.
+
+    ``credibility_days`` sets how quickly this cycle's own rate displaces the
+    prior — the weight reaches one half at that many days elapsed.
+    """
+    elapsed = max(elapsed_days, 0.0)
+    remaining = max(cycle_length_days - elapsed, 0.0)
+
+    current_rate = used / max(elapsed, 1.0)
+
+    if prior_rate is None:
+        rate = current_rate
+    else:
+        weight = elapsed / (elapsed + credibility_days)
+        rate = weight * current_rate + (1.0 - weight) * prior_rate
+
+    return used + remaining * rate

@@ -1015,41 +1015,12 @@ async def test_coordinator_device_parse_error_skipped(
     assert "ee:ff:00:11:22:33" not in result["devices"]
 
 
-async def test_coordinator_set_wan_weights_success(
-    hass: Any, mock_config_entry: Any
-) -> None:
-    """async_set_wan_weights writes both WAN1 and WAN2 weights via API."""
-    mock_config_entry.add_to_hass(hass)
-    api = MagicMock()
-    api.update_networkconf = AsyncMock()
-
-    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
-    coordinator._networkconf_wan = {"_id": "wan1_id", "wan_load_balance_weight": 55}
-    coordinator._networkconf_wan2 = {"_id": "wan2_id", "wan_load_balance_weight": 45}
-    coordinator.async_request_refresh = AsyncMock()
-
-    await coordinator.async_set_wan_weights(70)
-
-    assert api.update_networkconf.call_count == 2
-    api.update_networkconf.assert_any_call(
-        "wan1_id", {"_id": "wan1_id", "wan_load_balance_weight": 70}
-    )
-    api.update_networkconf.assert_any_call(
-        "wan2_id", {"_id": "wan2_id", "wan_load_balance_weight": 30}
-    )
-    coordinator.async_request_refresh.assert_awaited_once()
-
-
-async def test_coordinator_set_wan_weights_no_config(
-    hass: Any, mock_config_entry: Any
-) -> None:
-    """async_set_wan_weights raises ValueError when networkconf not loaded."""
-    mock_config_entry.add_to_hass(hass)
-    api = MagicMock()
-    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
-
-    with pytest.raises(ValueError, match="not yet loaded"):
-        await coordinator.async_set_wan_weights(50)
+# The WAN load-balance write path moved to tests/test_wan_weights.py at
+# [1.0.1-dev12]. The three tests that lived here asserted the superseded
+# behaviour — a PUT composed from the *held* networkconf object — which is
+# exactly the defect that change removes. They are not deleted coverage: the new
+# file covers the fresh-read, the two refusal paths, cancellation mid-pair, and
+# all three read-back outcomes.
 
 
 async def test_coordinator_wan_weights_writable(
@@ -1073,25 +1044,26 @@ async def test_coordinator_site_issue_created_and_cleared(
     """_sync_site_issue raises a repair on 'failed' and clears it on resolution."""
     from homeassistant.helpers import issue_registry as ir
 
-    from custom_components.unifi_network_monitor.const import DOMAIN
+    from custom_components.unifi_network_monitor.const import DOMAIN, repair_issue_id
 
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
     coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
     reg = ir.async_get(hass)
+    issue_id = repair_issue_id(mock_config_entry.entry_id, "site_resolution_failed")
 
     coordinator.site_uuid = "failed"
     coordinator._sync_site_issue()
-    assert reg.async_get_issue(DOMAIN, "site_resolution_failed") is not None
+    assert reg.async_get_issue(DOMAIN, issue_id) is not None
 
     coordinator.site_uuid = "real-site-uuid"
     coordinator._sync_site_issue()
-    assert reg.async_get_issue(DOMAIN, "site_resolution_failed") is None
+    assert reg.async_get_issue(DOMAIN, issue_id) is None
 
     # Still resolving (None) is a no-op and must not raise or create an issue.
     coordinator.site_uuid = None
     coordinator._sync_site_issue()
-    assert reg.async_get_issue(DOMAIN, "site_resolution_failed") is None
+    assert reg.async_get_issue(DOMAIN, issue_id) is None
 
 
 async def test_coordinator_site_issue_suppressed_without_api_key(
@@ -1105,44 +1077,31 @@ async def test_coordinator_site_issue_suppressed_without_api_key(
     """
     from homeassistant.helpers import issue_registry as ir
 
-    from custom_components.unifi_network_monitor.const import DOMAIN
+    from custom_components.unifi_network_monitor.const import DOMAIN, repair_issue_id
 
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
     api.api_key = None  # username/password mode
     coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
     reg = ir.async_get(hass)
+    issue_id = repair_issue_id(mock_config_entry.entry_id, "site_resolution_failed")
 
     # Failed resolution under u/p must NOT create an issue.
     coordinator.site_uuid = "failed"
     coordinator._sync_site_issue()
-    assert reg.async_get_issue(DOMAIN, "site_resolution_failed") is None
+    assert reg.async_get_issue(DOMAIN, issue_id) is None
 
     # A stale issue left over from a prior API-key session is cleared.
     ir.async_create_issue(
         hass,
         DOMAIN,
-        "site_resolution_failed",
+        issue_id,
         is_fixable=False,
         severity=ir.IssueSeverity.WARNING,
         translation_key="site_resolution_failed",
     )
     coordinator._sync_site_issue()
-    assert reg.async_get_issue(DOMAIN, "site_resolution_failed") is None
-
-
-async def test_coordinator_set_wan_weights_no_id(
-    hass: Any, mock_config_entry: Any
-) -> None:
-    """async_set_wan_weights raises ValueError when _id missing."""
-    mock_config_entry.add_to_hass(hass)
-    api = MagicMock()
-    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
-    coordinator._networkconf_wan = {"wan_load_balance_weight": 50}
-    coordinator._networkconf_wan2 = {"wan_load_balance_weight": 50}
-
-    with pytest.raises(ValueError, match="missing _id"):
-        await coordinator.async_set_wan_weights(60)
+    assert reg.async_get_issue(DOMAIN, issue_id) is None
 
 
 async def test_coordinator_trigger_speedtest(hass: Any, mock_config_entry: Any) -> None:
@@ -3393,16 +3352,17 @@ async def test_sync_health_issues_create_and_clear(
     """_sync_health_issues raises and clears the schema_drift repair."""
     from homeassistant.helpers import issue_registry as ir
 
-    from custom_components.unifi_network_monitor.const import DOMAIN
+    from custom_components.unifi_network_monitor.const import DOMAIN, repair_issue_id
 
     coord = _health_coord(hass, mock_config_entry)
     reg = ir.async_get(hass)
+    issue_id = repair_issue_id(mock_config_entry.entry_id, "schema_drift_detected")
 
     coord._sync_health_issues({"drift": ["Rogue APs"]})
-    assert reg.async_get_issue(DOMAIN, "schema_drift_detected") is not None
+    assert reg.async_get_issue(DOMAIN, issue_id) is not None
 
     coord._sync_health_issues({"drift": []})
-    assert reg.async_get_issue(DOMAIN, "schema_drift_detected") is None
+    assert reg.async_get_issue(DOMAIN, issue_id) is None
 
 
 async def test_integration_health_computation_error_caught(

@@ -41,6 +41,10 @@
           "username": "Username",
           "password": "Password",
           "site": "Site ID"
+        },
+        "data_description": {
+          "api_key": "Enter a new API key. Leaving this blank keeps the key that was just rejected, so the sign-in will fail again.",
+          "password": "Enter a new password. Leaving this blank keeps the password that was just rejected, so the sign-in will fail again."
         }
       },
       "reconfigure": {
@@ -194,6 +198,12 @@
       },
       "gateway_wan1_month_total": {
         "name": "WAN1 Month Total"
+      },
+      "gateway_wan1_month_projected": {
+        "name": "WAN1 Projected Usage"
+      },
+      "gateway_wan2_month_projected": {
+        "name": "WAN2 Projected Usage"
       },
       "gateway_wan2_month_rx": {
         "name": "WAN2 Month Download"

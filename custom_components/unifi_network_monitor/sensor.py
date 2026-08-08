@@ -91,6 +91,8 @@ _ENDPOINT_BY_KEY: dict[str, str] = {
     "wan2_today_tx": EP_DAILY,
     "wan2_today_total": EP_DAILY,
     "wan1_month_rx": EP_MONTHLY,
+    "wan1_month_projected": EP_MONTHLY,
+    "wan2_month_projected": EP_MONTHLY,
     "wan1_month_tx": EP_MONTHLY,
     "wan1_month_total": EP_MONTHLY,
     "wan2_month_rx": EP_MONTHLY,
@@ -477,6 +479,40 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
             else None
         ),
         device_key="internet",
+    ),
+    UnifiSensorEntityDescription(
+        key="wan1_month_projected",
+        translation_key="gateway_wan1_month_projected",
+        device_class=SensorDeviceClass.DATA_SIZE,
+        native_unit_of_measurement=UnitOfInformation.BYTES,
+        suggested_unit_of_measurement=UnitOfInformation.GIGABYTES,
+        suggested_display_precision=1,
+        # Deliberately no state_class: this is a forecast, not a measurement,
+        # and must never be fed to statistics or long-term storage.
+        min_limit=0.0,
+        value_fn=lambda d: d.get("wan1_month_projected"),
+        device_key="internet",
+        about=(
+            "Projected WAN1 usage by the end of the calendar month, from usage "
+            "so far. Check the confidence attribute — it is weak early in the "
+            "month."
+        ),
+    ),
+    UnifiSensorEntityDescription(
+        key="wan2_month_projected",
+        translation_key="gateway_wan2_month_projected",
+        device_class=SensorDeviceClass.DATA_SIZE,
+        native_unit_of_measurement=UnitOfInformation.BYTES,
+        suggested_unit_of_measurement=UnitOfInformation.GIGABYTES,
+        suggested_display_precision=1,
+        min_limit=0.0,
+        value_fn=lambda d: d.get("wan2_month_projected"),
+        device_key="internet",
+        about=(
+            "Projected WAN2 usage by the end of the calendar month, from usage "
+            "so far. Check the confidence attribute — it is weak early in the "
+            "month."
+        ),
     ),
     UnifiSensorEntityDescription(
         key="wan2_month_rx",
@@ -1468,6 +1504,12 @@ class UnifiGatewaySensor(UnifiSensorBase):
                     "rogue_aps": limited,
                     "rogue_aps_truncated": len(rogues) > ROGUE_ATTR_MAX,
                 }
+            )
+        if self.entity_description.key.endswith("_month_projected"):
+            # The confidence context travels with the number rather than being
+            # expressed as an unknown state — see build_usage_projection.
+            return self._with_about(
+                gw.get(f"{self.entity_description.key}_attrs") or None
             )
         if self.entity_description.key == "last_high":
             return self._with_about(gw.get("last_high_attrs"))

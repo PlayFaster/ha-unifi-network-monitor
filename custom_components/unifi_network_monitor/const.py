@@ -155,6 +155,46 @@ def usage_watermark_storage_key(entry_id: str) -> str:
     return f"{DOMAIN}.{entry_id}.usage_watermark"
 
 
+# WAN data-usage projection tuning.
+#
+# PROJECTION_CREDIBILITY_DAYS is the point at which this cycle's own usage rate
+# and a previous cycle's would be weighted equally. Three days is deliberate:
+# usage is bursty, and a heavy weekend is not a new baseline, but waiting a
+# fortnight would leave the projection lagging exactly when a user most wants
+# warning that they are on course to exceed their allowance.
+#
+# It matters less than it looks. The blend applies only to the *unobserved*
+# remainder of the cycle (see ``helpers.project_cycle_usage``), so the prior's
+# influence decays with the days left rather than with this constant.
+PROJECTION_CREDIBILITY_DAYS = 3.0
+
+# Confidence bands published as an attribute on the projection, expressed as
+# thresholds on the credibility weight. The projection is always shown — an
+# `unknown` on day one reads as a broken sensor, whereas a number carrying
+# "confidence: low" is understood. The caveat belongs in the attributes, not in
+# the state.
+PROJECTION_CONFIDENCE_LOW = 0.4
+PROJECTION_CONFIDENCE_MEDIUM = 0.75
+
+
+# Repair issues. The names double as ``translation_key``s (shared text — every
+# entry says the same thing) while the ``issue_id`` is entry-scoped, because
+# multi-entry is reachable here: config_flow sets unique_id from the gateway
+# MAC, so two UDMs are two entries, and a bare id would let one entry's repair
+# overwrite the other's and either one clear both.
+REPAIR_ISSUE_NAMES = ("site_resolution_failed", "schema_drift_detected")
+
+
+def repair_issue_id(entry_id: str, name: str) -> str:
+    """Build an entry-scoped ``issue_id`` for a repair.
+
+    The single helper used by both the raise sites and the teardown sweep, for
+    the same reason the storage-key helpers are shared — raise-side and
+    clear-side ids cannot drift if there is only one way to spell them.
+    """
+    return f"{entry_id}_{name}"
+
+
 # Self-diagnosis: how many consecutive cycles a schema-drift signal must persist
 # before the Integration Health sensor / repair issue flags it (avoids single-
 # cycle false alarms; also gives startup grace).
@@ -254,6 +294,7 @@ WAN2_KEYS: frozenset[str] = frozenset(
         "wan2_month_rx",
         "wan2_month_tx",
         "wan2_month_total",
+        "wan2_month_projected",
         "wan2_speedtest_download",
         "wan2_speedtest_upload",
         "wan2_speedtest_ping",

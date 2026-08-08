@@ -31,6 +31,7 @@ from .const import (
     DEFAULT_ROGUE_PROXIMITY_RSSI_THRESHOLD,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    EP_NETWORKCONF,
     EP_ROGUE,
     dual_wan_enabled,
 )
@@ -98,7 +99,75 @@ async def async_setup_entry(
     async_add_entities(numbers)
 
 
+class _DebouncedWriteEntity:
+    """A slider write buffered for two seconds, and **flushed** on removal.
+
+    Both controls here debounce: a drag produces a stream of values and only the
+    last one is worth writing. The subtlety is what happens when the entity goes
+    away mid-window. Cancelling the buffer — which is what both did — discards
+    the write silently: the UI shows the new number, the controller never hears
+    about it, and nothing reports the discrepancy. **A reload is enough to
+    trigger it, and an options change is enough to trigger a reload**, so this is
+    an ordinary sequence rather than an edge case.
+
+    So removal flushes instead. ``_pending_value`` is cleared the moment the
+    apply starts, which is what makes the flush conditional: a value still
+    pending has not been written and must be; a value already cleared is in
+    flight and must not be started twice.
+    """
+
+    hass: HomeAssistant
+    _error_message = "Failed to apply the pending change: %s"
+
+    def __init__(self) -> None:
+        """Initialize the debounce state."""
+        self._debounce_task: asyncio.Task[None] | None = None
+        self._pending_value: float | None = None
+
+    async def _apply(self, value: float) -> None:
+        """Perform the write. Implemented per entity."""
+        raise NotImplementedError
+
+    def _schedule_debounced_apply(self, value: float) -> None:
+        """Replace any buffered write with this one."""
+        if self._debounce_task:
+            self._debounce_task.cancel()
+        self._pending_value = value
+        self._debounce_task = self.hass.async_create_task(
+            self._apply_after_debounce(value)
+        )
+
+    async def _apply_after_debounce(self, value: float) -> None:
+        """Apply the value 2 s after the last change.
+
+        Runs as a detached task, so a failure here cannot propagate to the
+        setter's caller — it is logged instead.
+        """
+        try:
+            await asyncio.sleep(2)
+            self._pending_value = None
+            await self._apply(value)
+        except asyncio.CancelledError:
+            pass
+        except (UnifiError, ValueError, HomeAssistantError) as err:
+            _LOGGER.error(self._error_message, err)
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Flush a buffered write rather than dropping it."""
+        pending = self._pending_value
+        if self._debounce_task and not self._debounce_task.done():
+            self._debounce_task.cancel()
+        if pending is None:
+            return
+        self._pending_value = None
+        try:
+            await self._apply(pending)
+        except (UnifiError, ValueError, HomeAssistantError) as err:
+            _LOGGER.error(self._error_message, err)
+
+
 class UnifiScanIntervalNumber(
+    _DebouncedWriteEntity,
     CoordinatorEntity[UnifiNetworkDataUpdateCoordinator],
     NumberEntity,
 ):
@@ -107,6 +176,7 @@ class UnifiScanIntervalNumber(
     _attr_has_entity_name = True
     _attr_should_poll = False
     entity_description = _SCAN_INTERVAL_DESCRIPTION
+    _error_message = "Failed to apply new scan interval: %s"
 
     def __init__(
         self,
@@ -115,42 +185,25 @@ class UnifiScanIntervalNumber(
         initial_value: float,
     ) -> None:
         """Initialize."""
-        super().__init__(coordinator)
+        CoordinatorEntity.__init__(self, coordinator)
+        _DebouncedWriteEntity.__init__(self)
         self._entry = entry
         self._attr_unique_id = f"{entry.unique_id}_scan_interval"
         self._attr_native_value = initial_value
-        self._debounce_task: asyncio.Task[None] | None = None
-
-    async def async_will_remove_from_hass(self) -> None:
-        """Cancel pending debounce on removal."""
-        if self._debounce_task and not self._debounce_task.done():
-            self._debounce_task.cancel()
 
     async def async_set_native_value(self, value: float) -> None:
         """Handle slider change with debounce."""
         self._attr_native_value = value
         self.async_write_ha_state()
-        if self._debounce_task:
-            self._debounce_task.cancel()
-        self._debounce_task = self.hass.async_create_task(
-            self._apply_after_debounce(value)
-        )
+        self._schedule_debounced_apply(value)
 
-    async def _apply_after_debounce(self, value: float) -> None:
-        """Apply new interval 2 s after last slider move."""
-        try:
-            await asyncio.sleep(2)
-            val_int = int(value)
-            self.coordinator.update_interval = timedelta(seconds=val_int)
-            new_options = {**self._entry.options, CONF_SCAN_INTERVAL: val_int}
-            self.hass.config_entries.async_update_entry(
-                self._entry, options=new_options
-            )
-            await self.coordinator.async_force_refresh()
-        except asyncio.CancelledError:
-            pass
-        except (UnifiError, ValueError, HomeAssistantError) as err:
-            _LOGGER.error("Failed to apply new scan interval: %s", err)
+    async def _apply(self, value: float) -> None:
+        """Persist the new polling interval and re-poll at the new rate."""
+        val_int = int(value)
+        self.coordinator.update_interval = timedelta(seconds=val_int)
+        new_options = {**self._entry.options, CONF_SCAN_INTERVAL: val_int}
+        self.hass.config_entries.async_update_entry(self._entry, options=new_options)
+        await self.coordinator.async_force_refresh()
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -159,6 +212,7 @@ class UnifiScanIntervalNumber(
 
 
 class WanLoadBalanceNumber(
+    _DebouncedWriteEntity,
     UnifiAboutEntity,
     CoordinatorEntity[UnifiNetworkDataUpdateCoordinator],
     NumberEntity,
@@ -173,6 +227,7 @@ class WanLoadBalanceNumber(
         "WAN1's share of load-balanced traffic; WAN2 automatically gets the "
         "remainder (both sum to 100)."
     )
+    _error_message = "Failed to set WAN load balance weight: %s"
 
     def __init__(
         self,
@@ -180,20 +235,28 @@ class WanLoadBalanceNumber(
         entry: ConfigEntry,
     ) -> None:
         """Initialize."""
-        super().__init__(coordinator)
+        CoordinatorEntity.__init__(self, coordinator)
+        _DebouncedWriteEntity.__init__(self)
         self._entry = entry
         self._attr_unique_id = f"{entry.unique_id}_wan1_load_balance_weight"
-        self._debounce_task: asyncio.Task[None] | None = None
-
-    async def async_will_remove_from_hass(self) -> None:
-        """Cancel pending debounce on removal."""
-        if self._debounce_task and not self._debounce_task.done():
-            self._debounce_task.cancel()
 
     @property
     def device_info(self) -> DeviceInfo:
         """Return system device info."""
         return build_sub_device_info(self.coordinator, self._entry, "system")
+
+    @property
+    def available(self) -> bool:
+        """Unavailable when the network-config endpoint has gone stale.
+
+        ``networkconf`` is a degradable endpoint, and this entity both reads and
+        writes it — so it must carry the same ``source`` gate the switch and
+        select platforms do, rather than offering a control fed by data that is
+        no longer arriving.
+        """
+        if not super().available:
+            return False
+        return self.coordinator.endpoint_available(EP_NETWORKCONF)
 
     @property
     def native_value(self) -> float | None:
@@ -205,33 +268,37 @@ class WanLoadBalanceNumber(
 
     async def async_set_native_value(self, value: float) -> None:
         """Buffer rapid increments; apply 2 s after the last change."""
-        if not self.coordinator.wan_weights_writable:
+        if not self.coordinator.wan_weights_writable or not (
+            self.coordinator.endpoint_available(EP_NETWORKCONF)
+        ):
             raise HomeAssistantError(
                 translation_domain=DOMAIN,
                 translation_key="wan_config_not_loaded",
             )
         self._attr_native_value = value
         self.async_write_ha_state()
-        if self._debounce_task:
-            self._debounce_task.cancel()
-        self._debounce_task = self.hass.async_create_task(
-            self._apply_after_debounce(int(value))
-        )
+        self._schedule_debounced_apply(value)
 
-    async def _apply_after_debounce(self, value: int) -> None:
-        """Apply the weight change after 2 s of inactivity.
+    async def _apply(self, value: float) -> None:
+        """Write the weight pair and report the outcome.
 
-        Runs as a detached task, so a failure here cannot propagate to the
-        setter's caller — it is logged. The common "config not loaded" case is
-        rejected up front in ``async_set_native_value`` where it can raise.
+        The three write outcomes are logged distinctly. **Unverified is not an
+        error**: the pair was sent and only the read-back failed, so logging it
+        at error level would send the user chasing a change that most likely
+        applied. Cancellation is safe here — the coordinator shields the pair,
+        so a cancel can never leave WAN1 and WAN2 disagreeing.
         """
-        try:
-            await asyncio.sleep(2)
-            await self.coordinator.async_set_wan_weights(value)
-        except asyncio.CancelledError:
-            pass
-        except (UnifiError, ValueError) as err:
-            _LOGGER.error("Failed to set WAN load balance weight: %s", err)
+        weight = int(value)
+        outcome = await self.coordinator.async_set_wan_weights(weight)
+        if outcome == "failed":
+            _LOGGER.error(
+                "WAN load balance weight %s was rejected by the controller", weight
+            )
+        elif outcome == "unverified":
+            _LOGGER.warning(
+                "WAN load balance weight %s was sent but could not be confirmed",
+                weight,
+            )
 
 
 class UnifiRogueProximityThresholdNumber(
