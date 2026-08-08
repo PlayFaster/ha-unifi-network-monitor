@@ -159,7 +159,7 @@ Full endpoint reference (incl. speedtest, reports, config, v3): `docs/api_endpoi
 
 ## Remaining Work (Future — Separate Session)
 
-**Forward work now lives in [`docs/ROADMAP.md`](docs/ROADMAP.md)** — three To Be Done items, two Maybes with stated triggers, two Blocked items, and the Revisit/Declined decisions worth not re-arguing. Keep it there rather than here, so there is one place to look.
+**Forward work lives in [docs/ROADMAP.md](docs/ROADMAP.md)** — refer there for planned items, revisit parameters, and declined design decisions. Keep it there rather than here, so there is one place to look.
 
 Still outstanding and not yet written up as a roadmap entry:
 

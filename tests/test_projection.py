@@ -363,3 +363,59 @@ def test_cycle_bounds_uses_local_time_not_utc() -> None:
     start, _end, _length = calendar_cycle_bounds(now)
     assert start.tzinfo == now.tzinfo
     assert isinstance(start, datetime)
+
+
+# ---------------------------------------------------------------------------
+# Mutation-driven: gaps found by the 2026-08-08 mutmut run
+# ---------------------------------------------------------------------------
+
+
+def test_cycle_start_is_exactly_midnight_whatever_time_it_is_called() -> None:
+    """Seconds and microseconds must be zeroed, not inherited from ``now``.
+
+    Found by mutation: removing `second=0` or `microsecond=0` from the
+    `.replace()` left every test green, because they all happened to pass a
+    ``now`` that was already zeroed on those fields. The boundary the function
+    exists to compute is *exactly* local midnight — carry the caller's seconds
+    into it and `cycle_start` is published wrong, and `elapsed_days` is off by
+    up to a minute in a figure that divides by it.
+    """
+    now = dt_util.now().replace(
+        year=2026, month=8, day=8, hour=13, minute=47, second=37, microsecond=123456
+    )
+    start, end, _length = calendar_cycle_bounds(now)
+
+    assert (start.hour, start.minute, start.second, start.microsecond) == (0, 0, 0, 0)
+    assert (end.hour, end.minute, end.second, end.microsecond) == (0, 0, 0, 0)
+
+
+def test_the_blend_produces_an_exact_figure_not_merely_a_plausible_one() -> None:
+    """Pin the blend arithmetic to a computed value, not a range.
+
+    Found by mutation: `+` → `-` and both `*` → `/` in
+    ``weight * current_rate + (1.0 - weight) * prior_rate`` all survived,
+    because the existing tests assert only that the answer falls between the
+    used total and the pure run-rate figure. Three different formulas satisfy
+    that range. This is the arithmetic the whole projection rests on, so it is
+    worth one exact assertion.
+
+    Worked by hand: weight = 10 / (10 + 3) = 0.769230…; current_rate = 2 GB/day;
+    blended rate = 0.769230… x 2 + 0.230769… x 1 = 1.769230… GB/day; over the
+    20 remaining days that is 35.384… GB on top of the 20 GB already used.
+    """
+    weight = 10.0 / (10.0 + PROJECTION_CREDIBILITY_DAYS)
+    expected_rate = weight * (2.0 * GB) + (1.0 - weight) * (1.0 * GB)
+    expected = 20.0 * GB + 20.0 * expected_rate
+
+    projected = project_cycle_usage(
+        used=20.0 * GB,
+        elapsed_days=10.0,
+        cycle_length_days=30,
+        prior_rate=1.0 * GB,
+        credibility_days=PROJECTION_CREDIBILITY_DAYS,
+    )
+
+    assert projected == pytest.approx(expected, rel=1e-12)
+    # And it is genuinely distinct from the un-blended figure, so the test
+    # cannot pass by the prior being ignored.
+    assert projected != pytest.approx(60.0 * GB, rel=1e-6)
