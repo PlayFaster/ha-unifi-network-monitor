@@ -12,6 +12,7 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.1-dev13\] - 2026-08-08 - Standards Sweeps; Translation Reconciliation; Zero-Assertion Tests Fixed](#101-dev13---2026-08-08---standards-sweeps-translation-reconciliation-zero-assertion-tests-fixed)
   - [\[1.0.1-dev12\] - 2026-08-08 - WAN Write Path Hardened; Repairs Scoped; Projected Usage](#101-dev12---2026-08-08---wan-write-path-hardened-repairs-scoped-projected-usage)
   - [\[1.0.1-dev11\] - 2026-08-08 - Green Suite: Device-Registry Test Shape; Ruff Clean](#101-dev11---2026-08-08---green-suite-device-registry-test-shape-ruff-clean)
+  - [\[1.0.1-dev10\] - 2026-08-08 - Reauth Entry Resolution; README Corrections](#101-dev10---2026-08-08---reauth-entry-resolution-readme-corrections)
   - [\[1.0.1-dev9\] - 2026-08-07 - Readme Automation Corrections; Formats](#101-dev9---2026-08-07---readme-automation-corrections-formats)
   - [\[1.0.1-dev8\] - 2026-08-07 - CI Bumps; Github Zipfile; PyTest Branch \& Mutation Testing](#101-dev8---2026-08-07---ci-bumps-github-zipfile-pytest-branch--mutation-testing)
   - [\[1.0.1-dev7\] - 2026-07-28 - Automation Example Glitch Guards \& Float Rounding in README](#101-dev7---2026-07-28---automation-example-glitch-guards--float-rounding-in-readme)
@@ -70,7 +71,11 @@ Phase 3 of the August 2026 update plan — every documentation change in one rel
 
 ### Notes
 
-- **The §14 / §21 cells in the `[1.0.1-dev5]` Standards Test Coverage matrix stay `UNVERIFIED`, but their stated reason no longer holds.** That reason — "the test exists but has never been executed (container down)" — is obsolete: both tests execute and pass, and §21's asserts the live-key comparison rather than the tautology. The cells are held deliberately until mutation testing shows them failing on a real regression, which is what `UNVERIFIED` means. The historical entry is left as written rather than edited; this note is the correction.
+- **Standards Test Coverage matrix — four cells move, two stay.** The matrix lives inside the dated `[1.0.1-dev5]` entry and is left as written; this note is the correction.
+  - **§10** (session-terminating call awaited on unload) — `PENDING` → **met**. `tests/test_teardown_contract.py` asserts `logout()` is awaited, that the store flush is ordered before it, that a failing logout does not block the unload, and that the platform-unload result is propagated.
+  - **§12** (translations + icons reconciled against code) — `PENDING` → **met**. `tests/test_translations_icons.py` reconciles in all three directions against **module source**, plus exception messages in both directions. This was recorded as the highest-value gap in the table.
+  - **§14 / §21** — stay `UNVERIFIED`. Their stated reason ("the test exists but has never been executed — container down") is obsolete: both execute and pass, and §21's asserts the live-key comparison rather than the tautology. But `UNVERIFIED` means _not yet shown to fail on a real regression_, which is mutation testing's job, and that run is in progress.
+    , but their stated reason no longer holds.\*\* That reason — "the test exists but has never been executed (container down)" — is obsolete: both tests execute and pass, and §21's asserts the live-key comparison rather than the tautology. The cells are held deliberately until mutation testing shows them failing on a real regression, which is what `UNVERIFIED` means. The historical entry is left as written rather than edited; this note is the correction.
 - Two further cells in that matrix are now met by Phase 2 and will be re-graded alongside: **§10** (session-terminating call awaited on unload) and **§12** (translations and icons reconciled against code).
 
 ### Verified
@@ -182,6 +187,25 @@ Phase 0 of the August 2026 update plan (`.notes/info/updates_202608/status_plan.
 - `pytest tests/` — **624 passed**, 0 failed (was 3 failed / 621 passed).
 - Coverage **100% line** across all 17 modules, 2832 statements, 0 missing — the 5 previously-missing statements were all in `cleanup.py` and were the red suite, exactly as predicted.
 - `ruff check` **All checks passed** (was 3 errors); `ruff format --check` clean; `mypy --strict` **Success, 17 source files**.
+
+## [1.0.1-dev10] - 2026-08-08 - Reauth Entry Resolution; README Corrections
+
+Back-filled 2026-08-08. This work shipped as commit `d5289f2` and the changelog was not updated at the time, leaving the history jumping dev9 → dev11. Recorded here from the commit rather than from memory.
+
+Made in response to `readme_review` `REVIEW_MODE=Full`, whose findings were dispositioned individually — 1a.1 and 1b fixed, 2a.1/2a.2/2a.3/2b.1/2b.2 fixed, **1a.2 rejected** (the README's API-key path is the correct one) and §3 rejected.
+
+### Fixed
+
+- **The stated minimum Home Assistant version was three releases below what the code actually required.** `config_flow.py` enforces 2024.11.0; the README and `hacs.json` said 2024.8.0. Both corrected to **2024.11.0**, so a user on an unsupported version is told before install rather than at setup.
+
+### Changed
+
+- **`async_step_reauth_confirm` now resolves its entry through `self._get_reauth_entry()`**, matching `async_step_reconfigure`'s use of `_get_reconfigure_entry()`. The framework resolves the entry and raises `UnknownEntry` when it is gone, so the four `entry is None` branches were removed — they were reachable only by bypassing the flow manager. `test_config_flow_reauth_confirm_entry_gone` was updated to assert the raise instead of an abort.
+- **README**: WAN1/WAN2 Run buttons documented under a new **🚄 Speedtest** control group (2a.2); a line on sending diagnostics from a non-UDM-Pro gateway (2a.3); and **⚙**, **🔏**, **🚄** added to the three control sub-headings, each verified single-codepoint and not already used in a heading (2b.1).
+
+### Notes
+
+- **`readme_review` 2a.4 was disputed and re-verified — the finding stands.** The claim was that a `numeric_state` trigger cannot fire from `unknown` to a value. It can: `condition.py` returns `False` for a non-numeric state rather than raising, which _arms_ the trigger, and the return to an in-range value then fires it. Proved twice — by reading `homeassistant/helpers/condition.py:1565` and by a behavioural test showing `50 → unknown → 50` fires. The premise would have been correct against the older `ConditionError` behaviour. Guards were added to the affected examples subsequently.
 
 ## [1.0.1-dev9] - 2026-08-07 - Readme Automation Corrections; Formats
 

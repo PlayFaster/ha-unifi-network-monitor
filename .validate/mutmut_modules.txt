@@ -1,0 +1,34 @@
+# Modules worth mutating in this project, one glob per line.
+#
+# The sync appends these under `only_mutate=` in setup.cfg, indented. Do not
+# indent them here and do not use commas — see the notes in setup.cfg.
+#
+# Include a module when its tests exercise real code. Leave it out when the
+# tests mock its collaborator: a mutation of a call into a mock cannot be
+# detected by any test, so it becomes a survivor you read and discard.
+#
+# Assessed 2026-08-08. Left out as mocked boundaries: api.py and config_flow.py
+# (tests mock the aiohttp session / the API — this is the shape that measured
+# 82% survivors on wifi_ssid_monitor); binary_sensor.py, button.py, number.py,
+# select.py and switch.py (all mock the coordinator); cleanup.py, services.py
+# and __init__.py (mock the registries, hass and the API); and _compat.py,
+# whose entire job is the device registry the tests mock.
+#
+# const.py is left out for the opposite reason: it is almost all constants, and
+# its few pure helpers are small and directly tested — little to mutate.
+#
+# coordinator.py is left out with a noted loss. Its pure parse functions
+# (_parse_gateway, _parse_health, _extract_wan_networkconf,
+# build_usage_projection) are real code and would repay mutation, but
+# `only_mutate` matches per FILE, so including it drags in every mocked-API
+# path in a 2,432-line module. Revisit only if those functions move out.
+#
+# sensor.py is included provisionally. Its descriptions and value_fn lambdas
+# are exercised for real, but it is 1,815 largely declarative lines and mutmut
+# emits two mutants per string literal — expect a large, noisy count. Drop it
+# if the survivor mix turns out to be dominated by string/dict-key mutants.
+
+*/diagnostics.py
+*/helpers.py
+*/alerts.py
+*/sensor.py
