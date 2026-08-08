@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: UniFi Network Monitor](#internal-detailed-changelog-unifi-network-monitor)
+  - [\[1.0.1-dev17\] - 2026-08-08 - `about` Notes: Internet Group from 3 to 18](#101-dev17---2026-08-08---about-notes-internet-group-from-3-to-18)
   - [\[1.0.1-dev16\] - 2026-08-08 - Documentation, Roadmap, and the Write-Classification Register](#101-dev16---2026-08-08---documentation-roadmap-and-the-write-classification-register)
   - [\[1.0.1-dev15\] - 2026-08-08 - Branch Coverage Complete: Sixteen of Seventeen Modules at 100%](#101-dev15---2026-08-08---branch-coverage-complete-sixteen-of-seventeen-modules-at-100)
   - [\[1.0.1-dev14\] - 2026-08-08 - Branch Coverage: Fifteen of Seventeen Modules at 100%](#101-dev14---2026-08-08---branch-coverage-fifteen-of-seventeen-modules-at-100)
@@ -23,6 +24,26 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-07-22 - Initial Public Release](#100---2026-07-22---initial-public-release)
 
 ---
+
+## [1.0.1-dev17] - 2026-08-08 - `about` Notes: Internet Group from 3 to 18
+
+Phase 4 of the August 2026 update plan. No behaviour changes — `about:` is an unrecorded attribute, so it never reaches the recorder however often a state changes.
+
+### Added
+
+- **23 new `about:` notes**, taking the description-level count from 15 to 38 and the total across every platform from 23 to 46. The **Internet** group was the target and goes from 3 of 35 to **18 of 35**: it holds the WAN availability, latency and usage metrics that a note earns most on, and it had one. Speedtest goes 0 → 4, Status 2 → 4, System 0 → 2.
+
+  The notes chosen answer questions the entity name does not. WAN1 Latency is an average over UniFi's own monitoring window while Internet Latency is measured per poll, and mistaking one for the other produces automations that watch the wrong signal. Local and Public IP legitimately differ on a CGNAT connection. ISP Organisation shows a wholesaler where ISP Name shows the reseller, which reads as a bug. The monthly and daily totals are clamped to a running maximum because UniFi recomputes the open bucket each poll — the most surprising behaviour in this integration, and invisible from the value. And every Speedtest figure is exactly as old as its Last Run, with nothing on the sensor to say so.
+
+### Changed
+
+- **`docs/all_sensors.md`: the `About` column is populated** (46 entities), regenerated from source across all six platform modules and matching both `about=` on a description and `_attr_about` on a class.
+- **The deliberate omissions are recorded** rather than left as gaps. A note on all 130 entities would train users to ignore notes, so four categories are stated with reasons: WAN2 twins of an annotated WAN1 sensor (identical meaning — except Availability and Latency, which are annotated because those two are what get read during a failover); self-describing counts; the download/upload halves of an annotated total; and binary sensors whose name is already the question. Gateway remains at 1 of 17 by choice and is named as the next candidate in `docs/ROADMAP.md`.
+
+### Verified
+
+- `pytest tests/` — **811 passed**, 0 failed. Coverage unchanged at 100% line / 99% branch. `ruff`, `ruff format`, `mypy --strict`, prettier, markdownlint and codespell all clean.
+- **Not done:** the column is source-derived, not refreshed from the live instance. That final step of the item is parked — see the plan's §P.
 
 ## [1.0.1-dev16] - 2026-08-08 - Documentation, Roadmap, and the Write-Classification Register
 
