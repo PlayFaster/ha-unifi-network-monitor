@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: UniFi Network Monitor](#internal-detailed-changelog-unifi-network-monitor)
+  - [\[1.0.1-dev19\] - 2026-08-08 - Mutation Testing: The Diagnostics Scrubber Was Only Ever Tested for Absence](#101-dev19---2026-08-08---mutation-testing-the-diagnostics-scrubber-was-only-ever-tested-for-absence)
   - [\[1.0.1-dev18\] - 2026-08-08 - Zero Partial Branches: Five Unreachable Guards Removed](#101-dev18---2026-08-08---zero-partial-branches-five-unreachable-guards-removed)
   - [\[1.0.1-dev17\] - 2026-08-08 - `about` Notes: Internet Group from 3 to 18](#101-dev17---2026-08-08---about-notes-internet-group-from-3-to-18)
   - [\[1.0.1-dev16\] - 2026-08-08 - Documentation, Roadmap, and the Write-Classification Register](#101-dev16---2026-08-08---documentation-roadmap-and-the-write-classification-register)
@@ -26,6 +27,49 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-07-22 - Initial Public Release](#100---2026-07-22---initial-public-release)
 
 ---
+
+## [1.0.1-dev19] - 2026-08-08 - Mutation Testing: The Diagnostics Scrubber Was Only Ever Tested for Absence
+
+### Added
+
+- **`tests/test_diagnostics_mutation.py` — 12 tests**, taking the suite to **825 passing** at 100% line and 100% branch coverage, 0 partials.
+
+  These come from the mutation run, which put **87 surviving mutants** in `diagnostics.py` — the largest cluster in the project. Reading them found one cause, not 87:
+
+  > the diagnostics tests asserted that the output carried **no secret**, and never that it carried the **right token**.
+
+  `assert "entry" in result` and `assert x == "**REDACTED**"` are satisfied by a scrub that is skipped, nulled, or written to the wrong key — because `None` contains no MAC either. It is the same defect the projection tests had at `[1.0.1-dev18]`, in different clothes: asserting an answer is _plausible_ rather than _right_.
+
+  What the new tests pin, by exact value: the token sequence (`device-1`, `device-2`, `rogue-1`, stable on reuse); longest-first substitution, where one identifier is nested inside another; a literal of **exactly** the minimum length; the `_learn` type guard; full-record equality for `_scrub_device`; the alert `DEVICE` and blank-block branches; a fully populated capture asserted token by token; and a device known by two MACs.
+
+### Fixed
+
+- **A device alert block naming a public IP was relying on a branch nothing tested.**
+
+  `_scrub_alert_block` ends with a shape-based backstop that pushes every remaining string through `text()`, which matches MACs and **private** ranges. Every existing test used `192.168.x.x`, so the backstop covered for the explicit `ip` branch and the two were indistinguishable. A routable address is removed **only** by the explicit branch. The new test uses one.
+
+  No behaviour changed — the branch was correct. What changed is that it is now load-bearing in the suite rather than shadowed by a wider net.
+
+### Changed
+
+- **Read-side dict-key mutants are no longer triaged as noise.** The shared guidance retires string and dict-key mutants as snapshot noise at roughly a third of survivors. That holds for a key being **written**, where the mutation renames an output field and exposes nothing. On a scrubber it inverts: `out.get("XXipXX")` makes the branch fall through and the **real value survives into the output**. Around 34 of the 46 mutants in `async_get_config_entry_diagnostics` are read-side; only ~12 are cosmetic renames, and those die for free, because indexing `result["coordinator"]["integration_health"]` raises `KeyError` when the key moves.
+
+- **`.notes/issues/testing_deeper/mutation_equivalents.md` populated — with three entries and no more.** 284 mutants survived the run and the overwhelming majority are **killable but not worth killing**, which is a different verdict. Only `_is_mac`'s empty-string default and the two `boot_times` pass-1 mutants are genuinely unkillable, each recorded with the reason stated as behaviour.
+
+  The last two are also a code observation: if pass 1's `boot_times` loop cannot change the output, those four lines are redundant. **Deliberately not refactored** — deleting code to satisfy a mutation score is how a real guard gets removed. Left for the Phase 6 review.
+
+### Verified
+
+- `pytest tests/` — **825 passed**, 0 failed. **100% line and 100% branch**: 2939 statements, 0 missing, 864 branches, **0 partial**.
+- `ruff check .` and `ruff format --check .` clean across 68 files. `mypy custom_components/` clean at 17 files, standard and strict.
+
+  **Scope note, because this was got wrong during the phase.** A verification pass ran `mypy custom_components/ tests`, reported 155 errors and parked it as a gap. `tests` is not in the project's command and never was: `.vscode/tasks.json` and `.pre-commit-config.yaml` both scope mypy to `custom_components/`, matching Home Assistant core, whose pre-commit pins mypy to `^(homeassistant|pylint)/` while naming `tests/` explicitly for `ruff-format`. **Ruff covers tests; mypy does not, deliberately.** The parked row was withdrawn.
+
+### Notes
+
+- Mutation, three runs. The second confirmed the `[1.0.1-dev18]` projection work at **761 killed / 284 survived** — exactly `+5 killed / −5 survived` against the first, by count rather than by inference. The third verified this entry's work at **840 killed / 205 survived of 1045, 0 timeouts**: **+79 kills from 12 tests**.
+- **`diagnostics.py`: 87 survivors → 8**, and all 8 were triaged and written up _before_ the verifying run — three equivalents and five killable-but-not-worth-killing. No unexplained residue.
+- **The §14 / §21 Standards Test Coverage cells stay `UNVERIFIED`.** Both rest on `sensor.py`, whose 45+ survivors are all mocked-coordinator mutants and therefore evidence about the harness, not the behaviour. Clearing them on a run that could not have tested them would repeat the exact error this phase exists to catch.
 
 ## [1.0.1-dev18] - 2026-08-08 - Zero Partial Branches: Five Unreachable Guards Removed
 
@@ -96,8 +140,7 @@ Phase 3 of the August 2026 update plan — every documentation change in one rel
 - **Standards Test Coverage matrix — four cells move, two stay.** The matrix lives inside the dated `[1.0.1-dev5]` entry and is left as written; this note is the correction.
   - **§10** (session-terminating call awaited on unload) — `PENDING` → **met**. `tests/test_teardown_contract.py` asserts `logout()` is awaited, that the store flush is ordered before it, that a failing logout does not block the unload, and that the platform-unload result is propagated.
   - **§12** (translations + icons reconciled against code) — `PENDING` → **met**. `tests/test_translations_icons.py` reconciles in all three directions against **module source**, plus exception messages in both directions. This was recorded as the highest-value gap in the table.
-  - **§14 / §21** — stay `UNVERIFIED`. Their stated reason ("the test exists but has never been executed — container down") is obsolete: both execute and pass, and §21's asserts the live-key comparison rather than the tautology. But `UNVERIFIED` means _not yet shown to fail on a real regression_, which is mutation testing's job, and that run is in progress.
-    , but their stated reason no longer holds.\*\* That reason — "the test exists but has never been executed (container down)" — is obsolete: both tests execute and pass, and §21's asserts the live-key comparison rather than the tautology. The cells are held deliberately until mutation testing shows them failing on a real regression, which is what `UNVERIFIED` means. The historical entry is left as written rather than edited; this note is the correction.
+  - **§14 / §21** — stay `UNVERIFIED`. Their stated reason ("the test exists but has never been executed — container down") is obsolete: both execute and pass, and §21's asserts the live-key comparison rather than the tautology. But `UNVERIFIED` means _not yet shown to fail on a real regression_, which is mutation testing's job, and that run is in progress. , but their stated reason no longer holds.\*\* That reason — "the test exists but has never been executed (container down)" — is obsolete: both tests execute and pass, and §21's asserts the live-key comparison rather than the tautology. The cells are held deliberately until mutation testing shows them failing on a real regression, which is what `UNVERIFIED` means. The historical entry is left as written rather than edited; this note is the correction.
 - Two further cells in that matrix are now met by Phase 2 and will be re-graded alongside: **§10** (session-terminating call awaited on unload) and **§12** (translations and icons reconciled against code).
 
 ### Verified
