@@ -8,17 +8,17 @@ The `about` attribute is a plain-language note attached to key entities to provi
 
 - [Alerts Sub-Device](#alerts-sub-device) (4 entities)
 - [Gateway Sub-Device](#gateway-sub-device) (1 entities)
-- [Internet Sub-Device](#internet-sub-device) (6 entities)
+- [Internet Sub-Device](#internet-sub-device) (25 entities)
 - [Security Sub-Device](#security-sub-device) (12 entities)
-- [Status Sub-Device](#status-sub-device) (2 entities)
-- [System Sub-Device](#system-sub-device) (3 entities)
+- [Status Sub-Device](#status-sub-device) (4 entities)
+- [System Sub-Device](#system-sub-device) (4 entities)
 - [🚫 Entities without a note](#-entities-without-a-note)
 
 ---
 
 ## Overview
 
-**28 of the 130 entities carry an `about` note.** Self-explanatory entities (like LAN IP Address, Model Name, or basic diagnostics) deliberately do not carry notes, as a note on every entity trains users to ignore them.
+**50 of the 130 entities carry an `about` note.** Self-explanatory entities (like LAN IP Address, Model Name, or basic diagnostics) deliberately do not carry notes, as a note on every entity trains users to ignore them.
 
 ---
 
@@ -41,11 +41,30 @@ The `about` attribute is a plain-language note attached to key entities to provi
 
 | Entity | About |
 | :--- | :--- |
+| **UniFi Network Internet ISP Name** | The ISP as UniFi identifies it from the WAN address. ISP Organisation is the registered owner of the address block, which is often a parent company or a wholesale carrier rather than the company billing you. |
+| **UniFi Network Internet ISP Organization** | Registered owner of the WAN address block. Frequently differs from ISP Name — a reseller's customers show the wholesaler here. |
+| **UniFi Network Internet Internet Drops** | Count of dropped connectivity checks in UniFi's monitoring window. A handful is normal; a rising count during good latency usually means packet loss rather than a slow link. |
+| **UniFi Network Internet Internet Latency** | Current internet latency as the controller last measured it. Differs from WAN1/WAN2 Latency, which are averages over UniFi's longer window. |
 | **UniFi Network Internet Month Total** | Combined WAN internet usage (upload + download) for the current calendar month; includes WAN2 when Dual-WAN is enabled. |
+| **UniFi Network Internet WAN1 Availability** | Percentage of UniFi's own monitoring window in which WAN1 was up — not an all-time figure. The window is the controller's, so it resets when the gateway restarts. |
+| **UniFi Network Internet WAN1 Last Restart** | When WAN1 last came up, derived from the interface's uptime. It moves on every reconnection, so a recent value after an outage is expected rather than a fault. |
+| **UniFi Network Internet WAN1 Latency** | Average latency to UniFi's monitoring target over its window, not a live ping. For the current figure use Internet Latency, which is measured per poll. |
+| **UniFi Network Internet WAN1 Local IP Address** | The address the gateway's own WAN interface holds. On a CGNAT connection this is a carrier-private address and is not reachable from the internet — WAN1 Public IP Address is the one the world sees. |
+| **UniFi Network Internet WAN1 Month Total** | This calendar month's WAN1 usage so far, clamped so it only rises within the month. Resets on the 1st. WAN1 Projected Usage estimates where it is heading. |
 | **UniFi Network Internet WAN1 Projected Usage** | Projected WAN1 usage by the end of the calendar month, from usage so far. Check the confidence attribute — it is weak early in the month. |
+| **UniFi Network Internet WAN1 Public IP Address** | The address the internet sees, as reported by the controller. On CGNAT it differs from WAN1 Local IP Address and is shared with other subscribers. |
+| **UniFi Network Internet WAN1 Today Total** | Today's WAN1 usage so far. UniFi recomputes the open bucket each poll, so the raw figure can dip slightly; it is clamped to its running maximum here so it only ever rises within the day. |
+| **UniFi Network Internet WAN1 Uptime Duration** | How long WAN1 has been up, as a duration. WAN1 Last Restart is the same fact as a timestamp — use whichever suits the automation. |
+| **UniFi Network Internet WAN2 Availability** | As WAN1 Availability, for the second WAN. Only meaningful when a second WAN is actually connected. |
+| **UniFi Network Internet WAN2 Latency** | As WAN1 Latency, for the second WAN.  |
 | **UniFi Network Internet WAN2 Projected Usage** | Projected WAN2 usage by the end of the calendar month, from usage so far. Check the confidence attribute — it is weak early in the month. |
+| **UniFi Network Speedtest WAN1 Download** | Download speed from the last speedtest UniFi ran — not a live measurement. Check WAN1 Speedtest Last Run before acting on it; a figure hours old says nothing about now. |
+| **UniFi Network Speedtest WAN1 Last Run** | When the last WAN1 speedtest completed. This is what makes the other speedtest sensors interpretable — a stale run is the usual explanation for a figure that looks wrong. |
+| **UniFi Network Speedtest WAN1 Ping** | Latency recorded during the speedtest, under load. Usually higher than Internet Latency, which is measured on an idle link. |
 | **UniFi Network Speedtest WAN1 Run** | Press to run an immediate speedtest on this WAN. Takes ~1 minute; results refresh shortly after. |
+| **UniFi Network Speedtest WAN1 Upload** | Upload speed from the same run as WAN1 Speedtest Download. Both are as old as WAN1 Speedtest Last Run. |
 | **UniFi Network Speedtest WAN2 Run** | Press to run an immediate speedtest on this WAN. Takes ~1 minute; results refresh shortly after. |
+| **UniFi Network System Multi-WAN Mode** | Fill level of the gateway's /persistent partition, which holds logs and settings rather than recordings. Sustained high values usually mean log growth. |
 | **UniFi Network System WAN1 Load Balance Weight** | WAN1's share of load-balanced traffic; WAN2 automatically gets the remainder (both sum to 100). |
 
 ## Security Sub-Device
@@ -70,13 +89,16 @@ The `about` attribute is a plain-language note attached to key entities to provi
 | Entity | About |
 | :--- | :--- |
 | **UniFi Network Status Guest Users** | Total active sessions tracked by the controller's Guest Portal / Hotspot Manager (voucher, payment, social login, or pending authorization) — may include wired and wireless. |
+| **UniFi Network Status VLANs Active** | How many configured VLANs are enabled. VLANs Total includes disabled ones, so a gap between the two is a deliberate configuration rather than a fault. |
 | **UniFi Network Status WiFi Guests** | Guest-network clients currently connected over WiFi. |
+| **UniFi Network Status WiFi Networks Active** | How many configured WiFi networks are currently enabled. WiFi Networks Total counts every configured SSID including disabled ones. |
 
 ## System Sub-Device
 
 | Entity | About |
 | :--- | :--- |
 | **UniFi Network System Integration Health** | On when the integration self-diagnoses a problem: a data source is unavailable (and not one you disabled), or a controller update appears to have changed the data format. See the attributes for details. |
+| **UniFi Network System Last Updated** | When this integration last completed a poll — not when the gateway last changed. If it stops advancing, the integration has stopped polling even while entities still show their last values. |
 | **UniFi Network System Pause polling** | Stops scheduled polling. Manual actions (Refresh Now, speedtest, control changes) still fetch. |
 | **UniFi Network System Refresh Now** | Forces an immediate poll, even while Pause Polling is on. |
 
@@ -105,22 +127,10 @@ The following entities are self-explanatory or direct telemetry/status indicator
 - UniFi Network Gateway WAN2 SFP Part Number
 - UniFi Network Gateway WAN2 SFP Serial Number
 - UniFi Network Gateway WAN2 SFP Vendor
-- UniFi Network Internet ISP Name
-- UniFi Network Internet ISP Organization
-- UniFi Network Internet Internet Drops
-- UniFi Network Internet Internet Latency
 - UniFi Network Internet Internet Online Since
 - UniFi Network Internet Internet Uptime Duration
-- UniFi Network Internet WAN1 Availability
-- UniFi Network Internet WAN1 Last Restart
-- UniFi Network Internet WAN1 Latency
-- UniFi Network Internet WAN1 Local IP Address
 - UniFi Network Internet WAN1 Name
-- UniFi Network Internet WAN1 Public IP Address
-- UniFi Network Internet WAN1 Uptime Duration
-- UniFi Network Internet WAN2 Availability
 - UniFi Network Internet WAN2 Last Restart
-- UniFi Network Internet WAN2 Latency
 - UniFi Network Internet WAN2 Local IP Address
 - UniFi Network Internet WAN2 Name
 - UniFi Network Internet WAN2 Public IP Address
@@ -132,11 +142,7 @@ The following entities are self-explanatory or direct telemetry/status indicator
 - UniFi Network Security VPN Connections Active
 - UniFi Network Security VPN Connections Total
 - UniFi Network Speedtest Last Run Status
-- UniFi Network Speedtest WAN1 Download
-- UniFi Network Speedtest WAN1 Last Run
 - UniFi Network Speedtest WAN1 Monitoring Period
-- UniFi Network Speedtest WAN1 Ping
-- UniFi Network Speedtest WAN1 Upload
 - UniFi Network Speedtest WAN2 Download
 - UniFi Network Speedtest WAN2 Last Run
 - UniFi Network Speedtest WAN2 Monitoring Period
@@ -148,16 +154,12 @@ The following entities are self-explanatory or direct telemetry/status indicator
 - UniFi Network Status LAN IoT Devices
 - UniFi Network Status Switches
 - UniFi Network Status Total Devices
-- UniFi Network Status VLANs Active
 - UniFi Network Status VLANs Total
 - UniFi Network Status VPN Status
 - UniFi Network Status WiFi Devices
 - UniFi Network Status WiFi IoT Devices
-- UniFi Network Status WiFi Networks Active
 - UniFi Network Status WiFi Networks Total
 - UniFi Network Status Wired Devices
-- UniFi Network System Last Updated
-- UniFi Network System Multi-WAN Mode
 - UniFi Network System Polling Interval
 - UniFi Network System WAN1 Load Balance
 - UniFi Network System WAN2 Load Balance
@@ -167,10 +169,8 @@ The following entities are self-explanatory or direct telemetry/status indicator
 The following entities are self-explanatory or direct telemetry/status indicators requiring no note:
 
 - UniFi Network Internet WAN1 Month Download
-- UniFi Network Internet WAN1 Month Total
 - UniFi Network Internet WAN1 Month Upload
 - UniFi Network Internet WAN1 Today Download
-- UniFi Network Internet WAN1 Today Total
 - UniFi Network Internet WAN1 Today Upload
 - UniFi Network Internet WAN2 Month Download
 - UniFi Network Internet WAN2 Month Total

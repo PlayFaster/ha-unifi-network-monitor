@@ -2062,7 +2062,10 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             else:
                                 w1 = sorted_speedtest[0]
                                 w2 = None
-                        elif len(sorted_speedtest) == 1:
+                        else:
+                            # Exactly one result: the enclosing `if
+                            # speedtest_raw:` guarantees at least one and the
+                            # branch above took >= 2.
                             w1 = sorted_speedtest[0]
                             w2 = None
 
@@ -2111,59 +2114,53 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 wifi_networks_total = None
                 wifi_networks_active = None
                 wifi_states = {}
-                if isinstance(wlanconf_raw, list):
-                    wifi_networks_total = len(wlanconf_raw)
-                    wifi_networks_active = sum(
-                        1 for w in wlanconf_raw if w.get("enabled")
-                    )
-                    wifi_states = {
-                        w.get("name"): bool(w.get("enabled"))
-                        for w in wlanconf_raw
-                        if w.get("name")
-                    }
+                wifi_networks_total = len(wlanconf_raw)
+                wifi_networks_active = sum(1 for w in wlanconf_raw if w.get("enabled"))
+                wifi_states = {
+                    w.get("name"): bool(w.get("enabled"))
+                    for w in wlanconf_raw
+                    if w.get("name")
+                }
 
                 # Parse VLANs configurations
                 vlans_total = None
                 vlans_active = None
-                if isinstance(networkconf_raw, list):
-                    vlans_total = sum(
-                        1 for net in networkconf_raw if net.get("vlan") is not None
-                    )
-                    vlans_active = sum(
-                        1
-                        for net in networkconf_raw
-                        if net.get("vlan") is not None and net.get("enabled", True)
-                    )
+                vlans_total = sum(
+                    1 for net in networkconf_raw if net.get("vlan") is not None
+                )
+                vlans_active = sum(
+                    1
+                    for net in networkconf_raw
+                    if net.get("vlan") is not None and net.get("enabled", True)
+                )
 
                 # Parse VPN site-to-site tunnels and servers
                 vpn_connections_total = None
                 vpn_connections_active = None
                 vpn_states = {}
                 if self.site_uuid and self.site_uuid != "failed":
-                    if isinstance(vpn_tunnels_raw, list):
-                        vpn_connections_total = len(vpn_tunnels_raw)
-                        vpn_connections_active = sum(
-                            1 for t in vpn_tunnels_raw if t.get("state") == "CONNECTED"
-                        )
-                        vpn_states = {
-                            t.get("name"): (t.get("state") == "CONNECTED")
-                            for t in vpn_tunnels_raw
-                            if t.get("name")
-                        }
+                    vpn_connections_total = len(vpn_tunnels_raw)
+                    vpn_connections_active = sum(
+                        1 for t in vpn_tunnels_raw if t.get("state") == "CONNECTED"
+                    )
+                    vpn_states = {
+                        t.get("name"): (t.get("state") == "CONNECTED")
+                        for t in vpn_tunnels_raw
+                        if t.get("name")
+                    }
 
                 # Parse Firewall Policies
                 rules_configured = None
                 rules_active = None
                 rules_disabled = None
                 if self.site_uuid and self.site_uuid != "failed":
-                    if isinstance(firewall_policies_raw, list):
-                        rules_configured = len(firewall_policies_raw)
-                        rules_active = sum(
-                            1 for p in firewall_policies_raw if p.get("enabled")
-                        )
-                        rules_disabled = sum(
-                            1 for p in firewall_policies_raw if not p.get("enabled")
-                        )
+                    rules_configured = len(firewall_policies_raw)
+                    rules_active = sum(
+                        1 for p in firewall_policies_raw if p.get("enabled")
+                    )
+                    rules_disabled = sum(
+                        1 for p in firewall_policies_raw if not p.get("enabled")
+                    )
 
                 # Parse WAN interface custom names (aliases)
                 wan1_interface_name = None

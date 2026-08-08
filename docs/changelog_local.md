@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: UniFi Network Monitor](#internal-detailed-changelog-unifi-network-monitor)
+  - [\[1.0.1-dev18\] - 2026-08-08 - Zero Partial Branches: Five Unreachable Guards Removed](#101-dev18---2026-08-08---zero-partial-branches-five-unreachable-guards-removed)
   - [\[1.0.1-dev17\] - 2026-08-08 - `about` Notes: Internet Group from 3 to 18](#101-dev17---2026-08-08---about-notes-internet-group-from-3-to-18)
   - [\[1.0.1-dev16\] - 2026-08-08 - Documentation, Roadmap, and the Write-Classification Register](#101-dev16---2026-08-08---documentation-roadmap-and-the-write-classification-register)
   - [\[1.0.1-dev15\] - 2026-08-08 - Branch Coverage Complete: Sixteen of Seventeen Modules at 100%](#101-dev15---2026-08-08---branch-coverage-complete-sixteen-of-seventeen-modules-at-100)
@@ -25,6 +26,27 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-07-22 - Initial Public Release](#100---2026-07-22---initial-public-release)
 
 ---
+
+## [1.0.1-dev18] - 2026-08-08 - Zero Partial Branches: Five Unreachable Guards Removed
+
+### Removed
+
+- **Five unreachable branches in `coordinator.py`**, taking the project to **100% branch coverage with 0 partials** across all 17 modules.
+
+  Four were `isinstance(x, list)` checks on the wlanconf, networkconf, VPN-tunnel and firewall-policy payloads. They can never be false. Every one of those values reaches the parse block from `_fetch_optional`, which ends with `data = list(await method())` and returns a held **list** on its failure path; when a feature toggle is off, `_skip_fetch` substitutes and returns `[]`; and the `asyncio.gather` has **no** `return_exceptions`, so it never puts an exception object in the tuple where a list is expected. Three independent producers, all lists.
+
+  The fifth was `elif len(sorted_speedtest) == 1:`, which required a list of length zero — impossible inside the enclosing `if speedtest_raw:`. It becomes a plain `else` with the reasoning stated in a comment.
+
+  **Why remove rather than keep.** They cost nothing at runtime, but they were unreachable code that told the next reader a non-list payload was a real case worth handling, and they left five permanent partials — which meant "partials must be zero" could never be an enforceable rule, and an unenforceable rule is how the next genuine gap hides. The safety they appeared to provide is now held by `test_every_optional_fetch_returns_a_list_whatever_the_api_returns`, which fails the moment normalisation stops — earlier and louder than a dead `if` ever would.
+
+### Changed
+
+- **`AGENTS.md` gains a zero-partials row** in the "Tests that will stop you" table. The bar is now zero, so a partial is a signal rather than noise, and an unreachable branch should be deleted rather than left to erode the number.
+
+### Verified
+
+- `pytest tests/` — **811 passed**, 0 failed. **100% line and 100% branch**: 2939 statements, 0 missing, 864 branches, **0 partial**.
+- `ruff check`, `ruff format --check`, `mypy --strict`, prettier, markdownlint and codespell all clean.
 
 ## [1.0.1-dev17] - 2026-08-08 - `about` Notes: Internet Group from 3 to 18
 
