@@ -897,7 +897,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         interval_s = self.update_interval.total_seconds() if self.update_interval else 0
         if not paused and interval_s <= seconds:
             return  # the regular poll will pick it up soon enough
-        self._cancel_scheduled_refresh()
+        self.cancel_scheduled_refresh()
 
         async def _fire(_now: datetime) -> None:
             self._pending_refresh_unsub = None
@@ -906,7 +906,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._pending_refresh_unsub = async_call_later(self.hass, seconds, _fire)
 
     @callback
-    def _cancel_scheduled_refresh(self) -> None:
+    def cancel_scheduled_refresh(self) -> None:
         """Cancel any pending scheduled refresh (on reschedule or unload)."""
         if self._pending_refresh_unsub is not None:
             self._pending_refresh_unsub()
@@ -1197,11 +1197,11 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         site_failed = self.site_uuid == "failed" and bool(self.api.api_key)
         drift_caps = [_DRIFT_CAPABILITY[k] for k in persistent]
 
-        issues: list[str] = []
-        for cap in drift_caps:
-            issues.append(f"{cap} data looks malformed (possible controller update)")
-        for cap in degraded_caps:
-            issues.append(f"{cap} data unavailable")
+        issues: list[str] = [
+            f"{cap} data looks malformed (possible controller update)"
+            for cap in drift_caps
+        ]
+        issues.extend(f"{cap} data unavailable" for cap in degraded_caps)
         if site_failed:
             issues.append(
                 "UniFi v3 site could not be resolved "

@@ -2848,7 +2848,7 @@ async def test_schedule_refresh_in_cancels_previous(
 
 
 async def test_cancel_scheduled_refresh(hass: Any, mock_config_entry: Any) -> None:
-    """_cancel_scheduled_refresh cancels and clears the pending subscription."""
+    """cancel_scheduled_refresh cancels and clears the pending subscription."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
     coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
@@ -2856,7 +2856,7 @@ async def test_cancel_scheduled_refresh(hass: Any, mock_config_entry: Any) -> No
     mock_unsub = MagicMock()
     coordinator._pending_refresh_unsub = mock_unsub
 
-    coordinator._cancel_scheduled_refresh()
+    coordinator.cancel_scheduled_refresh()
     mock_unsub.assert_called_once()
     assert coordinator._pending_refresh_unsub is None
 
@@ -2864,12 +2864,12 @@ async def test_cancel_scheduled_refresh(hass: Any, mock_config_entry: Any) -> No
 async def test_cancel_scheduled_refresh_noop_when_none(
     hass: Any, mock_config_entry: Any
 ) -> None:
-    """_cancel_scheduled_refresh is a no-op when no pending subscription."""
+    """cancel_scheduled_refresh is a no-op when no pending subscription."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
     coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
     assert coordinator._pending_refresh_unsub is None
-    coordinator._cancel_scheduled_refresh()  # should not raise
+    coordinator.cancel_scheduled_refresh()  # should not raise
 
 
 async def test_schedule_refresh_fire_callback(
