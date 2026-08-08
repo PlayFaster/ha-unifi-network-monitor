@@ -388,12 +388,15 @@ class UnifiNetworkConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> ConfigFlowResult:
         """Confirm new credentials during reauth."""
         errors: dict[str, str] = {}
-        entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
-        host = entry.options.get(CONF_HOST, "") if entry else ""
+        # Matches async_step_reconfigure's use of _get_reconfigure_entry(): the
+        # framework resolves the entry and raises UnknownEntry if it is gone, so
+        # there is no None case to handle here.
+        entry = self._get_reauth_entry()
+        host = entry.options.get(CONF_HOST, "")
 
         if user_input is not None:
             user_input[CONF_HOST] = _clean_host(user_input[CONF_HOST])
-            existing = dict(entry.options) if entry else {}
+            existing = dict(entry.options)
             auth_error = _validate_auth_fields(user_input, existing=existing)
             if auth_error:
                 errors["base"] = auth_error
@@ -401,8 +404,6 @@ class UnifiNetworkConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 merged = _merge_credentials(user_input, existing)
                 try:
                     await _validate_connection(self.hass, merged)
-                    if entry is None:
-                        return self.async_abort(reason="reauth_successful")
                     self.hass.config_entries.async_update_entry(
                         entry, options={**entry.options, **merged}
                     )
@@ -418,7 +419,7 @@ class UnifiNetworkConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="reauth_confirm",
-            data_schema=_edit_schema(dict(entry.options) if entry else {}),
+            data_schema=_edit_schema(dict(entry.options)),
             errors=errors,
             description_placeholders={"host": host},
         )

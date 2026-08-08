@@ -52,7 +52,7 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
   - [🔧 Configuration](#-configuration)
   - [🔩 Under the Hood - Technical Architecture](#-under-the-hood---technical-architecture)
   - [❓ FAQ \& Troubleshooting](#-faq--troubleshooting)
-  - [❗ Known Limitations /❔ What's Missing?](#-known-limitations--whats-missing)
+  - [❗ Known Limitations / ❔ What's Missing?](#-known-limitations---whats-missing)
   - [❌ Removal](#-removal)
   - [📝 Maintenance Status](#-maintenance-status)
   - [🤝 Contributors \& Acknowledgements](#-contributors--acknowledgements)
@@ -69,7 +69,7 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
 
 **🏠 Home Assistant and UniFi Versions:**
 
-- Minimum: Home Assistant **2024.8.0**
+- Minimum: Home Assistant **2024.11.0**
 - Minimum Python: **3.12+** (this is built into and handled by HA, but relevant for non-standard installs).
 - _Recommended_: UniFi OS: **3.2.7+** (full functionality, required for all API endpoints). _Minimum_: OS 3.0 (reduced functionality).
 - _Recommended_: UniFi Network Application: **8.1.113+** - Required for API Key authentication and full functionality. _Minimum_: Network **7.4.x+** will work with reduced functionality.
@@ -477,23 +477,34 @@ For each rogue **BSSID**, the integration keeps a small persisted record - `firs
 
 Several settings are exposed as control entities so you can drive them from dashboards or automations, rather than reopening Configure:
 
+### ⚙ System
+
 - **Clean Up Unused Entities** (`button`, System) - remove orphaned entities (see [Actions](#-actions-services)).
 - **Pause Polling** (`switch`, System) - halt scheduled polling temporarily. Manual actions (below) still fetch while paused. See the [Auto-Resume Polling](#-auto-resume-polling) example.
 - **Polling Interval** (`number`, System) - scan interval in seconds (default `180` seconds, range `10` to `3600`). The [Guest Network in Use](#-guest-network-in-use) example reads it to size its own `for:` duration.
 - **Refresh Now** (`button`, System) - immediate data fetch (works even while Pause Polling is on). Used by the [WAN Failover / Restore](#-wan-failover--restore-dual-wan) and [Internet / WAN Down Alert](#-internet--wan-down-alert) examples to confirm a state change.
 - **WAN1 Load Balance Weight** (`number`, System) - WAN1 share of a weighted dual-WAN setup; WAN2 gets set to `100 − WAN1`. See the [Optimize WAN Weight on High Latency](#-optimize-wan-weight-on-high-latency) example.
 
-- **Apply AP SSID Ignore List** (`switch`, Security) - apply the ignore lists you set in Configure (AP opt-in).
+### 🔏 Security
+
+- **Apply AP Ignore List** (`switch`, Security) - apply the ignore lists you set in Configure (AP opt-in).
 - **Apply SSID Ignore List** (`switch`, Security) - apply the ignore lists you set in Configure (SSID applied by default).
 - **Rogue Detection Period** (`select`, Security) - how far back the rogue poll looks (30 min … 1 month). Shown only when Security monitoring is on.
 - **Rogue Proximity Threshold** (`number`, Security) - dBm at or above which a rogue AP triggers the Proximity Alert (default `-60`; always negative, closer to zero is stronger). See the [Rogue AP Proximity Alert](#-rogue-ap-proximity-alert) example.
 - **Show 2.4 GHz Rogues** (`switch`, Security) - include or drop the 2.4 GHz band from the rogue sensors.
 - **Show 5 GHz Rogues** (`switch`, Security) - include or drop the 5 GHz band from the rogue sensors.
 
+### 🚄 Speedtest
+
+Shown only when **Speedtest monitoring** is on; WAN2 also requires **Dual-WAN monitoring**.
+
+- **WAN1 Run** (`button`, Speedtest) - start a speedtest on WAN1. See the [Scheduled Speedtests](#-scheduled-speedtests) example.
+- **WAN2 Run** (`button`, Speedtest) - start a speedtest on WAN2.
+
 All of these control changes apply **immediately** - even while Pause Polling is on, an explicit change triggers a fresh fetch.
 
 <details><summary>
-&nbsp; &nbsp; ➕ &nbsp; &nbsp; Clink to Expand Controls Screenshots:
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand Controls Screenshots:
 </summary><br>
 
 | Security Controls | System Controls |
@@ -511,7 +522,7 @@ The integration provides seven (7) actions (services) that provide additional de
 
 - `cleanup_unused_entities`: Removes entities the current options no longer provide.
 
-- `get_alerts`:Returns recent UniFi **system-log alerts** on demand. → [Scheduled Alert Digest](#-scheduled-alert-digest) example.
+- `get_alerts`: Returns recent UniFi **system-log alerts** on demand. → [Scheduled Alert Digest](#-scheduled-alert-digest) example.
 
 - `get_rogue_aps`: Returns the current **rogue-AP set** on demand. → [Daily Rogue AP Digest](#-daily-rogue-ap-digest) and [New / Reset Smart-Home Device Nearby](#-new--reset-smart-home-device-nearby) examples.
 
@@ -986,6 +997,12 @@ triggers:
       Triggers when guest user count goes above 0. Evaluates the duration dynamically using
       the polling interval plus a 5-second buffer (minimum 120-second floor) to confirm
       guest activity persists across consecutive polls.
+conditions:
+  - condition: template
+    value_template: "{{ trigger.from_state is not none and trigger.from_state.state | is_number }}"
+    note: |
+      Guards against false triggers when recovering from offline
+      states (unknown or unavailable) during reboots.
 actions:
   - action: persistent_notification.create
     data:
@@ -1029,6 +1046,12 @@ triggers:
       Triggers when latency exceeds 100ms. The duration matches your custom poll interval
       plus a 5-second buffer (enforcing a minimum 120-second floor) to confirm the 
       latency remains high on the next consecutive poll.
+conditions:
+  - condition: template
+    value_template: "{{ trigger.from_state is not none and trigger.from_state.state | is_number }}"
+    note: |
+      Guards against false triggers when recovering from offline
+      states (unknown or unavailable) during reboots.
 actions:
   - action: persistent_notification.create
     data:
@@ -1180,6 +1203,12 @@ triggers:
     note: |
       Triggers when WAN2 latency averages above 180ms. Checks across consecutive polls
       (minimum 2 minutes) to ensure it is a sustained performance drop rather than a spike.
+conditions:
+  - condition: template
+    value_template: "{{ trigger.from_state is not none and trigger.from_state.state | is_number }}"
+    note: |
+      Guards against false triggers when recovering from offline
+      states (unknown or unavailable) during reboots.
 actions:
   - action: number.set_value
     target:
@@ -1220,6 +1249,12 @@ triggers:
     id: wan2
     note: |
       Triggers when total WAN2 monthly data consumption exceeds 500 GB.
+conditions:
+  - condition: template
+    value_template: "{{ trigger.from_state is not none and trigger.from_state.state | is_number }}"
+    note: |
+      Guards against false triggers when recovering from offline
+      states (unknown or unavailable) during reboots.
 actions:
   - action: persistent_notification.create
     data:
@@ -1312,6 +1347,12 @@ triggers:
     note: |
       Fires when the WAN1 download result falls below 100 Mbps.
       Set this to roughly 80% of your provisioned download speed
+conditions:
+  - condition: template
+    value_template: "{{ trigger.from_state is not none and trigger.from_state.state | is_number }}"
+    note: |
+      Guards against false triggers when recovering from offline
+      states (unknown or unavailable) during reboots.
 actions:
   - delay: "00:01:00"
     note: Wait 1 minute before re-testing to allow transient congestion to clear
@@ -1378,6 +1419,12 @@ triggers:
     note: |
       Triggers when WAN2 latency exceeds 100ms. Dynamic delay ensures we wait for
       consecutive polls to confirm the latency spike is sustained.
+conditions:
+  - condition: template
+    value_template: "{{ trigger.from_state is not none and trigger.from_state.state | is_number }}"
+    note: |
+      Guards against false triggers when recovering from offline
+      states (unknown or unavailable) during reboots.
 actions:
   - action: button.press
     target:
@@ -1511,7 +1558,7 @@ actions:
       message: |
         {{ state_attr('binary_sensor.unifi_network_system_integration_health', 'issues')
            | join(', ') }}
-        Last good scan: {{ state_attr('binary_sensor.unifi_network_system_integration_health', 'last_good_update') }}
+        Last good update: {{ state_attr('binary_sensor.unifi_network_system_integration_health', 'last_good_update') }}
     note: |
       issues is a list of human-readable problem descriptions. The sensor also carries
       severity, degraded_capabilities (the affected capability names, for filtering),
@@ -1601,7 +1648,7 @@ Provide connection details for your gateway's UniFi Network API:
 
 > [!IMPORTANT]
 >
-> **An API key is strongly preferred.** The UniFi Integration (v3) API endpoints are only reachable with an API key. If you authenticate with **username / password**, seven sensors covering **firewall rules, VPN connections, and WAN interface names** will be permanently unavailable (`unknown`). This is a UniFi API limitation, not a fault in the integration. The affected sensors are: Rules Active, Rules Configured, Rules Disabled, VPN Connections Active, VPN Connections Total, WAN1 Name, and WAN2 Name. Everything else works normally under either auth mode. See [FAQ](#-why-are-my-firewall-vpn-or-wan-name-sensors-unknown).
+> **An API key is strongly preferred.** The UniFi Integration (v3) API endpoints are only reachable with an API key. If you authenticate with **username / password**, some sensors will be unavailable (`unknown`). This is a UniFi API limitation, not a fault in the integration. Everything else works normally under either auth mode. See [FAQ](#-why-are-my-firewall-vpn-or-wan-name-sensors-unknown).
 
 ---
 
@@ -1941,6 +1988,8 @@ This covers MAC addresses, your device names, internal IPs, and the SSIDs of nea
 
 **What deliberately stays:** hardware models, firmware versions, entity counts, health flags, signal strengths, timings, and the vendor (OUI) of detected networks.
 
+If your gateway is not a UDM Pro, a diagnostics file is worth sending **even when nothing is wrong** - it is how support for other models gets confirmed.
+
 > [!NOTE]
 >
 > Nearby-network detections describe **other people's** equipment. The SSID is tokenized and the BSSID redacted, but the vendor name is kept because it is genuinely useful when diagnosing rogue-AP behavior. If you would rather not share even that, remove the `oui` fields before attaching the file.
@@ -2007,7 +2056,7 @@ Also note: an entity ID is reused unless a **different, still-existing** entity 
 
 <br>
 
-## ❗ Known Limitations /❔ What's Missing?
+## ❗ Known Limitations / ❔ What's Missing?
 
 <details>
 
@@ -2017,7 +2066,7 @@ Also note: an entity ID is reused unless a **different, still-existing** entity 
 
 - **Tested hardware**: developed and tested on the **UDM Pro** only; other UniFi OS gateways are expected-compatible but unverified.
 - **Firmware/endpoint variance**: available data depends on your UniFi OS / Network application version; some v3 configuration sensors require newer controllers.
-- **Auth mode gates the v3 sensors**: the UniFi Integration (v3) API is API-key only. Under **username / password** auth, the seven firewall-rule, VPN-connection, and WAN-name sensors are permanently unavailable. Use an API key to enable them. See [FAQ](#-why-are-my-firewall-vpn-or-wan-name-sensors-unknown).
+- **Auth mode gates the v3 sensors**: the UniFi Integration (v3) API is API-key only. Under **username / password** auth, some sensors are permanently unavailable. Use an API key to enable them. See [FAQ](#-why-are-my-firewall-vpn-or-wan-name-sensors-unknown).
 - **Client tracking is out of scope**: this integration monitors infrastructure. For per-client device tracking, use the **official Home Assistant UniFi integration** alongside it.
 - **Data Rates**: Current upload and download data rates (i.e. MBit/s) from WAN1 and WAN2 are available from the UniFi API, but are only useful if you are polling very _frequently_. That's not part of the design scope for this integration, so it is not planned to add data rates.
 - **Early/RC UniFi OS**: As with the official UniFi Integration, Early Access and Release Candidate versions of UniFi OS or the Network Application are [not supported](https://www.home-assistant.io/integrations/unifi/#software-support)

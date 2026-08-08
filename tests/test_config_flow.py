@@ -970,25 +970,30 @@ async def test_config_flow_reauth_confirm_auth_required(hass: Any) -> None:
 
 
 async def test_config_flow_reauth_confirm_entry_gone(hass: Any) -> None:
-    """Reauth_confirm aborts as successful when the entry no longer exists (line 241).
+    """Reauth_confirm raises UnknownEntry when the entry no longer exists.
 
-    Drives the handler directly with a context pointing at a non-existent entry so
-    ``async_get_entry`` returns ``None`` after credentials validate successfully.
+    ``_get_reauth_entry()`` resolves the entry through the framework, which raises
+    rather than returning ``None`` — the same contract ``_get_reconfigure_entry()``
+    gives the reconfigure step. Driven directly, since the flow manager rejects an
+    unknown ``entry_id`` before a handler is ever reached (see
+    ``test_config_flow_reauth_no_entry``).
     """
+    from homeassistant.config_entries import UnknownEntry
+
     flow = UnifiNetworkConfigFlow()
     flow.hass = hass
     flow.handler = DOMAIN
     flow.flow_id = "test-reauth-entry-gone"
     flow.context = {"source": "reauth", "entry_id": "nonexistent"}
 
-    with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
-        AsyncMock(return_value=MOCK_IDENTITY),
+    with (
+        patch(
+            "custom_components.unifi_network_monitor.config_flow._validate_connection",
+            AsyncMock(return_value=MOCK_IDENTITY),
+        ),
+        pytest.raises(UnknownEntry),
     ):
-        result = await flow.async_step_reauth_confirm(user_input=dict(VALID_INPUT))
-
-    assert result["type"] == FlowResultType.ABORT
-    assert result["reason"] == "reauth_successful"
+        await flow.async_step_reauth_confirm(user_input=dict(VALID_INPUT))
 
 
 @pytest.mark.usefixtures("socket_enabled")
