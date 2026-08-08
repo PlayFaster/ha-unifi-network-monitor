@@ -2,6 +2,54 @@
 
 All notable changes to the UniFi Network Monitor project will be documented in this file.
 
+## [1.1.0] - 2026-08-08 - Projected Usage; WAN Weight Write Hardened; Refresh Now Reports Failure
+
+### Summary
+
+- Two new sensors forecast your end-of-month data usage per WAN, from data already being collected.
+- Setting the WAN load-balance weight is now reliable — it no longer risks reverting other controller settings, and the two weights can no longer be left disagreeing.
+- Less database growth: several attributes were being written to the recorder on every poll and no longer are.
+- Refresh Now now reports failure instead of quietly doing nothing.
+
+### ⚠️ Action Required
+
+- **If you have automations that press Refresh Now, check them.** The button now raises an error when the controller cannot be reached, and in Home Assistant an action that raises **stops the rest of the automation**. An automation that refreshes and then notifies you could stop before the notification — which matters most during an outage, when the controller is exactly what is unreachable.
+
+  Add `continue_on_error: true` to the button press where the later steps matter more:
+
+  ```yaml
+  - action: button.press
+    target:
+      entity_id: button.unifi_network_system_refresh_now
+    continue_on_error: true
+  ```
+
+  The example automations in the README have been updated. The WAN Speedtest buttons already behaved this way, so the same guidance applies to them.
+
+### Added
+
+- **Projected monthly usage**: two sensors forecast end-of-calendar-month data usage for each WAN, blending the current run rate with the previous cycle so early-month figures are not wild. `WAN1/WAN2 Projected Usage`, derived from counters already polled — no extra requests to your gateway. They carry no `state_class`, so a forecast never reaches long-term statistics; confidence is published as the `confidence`, `basis`, `cycle_day` and `cycle_start` attributes.
+
+### Fixed
+
+- **WAN load-balance weight**: setting the weight could write back a stale copy of your network configuration, undoing other changes made on the controller since the integration last polled. It now re-reads the configuration immediately before writing.
+
+- **WAN load-balance weight consistency**: rapid changes could previously leave WAN1 and WAN2 not summing to 100 without anything reporting it. The pair is now written as one uninterruptible operation and confirmed afterwards, and a pending change is applied rather than discarded if the entity is removed mid-write.
+
+- **Database growth**: `strongest_rogue_rssi`, the proximity threshold, `application_version`, `application_build` and `device_type` were written to the recorder on every poll. They are now excluded, as originally intended.
+
+- **Refresh Now**: the button reported success even when the controller could not be reached. It now raises, so a script can tell the refresh did not happen. See **Action Required** above.
+
+- **Stated Home Assistant minimum version**: the README and `hacs.json` advertised 2024.8.0 while the integration actually requires **2024.11.0**. Corrected, so an incompatible install is caught before setup rather than during it.
+
+### Changed
+
+- **Repair issues are now scoped to the config entry**, so with two gateways one entry's repair notice can no longer overwrite the other's. Visible text is unchanged.
+
+- **Reauthentication screen** now explains what leaving a credential field blank does, instead of leaving it to be guessed.
+
+---
+
 ## [1.0.0] - 2026-07-22 - Initial Public Release
 
 ### Summary
@@ -44,6 +92,7 @@ Entry structure — headers, titles, category headings and the split between thi
 ---
 
 - [Changelog](#changelog)
+  - [\[1.1.0\] - 2026-08-08 - Projected Usage; WAN Weight Write Hardened; Refresh Now Reports Failure](#110---2026-08-08---projected-usage-wan-weight-write-hardened-refresh-now-reports-failure)
   - [\[1.0.0\] - 2026-07-22 - Initial Public Release](#100---2026-07-22---initial-public-release)
 
 ---

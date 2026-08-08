@@ -483,7 +483,7 @@ Several settings are exposed as control entities so you can drive them from dash
 - **Clean Up Unused Entities** (`button`, System) - remove orphaned entities (see [Actions](#-actions-services)).
 - **Pause Polling** (`switch`, System) - halt scheduled polling temporarily. Manual actions (below) still fetch while paused. See the [Auto-Resume Polling](#-auto-resume-polling) example.
 - **Polling Interval** (`number`, System) - scan interval in seconds (default `180` seconds, range `10` to `3600`). The [Guest Network in Use](#-guest-network-in-use) example reads it to size its own `for:` duration.
-- **Refresh Now** (`button`, System) - immediate data fetch (works even while Pause Polling is on). Used by the [WAN Failover / Restore](#-wan-failover--restore-dual-wan) and [Internet / WAN Down Alert](#-internet--wan-down-alert) examples to confirm a state change.
+- **Refresh Now** (`button`, System) - immediate data fetch (works even while Pause Polling is on). **Reports failure to the caller**: if the controller cannot be reached, the button raises rather than returning quietly, so a script can tell the refresh did not happen. In an automation that should carry on regardless, add `continue_on_error: true` - see [Automation Notes](#-automation-notes-buttons-that-can-fail). Used by the [WAN Failover / Restore](#-wan-failover--restore-dual-wan) and [Internet / WAN Down Alert](#-internet--wan-down-alert) examples to confirm a state change.
 - **WAN1 Load Balance Weight** (`number`, System) - WAN1 share of a weighted dual-WAN setup; WAN2 gets set to `100 − WAN1`. See the [Optimize WAN Weight on High Latency](#-optimize-wan-weight-on-high-latency) example.
 
 ### 🔏 Security
@@ -729,6 +729,28 @@ target:
 ---
 
 </details>
+
+### 🧯 Automation Notes: Buttons That Can Fail
+
+Two of this integration's buttons **raise an error when the underlying request fails**, rather than reporting success and doing nothing:
+
+- **Refresh Now** - raises when the controller cannot be reached.
+- **WAN1 / WAN2 Speedtest** - raises when the gateway rejects or cannot start the test.
+
+That is deliberate: a script told an action succeeded when it silently did nothing is worse than one told it failed. But it has a consequence worth knowing, because **an action that raises stops the rest of the automation.**
+
+It matters most in exactly the automations below that press a button _first_ and notify _afterwards_. During a WAN outage the controller may itself be unreachable - so without a guard, the refresh raises, the automation aborts, and **the alert you actually wanted is never sent**.
+
+The examples therefore carry `continue_on_error: true` on every button press:
+
+```yaml
+- action: button.press
+  target:
+    entity_id: button.unifi_network_system_refresh_now
+  continue_on_error: true
+```
+
+Use it whenever the press is an optimization - "get fresher data if you can" - and the following steps matter more than the press. **Leave it off** when the press is the point of the automation and a silent failure would mislead you, such as a scheduled speedtest whose whole purpose is to produce a result.
 
 ### 🔒 Security Related Automations
 
@@ -1102,6 +1124,7 @@ actions:
   - action: button.press
     target:
       entity_id: button.unifi_network_system_refresh_now
+    continue_on_error: true
     note: |
       Forces the integration to perform an immediate API poll of the controller.
   - delay: "00:00:20"
@@ -1158,6 +1181,7 @@ actions:
   - action: button.press
     target:
       entity_id: button.unifi_network_system_refresh_now
+    continue_on_error: true
     note: |
       Forces the integration to perform an immediate API poll of the controller.
   - delay: "00:00:20"
@@ -1309,6 +1333,7 @@ actions:
   - action: button.press
     target:
       entity_id: button.unifi_network_speedtest_wan1_run
+    continue_on_error: true
     note: |
       Presses the WAN1 speedtest button, triggering a gateway speedtest on the primary interface.
   - delay: "00:01:00"
@@ -1317,6 +1342,7 @@ actions:
   - action: button.press
     target:
       entity_id: button.unifi_network_speedtest_wan2_run
+    continue_on_error: true
     note: |
       Presses the WAN2 speedtest button. Remove this step (and the delay above) if you only have a single WAN.
 ```
@@ -1360,6 +1386,7 @@ actions:
   - action: button.press
     target:
       entity_id: button.unifi_network_speedtest_wan1_run
+    continue_on_error: true
     note: Trigger a new verification speedtest on WAN1.
   - wait_for_trigger:
       - trigger: state
@@ -1431,6 +1458,7 @@ actions:
     target:
       entity_id: |
         {{ 'button.unifi_network_speedtest_wan1_run' if trigger.id == 'wan1' else 'button.unifi_network_speedtest_wan2_run' }}
+    continue_on_error: true
     note: |
       Presses the Speedtest run button for whichever WAN interface is experiencing
       high latency.
@@ -1767,6 +1795,7 @@ A custom `DataUpdateCoordinator` fetches everything per cycle and applies two re
 
 - **Both Available**: The integration provides dynamic polling controls, to pause polling or change polling interval. It also functions normally with the standard Home Assistant **System options** > **Enable polling for changes** toggle.
 - **Force-refresh on user actions**: any explicit action - Refresh Now, a speedtest run, or changing a control (interval, weight, threshold, rogue period/filters) - triggers an immediate fetch **even while Pause Polling is on**. Only _scheduled_ polling is paused.
+- **A forced refresh reports whether it worked.** Refresh Now raises if the controller is unreachable, so an automation is not told a refresh succeeded when it did not. The pause bypass is **one-shot and spent on the attempt**: a forced refresh that fails does not keep bypassing the pause on later polls, which would otherwise turn a paused integration into a polling one for as long as the gateway stayed down.
 
 ### 🆔 Flat Identity & Stable Entities
 
