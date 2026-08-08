@@ -792,3 +792,64 @@ async def test_every_optional_fetch_returns_a_list_whatever_the_api_returns(
     )
     assert isinstance(held, list)
     assert held == [{"a": 1}]
+
+
+# ---------------------------------------------------------------------------
+# The device-parse guard claims five exception types — prove all five
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "raised",
+    [AttributeError, KeyError, TypeError, ValueError, IndexError],
+)
+async def test_every_claimed_parse_error_skips_one_device_and_spares_the_rest(
+    hass: Any, mock_config_entry: Any, raised: type[Exception]
+) -> None:
+    """Each of the five caught types must skip its device, not fail the update.
+
+    Covers finding ERR.1 from recommendations_20260808.md. Eight identical
+    ``except (AttributeError, KeyError, TypeError, ValueError, IndexError)``
+    handlers guard the parse blocks in ``_async_update_data``, and the suite
+    raised exactly one of the five — ``ValueError`` — so narrowing any tuple to
+    ``except ValueError:`` would have passed every test. Branch coverage cannot
+    see it either: it records that the handler was entered, not which types can
+    enter it.
+
+    The stake is the blast radius. These guards exist so a device UniFi sends in
+    an unexpected shape is skipped with a warning; lose one and the exception
+    leaves ``_async_update_data`` entirely, failing the whole update and taking
+    every entity in the integration unavailable over a single bad record.
+
+    Both halves of that contract are asserted: the failing AP is gone **and**
+    the gateway still parsed, which is what distinguishes containment from
+    swallowing the update whole.
+    """
+    from unittest.mock import patch
+
+    ap_mac = "ee:ff:00:11:22:33"
+    mock_config_entry.add_to_hass(hass)
+    api = _api(
+        get_devices=AsyncMock(
+            return_value=[
+                dict(_GATEWAY_DEVICE),
+                {
+                    "mac": ap_mac,
+                    "model": "UAP-AC-M",
+                    "state": 1,
+                    "is_access_point": True,
+                },
+            ]
+        )
+    )
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+
+    with patch(
+        "custom_components.unifi_network_monitor.coordinator._parse_ap",
+        side_effect=raised("drift"),
+    ):
+        result = await coordinator._async_update_data()
+
+    assert ap_mac not in result["devices"]
+    assert result["gateway"] is not None
+    assert result["gateway"]["mac"] == MOCK_MAC

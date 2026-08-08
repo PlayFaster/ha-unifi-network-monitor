@@ -129,7 +129,13 @@ def test_alert_title_empty() -> None:
 
 
 def test_alert_title_with_params() -> None:
-    """Title with substituted params is truncated correctly."""
+    """A long title with params is truncated; substitution is checked separately.
+
+    The substitution assertions that this test's name implied now live in
+    ``test_alert_title_substitutes_a_parameter``. They could never have worked
+    here: the title is deliberately long enough to truncate, so the substituted
+    text is cut off before the assertions can see it.
+    """
     event = {
         "title_raw": "Alert on {device}" + "X" * 260,
         "parameters": {"device": {"name": "UDM-Pro"}},
@@ -137,6 +143,79 @@ def test_alert_title_with_params() -> None:
     result = alert_title(event)
     assert len(result) == 255
     assert result.endswith("…")
+
+
+def test_alert_title_substitutes_a_parameter() -> None:
+    """The title actually has its placeholder replaced.
+
+    Covers finding ASSERT.1 from recommendations_20260808.md. The title is kept
+    short on purpose - the previous test used a 277-character title, so the
+    substituted value was truncated away and asserting on the length proved
+    nothing about substitution. Six surviving mutants dropped the parameters
+    dict in one way or another and every one passed the old assertions.
+    """
+    event = {
+        "title_raw": "Alert on {device}",
+        "parameters": {"device": {"name": "UDM-Pro"}},
+    }
+
+    assert alert_title(event) == "Alert on UDM-Pro"
+
+
+def test_alert_title_falls_back_to_the_parameter_id() -> None:
+    """A parameter carrying only an ``id`` substitutes the id.
+
+    Covers finding ASSERT.1 from recommendations_20260808.md - the documented
+    name-then-id fallback, exercised through ``alert_title`` rather than only
+    through ``format_message``.
+    """
+    event = {
+        "title_raw": "Alert on {device}",
+        "parameters": {"device": {"id": "abc123"}},
+    }
+
+    assert alert_title(event) == "Alert on abc123"
+
+
+def test_alert_title_leaves_an_unmatched_placeholder_alone() -> None:
+    """With no parameters the placeholder survives verbatim.
+
+    Covers finding ASSERT.1 from recommendations_20260808.md. This is the
+    documented behaviour of ``format_message``, and it is what distinguishes a
+    dropped parameters dict from a correctly substituted one.
+    """
+    event: dict[str, object] = {"title_raw": "Alert on {device}", "parameters": {}}
+
+    assert alert_title(event) == "Alert on {device}"
+
+
+def test_alert_title_of_exactly_the_maximum_length_is_not_truncated() -> None:
+    """A title at exactly ALERT_TITLE_MAX is returned whole.
+
+    Covers finding BVA.1 from recommendations_20260808.md. The guard is
+    ``len(title) > ALERT_TITLE_MAX``; relaxing it to ``>=`` survived mutation
+    because the only tests used 9 and 260 characters. Asserting the *length*
+    cannot catch it either - under the mutant a 255-character title becomes
+    254 characters plus an ellipsis, which is still 255 long. Only equality
+    with the input distinguishes the two.
+    """
+    title = "A" * 255
+    result = alert_title({"title_raw": title, "parameters": {}})
+
+    assert result == title
+    assert not result.endswith("…")
+
+
+def test_alert_title_one_over_the_maximum_is_truncated_at_the_boundary() -> None:
+    """A title one character too long loses exactly one character to the ellipsis.
+
+    Covers finding BVA.1 from recommendations_20260808.md - the other side of
+    the boundary, pinning where the cut falls rather than only that one happened.
+    """
+    result = alert_title({"title_raw": "A" * 256, "parameters": {}})
+
+    assert len(result) == 255
+    assert result == "A" * 254 + "…"
 
 
 # ---------------------------------------------------------------------------

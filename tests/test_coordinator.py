@@ -3219,6 +3219,48 @@ async def test_rogue_new_24h_counts_recent(hass: Any, mock_config_entry: Any) ->
     assert coord.rogue_new_24h(now) == 1
 
 
+async def test_rogue_new_24h_at_the_exact_cutoff(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """The 24-hour window is exclusive at its edge, to the microsecond.
+
+    Covers finding BVA.2 from recommendations_20260808.md. The comparison is
+    ``first > cutoff``, and the existing test used 2 hours and 3 days — one
+    comfortably inside the window and one comfortably outside — so nothing
+    distinguished ``>`` from ``>=``, and nothing would have noticed
+    ``hours=24`` becoming 23 or 25.
+
+    ``coordinator.py`` is excluded from the mutation module list because its
+    tests mock the API, so no mutation run can surface this; it has to come
+    from a review pass.
+
+    ``now`` is fixed rather than re-read so the window cannot shift between
+    building the records and asserting on them.
+    """
+    coord = _history_coordinator(hass, mock_config_entry)
+    now = dt_util.now()
+    cutoff = now - timedelta(hours=24)
+    coord.rogue_history = {
+        "just_inside": {
+            "first_seen": (cutoff + timedelta(microseconds=1)).isoformat(),
+            "last_seen": now.isoformat(),
+            "appearances": 1,
+        },
+        "exactly_on_it": {
+            "first_seen": cutoff.isoformat(),
+            "last_seen": now.isoformat(),
+            "appearances": 1,
+        },
+        "just_outside": {
+            "first_seen": (cutoff - timedelta(microseconds=1)).isoformat(),
+            "last_seen": now.isoformat(),
+            "appearances": 1,
+        },
+    }
+
+    assert coord.rogue_new_24h(now) == 1
+
+
 async def test_rogue_history_annotate(hass: Any, mock_config_entry: Any) -> None:
     """_annotate_rogue_history merges first_seen/appearances onto items."""
     coord = _history_coordinator(hass, mock_config_entry)

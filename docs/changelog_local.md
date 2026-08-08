@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: UniFi Network Monitor](#internal-detailed-changelog-unifi-network-monitor)
+  - [\[1.0.1-dev20\] - 2026-08-08 - Deeper Testing: Boundaries Approached from Both Sides](#101-dev20---2026-08-08---deeper-testing-boundaries-approached-from-both-sides)
   - [\[1.0.1-dev19\] - 2026-08-08 - Mutation Testing: The Diagnostics Scrubber Was Only Ever Tested for Absence](#101-dev19---2026-08-08---mutation-testing-the-diagnostics-scrubber-was-only-ever-tested-for-absence)
   - [\[1.0.1-dev18\] - 2026-08-08 - Zero Partial Branches: Five Unreachable Guards Removed](#101-dev18---2026-08-08---zero-partial-branches-five-unreachable-guards-removed)
   - [\[1.0.1-dev17\] - 2026-08-08 - `about` Notes: Internet Group from 3 to 18](#101-dev17---2026-08-08---about-notes-internet-group-from-3-to-18)
@@ -27,6 +28,34 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-07-22 - Initial Public Release](#100---2026-07-22---initial-public-release)
 
 ---
+
+## [1.0.1-dev20] - 2026-08-08 - Deeper Testing: Boundaries Approached from Both Sides
+
+Phase 6 of the August 2026 plan — `testing_deeper_lev1_review` then `lev1_implement`. Run after mutation, as that prompt requires: both hunt boundary gaps, and mutation finds them mechanically. **Five findings, none requiring a source change** — every one was a test gap, and no source defect was found.
+
+Both mandated syntax checks are clean across all 17 source files: zero bare-tuple `except A, B:` and zero `except A or B:`.
+
+### Added
+
+- **`alert_title` boundary and substitution tests** (`tests/test_alerts.py`, 5 new).
+
+  Two findings, one function. The truncation guard `len(title) > ALERT_TITLE_MAX` was only ever tested at 9 and 260 characters — far below and far above — and **mutation had already proved the gap**: `alert_title__mutmut_17` relaxed `>` to `>=` and survived. The trap is that the obvious assertion cannot catch it either, because under the mutant a 255-character title becomes 254 characters plus an ellipsis, which is **still 255 long**. Only equality with the input distinguishes them, so that is what the new tests assert.
+
+  Separately, `test_alert_title_with_params` was named for a behaviour it never checked: it asserted length and ellipsis only, both of which hold if `{device}` is left as a literal placeholder or the parameters dict is dropped entirely. **Six of the eight surviving `alert_title` mutants were parameter-dropping variants.** The substitution assertions now live in their own tests with a title short enough that truncation cannot hide the result — the reason they could never have worked in the original.
+
+- **Five-type exception coverage for the device-parse guard** (`tests/test_coordinator_branches.py`, 1 parametrised over 5).
+
+  Eight identical `except (AttributeError, KeyError, TypeError, ValueError, IndexError)` handlers guard the parse blocks in `_async_update_data`. The suite raised exactly one of the five, so narrowing any tuple to `except ValueError:` would have passed every test. Branch coverage could not see it: it records that the handler was entered, not which types can enter it. The stake is blast radius — these guards exist so one malformed device is skipped with a warning, and losing one lets the exception escape `_async_update_data` and fail the whole update, taking every entity unavailable over a single bad record.
+
+- **The 24-hour rogue window tested at 24 hours** (`tests/test_coordinator.py`, 1 new). `rogue_new_24h` compares `first > cutoff`; the existing test used 2 hours and 3 days, so nothing distinguished `>` from `>=` or would have noticed the window width changing. Now pinned to the microsecond either side of the edge.
+
+- **The rogue-AP attribute cap, flag and ordering** (`tests/test_sensor.py`, 2 new). `rogue_aps_truncated` had **zero occurrences in the entire test suite** and `ROGUE_ATTR_MAX` zero test references, leaving the cap, the flag and the sort order all unverified. Ordering mattered most: the attribute publishes 25 of a possibly much larger set, so an inverted `signal` key would have quietly exposed the 25 **weakest** rogue APs while still being the right length and still flagging truncation correctly. Input is built weakest-first so a sort that does nothing also fails.
+
+### Notes
+
+- **Two of the five findings were in modules mutation cannot reach.** `coordinator.py` and `sensor.py` are excluded from the mutation module list because their tests mock the API and the coordinator, so no mutation run will ever surface a gap in them. That is the argument for running both passes rather than treating mutation as sufficient.
+- **No mutation re-run was made for this entry.** `cache_invalidation_files = tests/*.py` means these test additions discard all 1045 verdicts, so confirming the two mutation-visible kills costs a full run. Recorded as owed rather than performed — see the recommendations file's Implementation Notes for the expected delta.
+- Analysis report: `.notes/issues/testing_deeper/recommendations_20260808.md`.
 
 ## [1.0.1-dev19] - 2026-08-08 - Mutation Testing: The Diagnostics Scrubber Was Only Ever Tested for Absence
 

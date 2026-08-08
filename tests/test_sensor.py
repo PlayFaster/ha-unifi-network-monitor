@@ -502,6 +502,71 @@ def test_gateway_sensor_extra_state_attributes_strongest_rogue_ssid() -> None:
     assert attrs["rogue_aps"][1]["signal"] == -89
 
 
+def _rogue_data(count: int, *, with_unsignalled: bool = False) -> dict[str, Any]:
+    """Build gateway data carrying ``count`` rogue APs, weakest listed first."""
+    rogues: list[dict[str, Any]] = [
+        {"essid": f"Rogue-{i:02d}", "signal": -(50 + i), "detected_by": ""}
+        for i in reversed(range(count))
+    ]
+    if with_unsignalled:
+        rogues.insert(0, {"essid": "Rogue-NoSignal", "detected_by": ""})
+    return {"gateway": {"rogue_aps_list": rogues}}
+
+
+def test_rogue_ap_attribute_is_capped_sorted_and_flagged() -> None:
+    """Over the cap: 25 strongest, strongest first, truncation flagged.
+
+    Covers finding RETVAL.1 from recommendations_20260808.md. ``rogue_aps_truncated``
+    had zero occurrences in the whole test suite and ``ROGUE_ATTR_MAX`` zero test
+    references, leaving three behaviours unverified at once: the cap, the flag,
+    and the ordering.
+
+    Ordering is the one that matters most. The list is 25 of a possibly much
+    larger set, so if the ``signal`` sort key inverted, the attribute would
+    quietly publish the 25 **weakest** rogue APs while still being the right
+    length and still flagging truncation correctly. The input is built
+    weakest-first so a sort that does nothing at all fails too.
+
+    The record with no ``signal`` pins the ``-9999`` default: it must sort last
+    and therefore fall outside the cap.
+    """
+    coordinator = _make_coordinator(_rogue_data(26, with_unsignalled=True))
+    entry = _make_entry()
+    desc = next(d for d in GATEWAY_SENSORS if d.key == "strongest_rogue_ssid")
+    sensor = UnifiGatewaySensor(coordinator, entry, desc, "strongest_rogue_ssid")
+
+    attrs = sensor.extra_state_attributes
+    assert attrs is not None
+    rogues = attrs["rogue_aps"]
+
+    assert len(rogues) == 25
+    assert attrs["rogue_aps_truncated"] is True
+    assert rogues[0]["essid"] == "Rogue-00"
+    assert [r["signal"] for r in rogues] == sorted(
+        (r["signal"] for r in rogues), reverse=True
+    )
+    assert "Rogue-NoSignal" not in {r["essid"] for r in rogues}
+
+
+def test_rogue_ap_attribute_at_exactly_the_cap_is_not_flagged() -> None:
+    """Exactly at the cap: every AP is kept and truncation reads False.
+
+    Covers finding RETVAL.1 from recommendations_20260808.md — the boundary
+    beside the flag, since ``len(rogues) > ROGUE_ATTR_MAX`` is the condition and
+    only the far-over case was reachable before.
+    """
+    coordinator = _make_coordinator(_rogue_data(25))
+    entry = _make_entry()
+    desc = next(d for d in GATEWAY_SENSORS if d.key == "strongest_rogue_ssid")
+    sensor = UnifiGatewaySensor(coordinator, entry, desc, "strongest_rogue_ssid")
+
+    attrs = sensor.extra_state_attributes
+    assert attrs is not None
+
+    assert len(attrs["rogue_aps"]) == 25
+    assert attrs["rogue_aps_truncated"] is False
+
+
 def test_gateway_sensor_rogue_ap_count_has_no_attributes() -> None:
     """The rogue count sensor no longer exposes the rogue AP list (moved to SSID)."""
     coordinator = _make_coordinator(MOCK_COORDINATOR_DATA)
