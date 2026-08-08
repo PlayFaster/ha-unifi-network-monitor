@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: UniFi Network Monitor](#internal-detailed-changelog-unifi-network-monitor)
+  - [\[1.0.1-dev14\] - 2026-08-08 - Branch Coverage: Fifteen of Seventeen Modules at 100%](#101-dev14---2026-08-08---branch-coverage-fifteen-of-seventeen-modules-at-100)
   - [\[1.0.1-dev13\] - 2026-08-08 - Standards Sweeps; Translation Reconciliation; Zero-Assertion Tests Fixed](#101-dev13---2026-08-08---standards-sweeps-translation-reconciliation-zero-assertion-tests-fixed)
   - [\[1.0.1-dev12\] - 2026-08-08 - WAN Write Path Hardened; Repairs Scoped; Projected Usage](#101-dev12---2026-08-08---wan-write-path-hardened-repairs-scoped-projected-usage)
   - [\[1.0.1-dev11\] - 2026-08-08 - Green Suite: Device-Registry Test Shape; Ruff Clean](#101-dev11---2026-08-08---green-suite-device-registry-test-shape-ruff-clean)
@@ -20,6 +21,26 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-07-22 - Initial Public Release](#100---2026-07-22---initial-public-release)
 
 ---
+
+## [1.0.1-dev14] - 2026-08-08 - Branch Coverage: Fifteen of Seventeen Modules at 100%
+
+Phase 2 of the August 2026 update plan, continued. No production behaviour changes — this is the untaken half of every defensive branch outside the coordinator.
+
+### Added
+
+- **`tests/test_diagnostics_branches.py`** (34 tests) takes `diagnostics.py` from 20 partial branches to **zero**. It was done first on the plan's instruction, and not because it had the most: it is the module whose failure mode is silent, and the one that held `diagnostics: done` across two IQS scans while leaking device MACs, user-assigned names, internal IPs, the subscriber's ISP and third-party SSIDs. Covers the scrubber's empty- and short-identifier guards, every "wrong type where a dict was expected" path, and the backstop that scrubs alert parameter types UniFi has not published yet.
+- **`tests/test_platform_branches.py`** clears the remaining partials in `binary_sensor`, `button`, `select`, `switch` and `services`, plus two more in `cleanup`. Both the static setup pass and the dynamic-discovery pass are covered for devices and VPN tunnels.
+
+### Fixed
+
+- **Three diagnostics tests were passing vacuously.** They asserted against the key `rogue_aps` where the module uses `rogue_aps_list`, so they checked that an untouched key was untouched — and passed. Branch coverage is what surfaced it: the partial refused to close. Line coverage could not have shown this.
+
+### Verified
+
+- `pytest tests/` — **768 passed**, 0 failed. **100% line** (2944 statements, 0 missing), **99% branch**.
+- **Partial branches 59 → 27**, with 15 of 17 modules at 100% branch. The remaining 26 are all in `coordinator.py` and one in `__init__.py`.
+- **Not one branch turned out to be dead code** — 33 of 33 this pass, after 12-of-12 and 11-of-11 on the sibling projects.
+- Assertion audit **PASSED** (0 of 735); `ruff check`, `ruff format --check` and `mypy --strict` clean.
 
 ## [1.0.1-dev13] - 2026-08-08 - Standards Sweeps; Translation Reconciliation; Zero-Assertion Tests Fixed
 
