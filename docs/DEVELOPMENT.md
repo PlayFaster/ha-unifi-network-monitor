@@ -87,16 +87,16 @@ The **Network Problem** binary sensor (`health_all_ok` under the **Health** sub-
 
 Entities are grouped into **7** logical sub-devices (for the main system) and dynamic per-device sub-devices. Each sub-device's card is set by the entity's `device_key`, not by which fetch produced the data. See `docs/all_sensors.md` for the full per-entity manifest (128 base entities).
 
-| Sub-device | Source | Contains |
-| --- | --- | --- |
-| **UniFi Network Gateway** | `/stat/device` / `/stat/health` | Gateway hardware (CPU, RAM, temp, storage, uptime), backup status, SFP transceiver diagnostics, and application/firmware versions. |
-| **UniFi Network Internet** | `/stat/device` / `/stat/health` / Speedtest V2 API | Active WAN routing interface, ISP monthly/daily data usage, network uptime/drops/latency, WAN availability, and internal/external IPs. |
-| **UniFi Network Speedtest** | Speedtest V2 API / `/stat/health` | Per-WAN speedtest results (download, upload, ping, last run, monitoring period) and the run buttons. |
-| **UniFi Network Security** | `/stat/rogueap` / `/rest/setting` / Integration endpoints | Rogue-AP detection (count, strongest SSID/RSSI, **Rogue APs All 24h**, **Rogue APs New 24h**, proximity alert), the rogue controls (period select, band-show / apply-ignore switches, proximity threshold), threat management (IPS mode, Ad-blocking, Honeypot), VPN connection counts, and firewall-rule counts. Gated by `enable_security_monitoring`. |
-| **UniFi Network Alerts** | `system-log/all` (v2) | Per-severity system-log sensors — **Last High Sev3**, **Last Very High Sev4** (title state), and **High/Very High Sev4 Qty Last 24h** (counts). Gated by `enable_logs_alerts`. |
-| **UniFi Network System** | `/stat/device` / `/stat/health` / Config options / self-diagnosis | Polling configuration (Pause Polling, interval), multi-WAN load-balance mode/weights, Last Updated, the Refresh Now / Clean Up buttons, and the **Integration Health** self-diagnosis binary sensor. |
-| **UniFi Network Status** | `/stat/health` / Integration endpoints | Live client counts (WLAN/LAN user/guest/iot), adopted device count, active/total config counts (VLANs, WiFi networks), individual WiFi & VPN tunnel binary statuses, and subsystem health indicators (All OK, WAN OK, WiFi OK, LAN OK). |
-| **Per AP / Per Switch** | `/stat/device` | Per-device CPU, RAM, uptime, client counts (AP), port counts (switch), firmware update status. |
+| Sub-device                  | Source                                                            | Contains                                                                                                                                                                                                                                                                                                                                                 |
+| --------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **UniFi Network Gateway**   | `/stat/device` / `/stat/health`                                   | Gateway hardware (CPU, RAM, temp, storage, uptime), backup status, SFP transceiver diagnostics, and application/firmware versions.                                                                                                                                                                                                                       |
+| **UniFi Network Internet**  | `/stat/device` / `/stat/health` / Speedtest V2 API                | Active WAN routing interface, ISP monthly/daily data usage, network uptime/drops/latency, WAN availability, and internal/external IPs.                                                                                                                                                                                                                   |
+| **UniFi Network Speedtest** | Speedtest V2 API / `/stat/health`                                 | Per-WAN speedtest results (download, upload, ping, last run, monitoring period) and the run buttons.                                                                                                                                                                                                                                                     |
+| **UniFi Network Security**  | `/stat/rogueap` / `/rest/setting` / Integration endpoints         | Rogue-AP detection (count, strongest SSID/RSSI, **Rogue APs All 24h**, **Rogue APs New 24h**, proximity alert), the rogue controls (period select, band-show / apply-ignore switches, proximity threshold), threat management (IPS mode, Ad-blocking, Honeypot), VPN connection counts, and firewall-rule counts. Gated by `enable_security_monitoring`. |
+| **UniFi Network Alerts**    | `system-log/all` (v2)                                             | Per-severity system-log sensors — **Last High Sev3**, **Last Very High Sev4** (title state), and **High/Very High Sev4 Qty Last 24h** (counts). Gated by `enable_logs_alerts`.                                                                                                                                                                           |
+| **UniFi Network System**    | `/stat/device` / `/stat/health` / Config options / self-diagnosis | Polling configuration (Pause Polling, interval), multi-WAN load-balance mode/weights, Last Updated, the Refresh Now / Clean Up buttons, and the **Integration Health** self-diagnosis binary sensor.                                                                                                                                                     |
+| **UniFi Network Status**    | `/stat/health` / Integration endpoints                            | Live client counts (WLAN/LAN user/guest/iot), adopted device count, active/total config counts (VLANs, WiFi networks), individual WiFi & VPN tunnel binary statuses, and subsystem health indicators (All OK, WAN OK, WiFi OK, LAN OK).                                                                                                                  |
+| **Per AP / Per Switch**     | `/stat/device`                                                    | Per-device CPU, RAM, uptime, client counts (AP), port counts (switch), firmware update status.                                                                                                                                                                                                                                                           |
 
 > **Note:** Rogue/threat/VPN/firewall entities moved to the new **Security** sub-device (out of Status/System), and the **Alerts** sub-device was added, in the 2026-07 alerts + rogue-action work. `helpers.build_sub_device_info` maps `device_key` → card name for all seven.
 
@@ -117,6 +117,20 @@ Tokens are stable across sections, so an alert about `device-4` still resolves a
 Design constraints: matching is **structural only** (shape and position), so no real identifier is ever hard-coded; the coordinator payload is `deepcopy`'d because diagnostics is a read path; and `strongest_rogue_ssid` is resolved through the learned-literal pass rather than a sentinel check, so a real SSID becomes its token while `"None Detected"` passes through untouched.
 
 Rogue-AP records get particular attention: they describe **other people's** networks. `essid` is tokenized, `bssid` redacted, `detected_by` (a comma-joined list of this user's own AP names) run through the text scrubber. `oui` is deliberately **kept** — vendor alone identifies nobody and is genuinely useful when diagnosing detection behavior.
+
+### `PARALLEL_UPDATES = 0` on all six platforms — decided per write path
+
+All six platforms set `PARALLEL_UPDATES = 0`. That is **not** an appeal to the house rule about read-only entities; it was decided by tracing each of the two write paths this integration actually has, because the rule alone would not have found the defect the exercise turned up.
+
+**The write surface is two API methods reached from two entities**, not the five platforms earlier notes assumed: `api.trigger_speedtest` (from `UnifiSpeedtestButton`) and `api.update_networkconf` (from `WanLoadBalanceNumber`). `switch.py`, `select.py` and `services.py` write only to `ConfigEntry.options` or a `Store` — HA-owned state, not the device.
+
+**Speedtest button → `POST cmd/devmgr {"cmd":"speedtest"}`.** Two concurrent presses send two commands. The gateway runs one speedtest at a time and the controller rejects or queues the second; nothing is corrupted and nothing is left half-done. `0` is safe.
+
+**Load-balance number → two sequential PUTs of the whole `networkconf` object.** This is the one place a concurrency cap could have mattered, because the invariant — WAN1 + WAN2 = 100 — is held across _two separate writes_. But `PARALLEL_UPDATES` is not what protects it and `1` would not have helped: the entity already serialises itself, cancelling its previous debounce task before starting a new one, so two rapid calls collapse rather than interleave.
+
+**That cancel was itself the defect.** Once the two-second debounce had elapsed, the task was suspended _between the two PUTs_, so `cancel()` raised there and the handler swallowed it — WAN1 written, WAN2 not, the pair no longer summing to 100, and nothing reporting it. Two slider moves about two seconds apart were enough. Fixed at `[1.0.1-dev12]` by awaiting the pair through `asyncio.shield`, so the caller can be cancelled while the write completes. A concurrency cap would never have addressed it.
+
+**Conclusion:** `0` is correct on all six — by construction for the four read-only platforms, because a duplicate speedtest command is harmless for the button, and because the number serialises itself. The hazard was real but orthogonal to the setting.
 
 ### 3-Strike Resilience
 
@@ -363,9 +377,9 @@ Both call `plan_device_cleanup`/`apply_cleanup` (`cleanup.py`): entities via `en
 
 `pyproject.toml` sets `mypy_path = "/ha_core"`, a full Home Assistant **source checkout** (strict mode needs the dev tree, not just the installed package). That checkout tracks the **`dev` branch**, so:
 
-|  | HA that mypy type-checks against |
-| :-- | :-- |
-| **Local** | `/ha_core` on `dev` — the **next** release (currently `2026.8.0.dev0`) |
+|               | HA that mypy type-checks against                                                                          |
+| :------------ | :-------------------------------------------------------------------------------------------------------- |
+| **Local**     | `/ha_core` on `dev` — the **next** release (currently `2026.8.0.dev0`)                                    |
 | **GitHub CI** | no `/ha_core` on the runner, so the **installed stable** HA (via `pytest-homeassistant-custom-component`) |
 
 **This divergence is deliberate and useful — do not "fix" it by pinning `/ha_core` to a tag.** Pinning would (a) become a bump-every-release maintenance chore, and (b) throw away the early warning. `dev` and stable are the same loop offset by roughly one release: what fails locally this week is what fails on stable next month.

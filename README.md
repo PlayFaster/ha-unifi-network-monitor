@@ -24,7 +24,7 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
 > - **If you run a UniFi Network on a UDM Gateway** and want infrastructure-level monitoring - data usage, WAN/internet quality, speedtests, and network security info - directly in Home Assistant, then **yes**.
 > - It is designed to run **alongside** the official Home Assistant UniFi Network integration. It registers its **own separate device cards** (it does not merge with Core's), and where Core already covers something, the overlapping sensors are **created but disabled by default** - so you get extra insight without redundant, duplicated entities.
 > - **This integration is for you if** you want:
->   - **Internet Data usage** - Daily and monthly download, upload and totals (per WAN if in dual WAN mode).
+>   - **Internet Data usage** - Daily and monthly download, upload and totals (per WAN if in dual WAN mode), plus a projected end-of-month figure.
 >   - **Speedtest tracking** - per-WAN download/upload/ping history, plus one-click manual runs.
 >   - **Rogue AP Info** - rogue access-point detection with a configurable proximity alert, band / ignore-list filtering, and an on-demand query action.
 >   - **Alerts** - UniFi system-log alerts (High / Very High), with an event and a query action for automations.
@@ -97,6 +97,7 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
 ### 🌐 WAN, Internet & Data Usage
 
 - **Data Usage**: Daily and monthly per-WAN download/upload/total (i.e. GB of data used). See the [Monthly Data-Usage Alert](#-monthly-data-usage-alert) example.
+- **Projected Usage**: Where this month's usage is heading, per WAN, from usage so far. Shown from the first day of the month rather than withheld until it settles — judge it by its `confidence` attribute (`low` / `medium` / `high`), which strengthens as the month progresses. It deliberately carries no `state_class`, so it stays out of long-term statistics: it is a forecast that revises itself every poll, not a measurement.
 - **Dual-WAN Status**: WAN1/WAN2 active-uplink and link-up indicators, uptime, latency, local/public IP addresses, and configured WAN interface names. See the [WAN Failover / Restore](#-wan-failover--restore-dual-wan) and [High Internet / WAN Latency](#-high-internet--wan-latency) examples.
 - **Multi-WAN Load Balancing**: Read and adjust the WAN1/WAN2 load-balance weight (always summing to 100%). See the [Optimize WAN Weight on High Latency](#-optimize-wan-weight-on-high-latency) example.
 
@@ -174,17 +175,17 @@ This integration exposes its entities across several sub-devices - **Alerts**, *
 
 Each sub-device appears as its own device card in Home Assistant, and entity IDs are prefixed accordingly (e.g. `sensor.unifi_network_gateway_last_backup`, `binary_sensor.unifi_network_status_network_problem`).
 
-| Sub-Device | Enabled / Total | With Core UniFi | Key Metrics |
-| :-- | :-: | :-: | :-- |
-| 🚨 **Alerts** | 4 / 4 | — | Last High Sev3, Last Very High Sev4, and High Sev3 / Very High Sev4 Qty Last 24h |
-| 🖥️ **Gateway** | 11 / 18 | **5 / 18** | Storage (used/total/%), UniFi OS & Network application versions, WAN1/WAN2 SFP diagnostics (**plus** disabled with core) CPU, Memory, CPU Temperature, Board Temperature, Uptime, Update Available |
-| 🌐 **Internet** | 34 / 39 | — | WAN1/WAN2 active-uplink & link-up, Local/Public IPs, WAN names, availability, latency, last-restart/uptime, ISP name/org, and daily/monthly data usage; plus Internet Connected / OK, drops, latency, online-since |
-| 🛡️ **Security** | 20 / 20 | — | Rogue AP Count, Rogue APs New 24h, Strongest Rogue SSID/RSSI, Rogue APs All 24h, Proximity Alert (+ threshold), Rogue Detection Period, Show 2.4/5 GHz + Apply-ignore switches, Threat-Management mode, Ad-blocking, Honeypot, and VPN-connection & firewall-rule counts |
-| ⚡ **Speedtest** | 14 / 14 | — | WAN1/WAN2 Download, Upload, Ping, Last Run, Monitoring Period, Last Run Status/Problem; Run WAN1/WAN2 Speedtest buttons |
-| 📊 **Status** | 12 / 23 | — | Device/guest/WiFi client counts, VLAN & WiFi-network counts, per-SSID status, and the aggregate Network Problem + per-subsystem OK sensors (WAN/Internet/WiFi/LAN) |
-| ⚙️ **System** | 10 / 10 | — | Integration Health (self-diagnosis), Multi-WAN mode, WAN1/WAN2 Load Balance, Polling Interval, Pause Polling, WAN1 Load-Balance Weight, Refresh Now, Clean Up Unused Entities, Last Updated |
-| **Base install totals** | **105 / 128** | **99 / 128** | The six differing entities are the Gateway diagnostics listed below |
-| 📶 **Per Device (AP/Switch)** | opt-in | opt-in | **11 per AP** (Satisfaction Score + 2.4/5 GHz scores, Clients, Guests, 2.4/5 GHz Clients, CPU, Memory, Uptime, Update Available) · **6 per switch** (Clients, CPU, Memory, Uptime, Model, Update Available) - created only when you choose `Add all device sensors` |
+| Sub-Device                    | Enabled / Total | With Core UniFi | Key Metrics                                                                                                                                                                                                                                                              |
+| :---------------------------- | :-------------: | :-------------: | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 🚨 **Alerts**                 |      4 / 4      |        —        | Last High Sev3, Last Very High Sev4, and High Sev3 / Very High Sev4 Qty Last 24h                                                                                                                                                                                         |
+| 🖥️ **Gateway**                |     11 / 18     |   **5 / 18**    | Storage (used/total/%), UniFi OS & Network application versions, WAN1/WAN2 SFP diagnostics (**plus** disabled with core) CPU, Memory, CPU Temperature, Board Temperature, Uptime, Update Available                                                                       |
+| 🌐 **Internet**               |     36 / 41     |        —        | WAN1/WAN2 active-uplink & link-up, Local/Public IPs, WAN names, availability, latency, last-restart/uptime, ISP name/org, daily/monthly data usage, and WAN1/WAN2 Projected Usage; plus Internet Connected / OK, drops, latency, online-since                            |
+| 🛡️ **Security**               |     20 / 20     |        —        | Rogue AP Count, Rogue APs New 24h, Strongest Rogue SSID/RSSI, Rogue APs All 24h, Proximity Alert (+ threshold), Rogue Detection Period, Show 2.4/5 GHz + Apply-ignore switches, Threat-Management mode, Ad-blocking, Honeypot, and VPN-connection & firewall-rule counts |
+| ⚡ **Speedtest**              |     14 / 14     |        —        | WAN1/WAN2 Download, Upload, Ping, Last Run, Monitoring Period, Last Run Status/Problem; Run WAN1/WAN2 Speedtest buttons                                                                                                                                                  |
+| 📊 **Status**                 |     12 / 23     |        —        | Device/guest/WiFi client counts, VLAN & WiFi-network counts, per-SSID status, and the aggregate Network Problem + per-subsystem OK sensors (WAN/Internet/WiFi/LAN)                                                                                                       |
+| ⚙️ **System**                 |     10 / 10     |        —        | Integration Health (self-diagnosis), Multi-WAN mode, WAN1/WAN2 Load Balance, Polling Interval, Pause Polling, WAN1 Load-Balance Weight, Refresh Now, Clean Up Unused Entities, Last Updated                                                                              |
+| **Base install totals**       |  **107 / 130**  |  **101 / 130**  | The six differing entities are the Gateway diagnostics listed below                                                                                                                                                                                                      |
+| 📶 **Per Device (AP/Switch)** |     opt-in      |     opt-in      | **11 per AP** (Satisfaction Score + 2.4/5 GHz scores, Clients, Guests, 2.4/5 GHz Clients, CPU, Memory, Uptime, Update Available) · **6 per switch** (Clients, CPU, Memory, Uptime, Model, Update Available) - created only when you choose `Add all device sensors`      |
 
 ---
 
@@ -210,8 +211,8 @@ Each sub-device appears as its own device card in Home Assistant, and entity IDs
 &nbsp; &nbsp; ➕ &nbsp; &nbsp; Internet Screenshots:
 </summary><br>
 
-| Internet Data Use | Internet Diagnostic Info |
-| :-: | :-: |
+|                                Internet Data Use                                 |                            Internet Diagnostic Info                            |
+| :------------------------------------------------------------------------------: | :----------------------------------------------------------------------------: |
 | ![Internet Data Use](.github/images/unifi_mon_internet_dev_data_use_sensors.png) | ![Internet Device Diagnostics](.github/images/unifi_mon_internet_dev_diag.png) |
 
 </details>
@@ -220,8 +221,8 @@ Each sub-device appears as its own device card in Home Assistant, and entity IDs
 &nbsp; &nbsp; ➕ &nbsp; &nbsp; Security Screenshots:
 </summary><br>
 
-| Security Sensors | Security Configuration | Security Diagnostic Info |
-| :-: | :-: | :-: |
+|                          Security Sensors                          |                         Security Configuration                          |                        Security Diagnostic Info                         |
+| :----------------------------------------------------------------: | :---------------------------------------------------------------------: | :---------------------------------------------------------------------: |
 | ![Security Sensors](.github/images/unifi_mon_security_sensors.png) | ![Security Configuration](.github/images/unifi_mon_security_config.png) | ![Security Diagnostic Info](.github/images/unifi_mon_security_diag.png) |
 
 </details>
@@ -230,8 +231,8 @@ Each sub-device appears as its own device card in Home Assistant, and entity IDs
 &nbsp; &nbsp; ➕ &nbsp; &nbsp; Speedtest Screenshots:
 </summary><br>
 
-| Speedtest Controls + Sensors | Speedtest Diagnostic Info |
-| :-: | :-: |
+|                          Speedtest Controls + Sensors                           |                         Speedtest Diagnostic Info                         |
+| :-----------------------------------------------------------------------------: | :-----------------------------------------------------------------------: |
 | ![Speedtest Controls + Sensors](.github/images/unifi_mon_speedtest_sensors.png) | ![Speedtest Diagnostic Info](.github/images/unifi_mon_speedtest_diag.png) |
 
 </details>
@@ -278,11 +279,11 @@ Each sub-device appears as its own device card in Home Assistant, and entity IDs
 
 Below is a quick reference showing how entities are default-enabled depending on whether you run the official Home Assistant **UniFi Network** integration alongside this one. For the entity **counts**, see the [What You Get](#-what-you-get) table above - this table covers only the default enabled/disabled behavior.
 
-| Scenario / Entity Group | Without Core UniFi (Standalone) | With Core UniFi Installed (Coexistence) | Rationale / Detail |
-| :-- | :-- | :-- | :-- |
-| **Base Install Entities** | All created; infrastructure diagnostics **enabled** | All created; six gateway diagnostics **disabled** | Standalone mode enables all infrastructure diagnostics by default. |
-| **Gateway Diagnostics** _(CPU, Memory etc.)_ | **Enabled** by default | **Disabled** by default | Avoids duplicate diagnostic telemetry since Core UniFi already monitors the gateway hardware. |
-| **Per-Device Entities** _(AP & Switch Client/CPU/Uptime)_ | **Opt-in** _(Created as **Enabled** if added)_ | **Opt-in** _(Created as **Disabled** if added)_ | These entities are not created by default. If you choose to add them, they are created as Enabled in Standalone mode, but Disabled in Coexistence mode to avoid duplicates. |
+| Scenario / Entity Group                                   | Without Core UniFi (Standalone)                     | With Core UniFi Installed (Coexistence)           | Rationale / Detail                                                                                                                                                          |
+| :-------------------------------------------------------- | :-------------------------------------------------- | :------------------------------------------------ | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Base Install Entities**                                 | All created; infrastructure diagnostics **enabled** | All created; six gateway diagnostics **disabled** | Standalone mode enables all infrastructure diagnostics by default.                                                                                                          |
+| **Gateway Diagnostics** _(CPU, Memory etc.)_              | **Enabled** by default                              | **Disabled** by default                           | Avoids duplicate diagnostic telemetry since Core UniFi already monitors the gateway hardware.                                                                               |
+| **Per-Device Entities** _(AP & Switch Client/CPU/Uptime)_ | **Opt-in** _(Created as **Enabled** if added)_      | **Opt-in** _(Created as **Disabled** if added)_   | These entities are not created by default. If you choose to add them, they are created as Enabled in Standalone mode, but Disabled in Coexistence mode to avoid duplicates. |
 
 > [!TIP]
 >
@@ -328,13 +329,13 @@ Disabled entities stay in the registry (greyed out) and can be re-enabled any ti
 
 Open **Settings → Devices & Services → UniFi Network Monitor → Configure** (⚙️ gear). Here you can enable/disable whole **feature groups**. Unlike option 2, turning a group off both **removes its sensors _and_ skips its API calls**. All default to **on**:
 
-| Feature group | What it removes |
-| :-- | :-- |
-| **Alerts monitoring** | The **Alerts** sub-device (system-log High/Very High) |
-| **Dual-WAN monitoring** | The **WAN2** + load-balance entities (turn off for single-WAN) |
-| **Security monitoring** | The **Security** sub-device (rogue APs, VPN, firewall, threat management) |
-| **Speedtest monitoring** | The **Speedtest** sub-device + run buttons |
-| **WAN data-usage statistics** | The daily/monthly data-usage sensors |
+| Feature group                 | What it removes                                                           |
+| :---------------------------- | :------------------------------------------------------------------------ |
+| **Alerts monitoring**         | The **Alerts** sub-device (system-log High/Very High)                     |
+| **Dual-WAN monitoring**       | The **WAN2** + load-balance entities (turn off for single-WAN)            |
+| **Security monitoring**       | The **Security** sub-device (rogue APs, VPN, firewall, threat management) |
+| **Speedtest monitoring**      | The **Speedtest** sub-device + run buttons                                |
+| **WAN data-usage statistics** | The daily/monthly data-usage sensors                                      |
 
 The same screen also sets the **UniFi device (AP & Switch) sensors** scope (none / satisfaction-only / all). Full detail in [Configuration](#-configuration).
 
@@ -362,12 +363,12 @@ Home Assistant records Long Term Statistics for a numeric sensor **only when it 
 
 A deliberately-curated set is **left out of LTS** (no `state_class`) - either it's redundant with a sibling that _is_ tracked, or it's a near-static/derivable value not worth a trend series. The excluded numeric sensors are:
 
-| Group | Sensors (not in LTS) | Why |
-| :-- | :-- | :-- |
-| **Raw storage bytes** | Storage Used, Storage Total | the **Storage Utilization (%)** sibling is in LTS |
-| **WAN availability & durations** | WAN1/2 Availability (%), WAN1/2 & Internet Uptime (s), WAN1/2 Time Period (s) | duration counters; a `boot_time` timestamp already marks "since when" |
-| **Redundant / total siblings** | WAN2 Load Balance (sums to 100 with WAN1), Firewall Rules Configured, WiFi Networks Total, VLANs Total/Configured, VPN Connections Total | the **changeable** sibling (Active/Disabled/WAN1) is the one tracked |
-| **Secondary client/device counts** | WiFi IoT Clients, WiFi AP count, LAN IoT Clients, LAN Switch count, Adopted Devices | the **primary** user/guest client counts are tracked |
+| Group                              | Sensors (not in LTS)                                                                                                                     | Why                                                                   |
+| :--------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------- |
+| **Raw storage bytes**              | Storage Used, Storage Total                                                                                                              | the **Storage Utilization (%)** sibling is in LTS                     |
+| **WAN availability & durations**   | WAN1/2 Availability (%), WAN1/2 & Internet Uptime (s), WAN1/2 Time Period (s)                                                            | duration counters; a `boot_time` timestamp already marks "since when" |
+| **Redundant / total siblings**     | WAN2 Load Balance (sums to 100 with WAN1), Firewall Rules Configured, WiFi Networks Total, VLANs Total/Configured, VPN Connections Total | the **changeable** sibling (Active/Disabled/WAN1) is the one tracked  |
+| **Secondary client/device counts** | WiFi IoT Clients, WiFi AP count, LAN IoT Clients, LAN Switch count, Adopted Devices                                                      | the **primary** user/guest client counts are tracked                  |
 
 (Text, IP, version, mode and timestamp sensors are never LTS candidates and aren't counted here. There are **no** excluded per-AP/switch sensors - the AP Satisfaction Scores _are_ in LTS.)
 
@@ -507,8 +508,8 @@ All of these control changes apply **immediately** - even while Pause Polling is
 &nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand Controls Screenshots:
 </summary><br>
 
-| Security Controls | System Controls |
-| :-: | :-: |
+|                         Security Controls                          |                        System Controls                         |
+| :----------------------------------------------------------------: | :------------------------------------------------------------: |
 | ![Security Controls](.github/images/unifi_mon_security_config.png) | ![System Controls](.github/images/unifi_mon_system_config.png) |
 
 ---
@@ -544,9 +545,9 @@ The integration also fires two bus **events** for automations - see [Events](#-e
 
 Removes entities the current options no longer provide - per-device sensors excluded by the device mode, and gateway sensors for any feature toggled off - and detaches any device left with no Monitor entities. The **Clean Up Unused Entities** button is the one-click equivalent (commit only); this action adds a preview via `dry_run`.
 
-| Parameter | Required | Default | Description |
-| :-- | :-- | :-- | :-- |
-| `dry_run` | No | `true` | When `true`, only reports what would be removed (nothing is changed). Set `false` to actually remove. |
+| Parameter | Required | Default | Description                                                                                           |
+| :-------- | :------- | :------ | :---------------------------------------------------------------------------------------------------- |
+| `dry_run` | No       | `true`  | When `true`, only reports what would be removed (nothing is changed). Set `false` to actually remove. |
 
 The action supports **Action Responses**, returning the entities/devices it removed (or would remove) - visible in **Tools → Actions**.
 
@@ -575,15 +576,15 @@ data:
 
 Returns recent UniFi **system-log alerts** on demand - the history the passive Alerts sensors can't hold. Fetches fresh data, so it works even if the Alerts group is off. Supports **Action Responses** (returns `{count, alerts: [...]}`; with `count_total: true`, also `total_matched` and `truncated`). The [Scheduled Alert Digest](#-scheduled-alert-digest) example turns this response into a daily summary.
 
-| Parameter | Required | Default | Description |
-| :-- | :-- | :-- | :-- |
-| `device_id` | No | sole entry | Which gateway to query (only needed with more than one configured - see the note below). |
-| `severity` | No | High + Very High | Any of Low / Medium / High / Very High. **YAML values:** `LOW`, `MEDIUM`, `HIGH`, `VERY_HIGH`. Low/Medium can be very high-volume. |
-| `quantity` | No | `10` | Max alerts to return (1–100). |
-| `age_days` | No | - | Only alerts newer than this many days. |
-| `keyword` | No | - | Comma-separated terms; keep any alert whose title/message contains **at least one** (case-insensitive substring, include). |
-| `exclude` | No | - | Comma-separated terms; drop any alert whose title/message contains one of them. Applied **after** `keyword`. |
-| `count_total` | No | `false` | Also return `total_matched` (how many matched, scanning past `quantity` up to the 500-record cap) and `truncated: true` if that cap was hit before the log/age was exhausted. Off by default to keep the query light. |
+| Parameter     | Required | Default          | Description                                                                                                                                                                                                           |
+| :------------ | :------- | :--------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `device_id`   | No       | sole entry       | Which gateway to query (only needed with more than one configured - see the note below).                                                                                                                              |
+| `severity`    | No       | High + Very High | Any of Low / Medium / High / Very High. **YAML values:** `LOW`, `MEDIUM`, `HIGH`, `VERY_HIGH`. Low/Medium can be very high-volume.                                                                                    |
+| `quantity`    | No       | `10`             | Max alerts to return (1–100).                                                                                                                                                                                         |
+| `age_days`    | No       | -                | Only alerts newer than this many days.                                                                                                                                                                                |
+| `keyword`     | No       | -                | Comma-separated terms; keep any alert whose title/message contains **at least one** (case-insensitive substring, include).                                                                                            |
+| `exclude`     | No       | -                | Comma-separated terms; drop any alert whose title/message contains one of them. Applied **after** `keyword`.                                                                                                          |
+| `count_total` | No       | `false`          | Also return `total_matched` (how many matched, scanning past `quantity` up to the 500-record cap) and `truncated: true` if that cap was hit before the log/age was exhausted. Off by default to keep the query light. |
 
 ```yaml
 action: unifi_network_monitor.get_alerts
@@ -603,15 +604,15 @@ response_variable: alerts
 
 Returns the current **rogue-AP set** on demand (fresh fetch, works even if Security monitoring is off). Applies only the filters you pass - not the sensor's ignore lists - so you can surface an AP you've hidden from the passive view. Supports **Action Responses** (returns `{count, total_matched, rogue_aps: [...]}`). Worked examples: [Daily Rogue AP Digest](#-daily-rogue-ap-digest) (scheduled summary) and [New / Reset Smart-Home Device Nearby](#-new--reset-smart-home-device-nearby) (keyword-filtered).
 
-| Parameter | Required | Default | Description |
-| :-- | :-- | :-- | :-- |
-| `device_id` | No | sole entry | Which gateway to query (see the note below). |
-| `period` | No | `24h` | How far back to look. **YAML values:** `30m`, `1h`, `6h`, `24h`, `7d`, `30d`, `90d`, `all`. |
-| `band` | No | `both` | Which band(s). **YAML values:** `2.4`, `5`, `both`. |
-| `min_signal` | No | - | Only APs at or above this signal (dBm, e.g. `-70`). |
-| `quantity` | No | `10` | Max rogue APs to return, strongest first (1–100). |
-| `keyword` | No | - | Comma-separated terms; keep any rogue AP whose SSID, vendor (OUI), or security contains **at least one** (case-insensitive substring, include). |
-| `exclude` | No | - | Comma-separated terms; drop any rogue AP whose SSID, OUI, or security contains one of them. Applied **after** `keyword`. |
+| Parameter    | Required | Default    | Description                                                                                                                                     |
+| :----------- | :------- | :--------- | :---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `device_id`  | No       | sole entry | Which gateway to query (see the note below).                                                                                                    |
+| `period`     | No       | `24h`      | How far back to look. **YAML values:** `30m`, `1h`, `6h`, `24h`, `7d`, `30d`, `90d`, `all`.                                                     |
+| `band`       | No       | `both`     | Which band(s). **YAML values:** `2.4`, `5`, `both`.                                                                                             |
+| `min_signal` | No       | -          | Only APs at or above this signal (dBm, e.g. `-70`).                                                                                             |
+| `quantity`   | No       | `10`       | Max rogue APs to return, strongest first (1–100).                                                                                               |
+| `keyword`    | No       | -          | Comma-separated terms; keep any rogue AP whose SSID, vendor (OUI), or security contains **at least one** (case-insensitive substring, include). |
+| `exclude`    | No       | -          | Comma-separated terms; drop any rogue AP whose SSID, OUI, or security contains one of them. Applied **after** `keyword`.                        |
 
 > **`total_matched`** is always returned here - it's the full count of APs matching your filters, while `count`/`rogue_aps` are capped at `quantity`. Trigger on `rogues.total_matched > N` to count without pulling the whole list.
 
@@ -649,11 +650,11 @@ Erases the persistent rogue-AP appearance history (`first_seen` / `appearances`)
 
 Manage the two rogue **ignore lists** from automations - **Ignore Rogue SSIDs** and **Ignore detecting APs** - which otherwise are only editable via **Configure**. Pick the list with `target: ssids | aps`.
 
-| Action | Params | Returns |
-| :-- | :-- | :-- |
-| `add_rogue_ignore` | `target`, `value` (pattern; wildcards OK, e.g. `Hidden-*`) | `{target, entries}` (resulting list) |
-| `remove_rogue_ignore` | `target`, `value` (exact match; silent if absent) | `{target, entries}` |
-| `set_rogue_ignore` | `target`, `values` (comma-separated; blank clears) | `{target, old, new}` (previous + applied, for undo) |
+| Action                | Params                                                     | Returns                                             |
+| :-------------------- | :--------------------------------------------------------- | :-------------------------------------------------- |
+| `add_rogue_ignore`    | `target`, `value` (pattern; wildcards OK, e.g. `Hidden-*`) | `{target, entries}` (resulting list)                |
+| `remove_rogue_ignore` | `target`, `value` (exact match; silent if absent)          | `{target, entries}`                                 |
+| `set_rogue_ignore`    | `target`, `values` (comma-separated; blank clears)         | `{target, old, new}` (previous + applied, for undo) |
 
 ```yaml
 # Whitelist a guest SSID pattern when the guest switch turns on
@@ -681,10 +682,10 @@ data:
 
 Alongside the actions, the integration fires two bus events you can use as automation triggers. Both fire **once** per newly-seen item, record the existing backlog silently on startup or re-enable (no replay), and only fire while their owning sensor group is enabled.
 
-| Event type | Fires when | `trigger.event.data` fields |
-| :-- | :-- | :-- |
-| `unifi_network_monitor_new_alert` | A previously-unseen **High / Very High** system-log alert appears (requires **Alerts monitoring** on) | `title`, `message`, `severity` (`HIGH` / `VERY_HIGH`), `category`, `event`, `id`, `timestamp`, `status` |
-| `unifi_network_monitor_new_rogue_ap` | A rogue **BSSID** is seen for the first time (requires **Security monitoring** on) | `essid`, `bssid`, `band`, `channel`, `signal`, `security`, `oui`, `wired_rogue`, `is_adhoc`, `ssid_anomaly`, `first_seen`, `appearances`, `detected_by` |
+| Event type                           | Fires when                                                                                            | `trigger.event.data` fields                                                                                                                             |
+| :----------------------------------- | :---------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `unifi_network_monitor_new_alert`    | A previously-unseen **High / Very High** system-log alert appears (requires **Alerts monitoring** on) | `title`, `message`, `severity` (`HIGH` / `VERY_HIGH`), `category`, `event`, `id`, `timestamp`, `status`                                                 |
+| `unifi_network_monitor_new_rogue_ap` | A rogue **BSSID** is seen for the first time (requires **Security monitoring** on)                    | `essid`, `bssid`, `band`, `channel`, `signal`, `security`, `oui`, `wired_rogue`, `is_adhoc`, `ssid_anomaly`, `first_seen`, `appearances`, `detected_by` |
 
 See the [Critical UniFi Alert](#-critical-unifi-alert-sev4) automation for a worked example using `unifi_network_monitor_new_alert`.
 
@@ -1680,13 +1681,13 @@ Open **Settings > Devices & Services > UniFi Network Monitor > Configure** ( ⚙
 
 **Sensor groups (enable or disable):**
 
-| Option | Effect when off |
-| :-- | :-- |
-| Alerts monitoring | Removes the Alerts sub-device (system-log sensors); skips the system-log poll. The `new_alert` event stops firing |
-| Dual-WAN monitoring | Removes the WAN2 and load-balance entities (single-WAN setups); no separate poll (WAN2 shares WAN1's fetch) |
-| Security monitoring | Removes rogue-AP, VPN, firewall, and threat-management sensors + the rogue controls; skips those polls. The `new_rogue_ap` event stops firing |
-| Speedtest monitoring | Removes speedtest sensors + run buttons; skips the speedtest poll |
-| WAN data-usage statistics | Removes daily/monthly data usage sensors; skips those polls |
+| Option                    | Effect when off                                                                                                                               |
+| :------------------------ | :-------------------------------------------------------------------------------------------------------------------------------------------- |
+| Alerts monitoring         | Removes the Alerts sub-device (system-log sensors); skips the system-log poll. The `new_alert` event stops firing                             |
+| Dual-WAN monitoring       | Removes the WAN2 and load-balance entities (single-WAN setups); no separate poll (WAN2 shares WAN1's fetch)                                   |
+| Security monitoring       | Removes rogue-AP, VPN, firewall, and threat-management sensors + the rogue controls; skips those polls. The `new_rogue_ap` event stops firing |
+| Speedtest monitoring      | Removes speedtest sensors + run buttons; skips the speedtest poll                                                                             |
+| WAN data-usage statistics | Removes daily/monthly data usage sensors; skips those polls                                                                                   |
 
 > [!NOTE]
 >
@@ -1696,11 +1697,11 @@ Open **Settings > Devices & Services > UniFi Network Monitor > Configure** ( ⚙
 
 These three fields tune the passive rogue-AP sensors. They apply only while **Security monitoring** is on, and have no effect on the `get_rogue_aps` action, which deliberately bypasses the ignore lists.
 
-| Option | Default | Format | What it does |
-| :-- | :-- | :-- | :-- |
-| **Ignore Rogue SSIDs** | _(empty)_ | Comma-separated patterns; `*` wildcard accepted (e.g. `BTWiFi, Hidden-*, MyGuest_*`) | SSIDs to drop from the rogue sensors - typically your neighbors' networks. Matching is case-insensitive. Applied when the **Apply SSID Ignore List** switch is on (**on** by default). |
-| **Ignore detecting APs** | _(empty)_ | Comma-separated AP names or MACs; `*` wildcard accepted | Drops detections _reported by_ the named UniFi APs - useful when one AP in an exposed location dominates the results. Applied when the **Apply AP Ignore List** switch is on (**off** by default). |
-| **Rogue history retention** | `90` days | Integer days; `0` = keep forever | How long the per-BSSID appearance history (`first_seen` / `appearances`) is kept before pruning. A hard safety cap also limits total records regardless of this value. See [Rogue AP appearance history](#-rogue-ap-appearance-history). |
+| Option                      | Default   | Format                                                                               | What it does                                                                                                                                                                                                                             |
+| :-------------------------- | :-------- | :----------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Ignore Rogue SSIDs**      | _(empty)_ | Comma-separated patterns; `*` wildcard accepted (e.g. `BTWiFi, Hidden-*, MyGuest_*`) | SSIDs to drop from the rogue sensors - typically your neighbors' networks. Matching is case-insensitive. Applied when the **Apply SSID Ignore List** switch is on (**on** by default).                                                   |
+| **Ignore detecting APs**    | _(empty)_ | Comma-separated AP names or MACs; `*` wildcard accepted                              | Drops detections _reported by_ the named UniFi APs - useful when one AP in an exposed location dominates the results. Applied when the **Apply AP Ignore List** switch is on (**off** by default).                                       |
+| **Rogue history retention** | `90` days | Integer days; `0` = keep forever                                                     | How long the per-BSSID appearance history (`first_seen` / `appearances`) is kept before pruning. A hard safety cap also limits total records regardless of this value. See [Rogue AP appearance history](#-rogue-ap-appearance-history). |
 
 Both ignore lists can also be edited from automations with the `add_rogue_ignore` / `remove_rogue_ignore` / `set_rogue_ignore` actions (see [Actions](#-actions-services)).
 
@@ -1777,10 +1778,10 @@ A custom `DataUpdateCoordinator` fetches everything per cycle and applies two re
 
 This integration writes **two small JSON files** per configured gateway into Home Assistant's `config/.storage` folder. They hold state that must survive a restart but doesn't belong in the config entry:
 
-| File | What it stores | Why it exists |
-| :-- | :-- | :-- |
-| `unifi_network_monitor.<entry_id>.rogue_history` | Your **rogue-AP history**, keyed by BSSID: when each neighboring access point was **first seen**, how many times it has **appeared**, and its last-known SSID label. | Lets the integration tell a **genuinely new** rogue AP from one it has seen before - powering the **Rogue APs New 24h** sensor and the `unifi_network_monitor_new_rogue_ap` event, so they survive restarts instead of re-reporting every rogue as "new". Pruned by the **Rogue History TTL** option (default 90 days; `0` = keep forever) and hard-capped at 1000 BSSIDs. |
-| `unifi_network_monitor.<entry_id>.usage_watermark` | A **high-water mark** for each cumulative WAN usage counter - the highest value seen so far, plus the reporting period it belongs to. | UniFi re-calculates the _current_ (open) daily/monthly usage bucket on every poll, so a byte total can drift slightly **downward** within a period. This is **normal UniFi controller behavior, not a fault in this integration or in Home Assistant** - the gateway estimates the in-progress bucket by apportioning a coarser measurement across the reporting window (the totals it reports are even fractional), and refines that estimate on each poll; verified against a live UDM Pro. This file holds each counter's running maximum so those tiny corrections never step the counter backwards, and a restart doesn't re-emit a drop. Otherwise, as these are `total_increasing` counters you would get occasional "state is not strictly increasing" log warnings. |
+| File                                               | What it stores                                                                                                                                                       | Why it exists                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| :------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `unifi_network_monitor.<entry_id>.rogue_history`   | Your **rogue-AP history**, keyed by BSSID: when each neighboring access point was **first seen**, how many times it has **appeared**, and its last-known SSID label. | Lets the integration tell a **genuinely new** rogue AP from one it has seen before - powering the **Rogue APs New 24h** sensor and the `unifi_network_monitor_new_rogue_ap` event, so they survive restarts instead of re-reporting every rogue as "new". Pruned by the **Rogue History TTL** option (default 90 days; `0` = keep forever) and hard-capped at 1000 BSSIDs.                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `unifi_network_monitor.<entry_id>.usage_watermark` | A **high-water mark** for each cumulative WAN usage counter - the highest value seen so far, plus the reporting period it belongs to.                                | UniFi re-calculates the _current_ (open) daily/monthly usage bucket on every poll, so a byte total can drift slightly **downward** within a period. This is **normal UniFi controller behavior, not a fault in this integration or in Home Assistant** - the gateway estimates the in-progress bucket by apportioning a coarser measurement across the reporting window (the totals it reports are even fractional), and refines that estimate on each poll; verified against a live UDM Pro. This file holds each counter's running maximum so those tiny corrections never step the counter backwards, and a restart doesn't re-emit a drop. Otherwise, as these are `total_increasing` counters you would get occasional "state is not strictly increasing" log warnings. |
 
 `<entry_id>` is Home Assistant's internal ID for your config entry - so if you've added more than one gateway, you'll see a pair of files per gateway.
 
@@ -2027,13 +2028,13 @@ Logs are then visible under **Settings > System > Logs** (click **Load Full Logs
 
 Because Home Assistant keeps most of it on purpose. This is **Home Assistant behavior, not something this integration controls**, and for most people it's the desirable outcome: re-add the same gateway and things carry on where they left off, rather than starting from nothing.
 
-| What | How long Home Assistant keeps it | On re-add |
-| :-- | :-- | :-- |
-| **Long-term statistics** (long-range graphs, Energy dashboard) | Indefinitely - these are never deleted | Continue unbroken |
-| **Recent detailed history** | Your recorder retention (10 days by default) | Continues |
-| **Entity IDs** (`sensor.…`) | Reused as long as nothing else has taken the name | Dashboards and automations keep working |
-| Renames, icons, areas, labels, enabled/disabled state | **30 days**, in Home Assistant's entity registry | Restored |
-| **Rogue-AP history** (this integration's own file) | Not kept - deleted with the integration | Starts fresh |
+| What                                                           | How long Home Assistant keeps it                  | On re-add                               |
+| :------------------------------------------------------------- | :------------------------------------------------ | :-------------------------------------- |
+| **Long-term statistics** (long-range graphs, Energy dashboard) | Indefinitely - these are never deleted            | Continue unbroken                       |
+| **Recent detailed history**                                    | Your recorder retention (10 days by default)      | Continues                               |
+| **Entity IDs** (`sensor.…`)                                    | Reused as long as nothing else has taken the name | Dashboards and automations keep working |
+| Renames, icons, areas, labels, enabled/disabled state          | **30 days**, in Home Assistant's entity registry  | Restored                                |
+| **Rogue-AP history** (this integration's own file)             | Not kept - deleted with the integration           | Starts fresh                            |
 
 The **30 days** applies only to that fourth row - the entity-registry customizations. Statistics aren't on a timer at all, and your entity IDs come back either way. So re-adding after a year still reconnects your graphs; you would just need to redo any renames. Restarting Home Assistant in between makes no difference to any of this.
 

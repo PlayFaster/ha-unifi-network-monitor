@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: UniFi Network Monitor](#internal-detailed-changelog-unifi-network-monitor)
+  - [\[1.0.1-dev16\] - 2026-08-08 - Documentation, Roadmap, and the Write-Classification Register](#101-dev16---2026-08-08---documentation-roadmap-and-the-write-classification-register)
   - [\[1.0.1-dev15\] - 2026-08-08 - Branch Coverage Complete: Sixteen of Seventeen Modules at 100%](#101-dev15---2026-08-08---branch-coverage-complete-sixteen-of-seventeen-modules-at-100)
   - [\[1.0.1-dev14\] - 2026-08-08 - Branch Coverage: Fifteen of Seventeen Modules at 100%](#101-dev14---2026-08-08---branch-coverage-fifteen-of-seventeen-modules-at-100)
   - [\[1.0.1-dev13\] - 2026-08-08 - Standards Sweeps; Translation Reconciliation; Zero-Assertion Tests Fixed](#101-dev13---2026-08-08---standards-sweeps-translation-reconciliation-zero-assertion-tests-fixed)
@@ -22,6 +23,39 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-07-22 - Initial Public Release](#100---2026-07-22---initial-public-release)
 
 ---
+
+## [1.0.1-dev16] - 2026-08-08 - Documentation, Roadmap, and the Write-Classification Register
+
+Phase 3 of the August 2026 update plan — every documentation change in one release, so prettier, markdownlint, codespell and the link check run once over the lot instead of after each edit.
+
+### Added
+
+- **`docs/ROADMAP.md`**, per `roadmap_format.md` v1.2.0. Three To Be Done items, two Maybes with the trigger that would justify each, two Blocked items with the obstacle named, two Revisit decisions with observable reopening triggers, and three Declines. **No Done group** — membership there is by provenance, and this is the project's first roadmap, so the group will populate as items are met rather than being backfilled from the changelog.
+- **`scripts/write_classification.py`** — the §22 register. `trigger_speedtest` is `SAFE`; `update_networkconf` is `ATTENDED` because it changes which link the household's traffic uses and a script cannot judge whether that recovered. `NEVER_AUTOMATED` is defined and deliberately empty.
+- **`scripts/hardware_check.py`** — exercises the one `SAFE` write against a real gateway. It confirms the command is accepted **and then waits for a new result to land**, because "the controller took the request" and "the gateway ran a speedtest" are different claims and only the second is worth asserting. The `ATTENDED` write is not offered here at all, not even behind a prompt.
+- **`tests/test_write_classification.py`** — nine tests. A new command in `api.py` fails the suite until someone classifies it; a `SAFE` classification fails unless the hardware check really calls it; and the hardware check fails if it ever calls an `ATTENDED` write. The write detector keys on the **endpoint, not the verb**, because this controller answers queries with `POST` — a verb-based detector would report five read methods as writes and produce a register nobody reads.
+- **An `About` column in `docs/all_sensors.md`**, marking the 23 entities that declare an unrecorded `about:` note.
+- **A "Tests that will stop you" table in `AGENTS.md`** — thirteen rows covering every sweep, what fails, and what to do. Every allow-list named in it is empty by design, so adding to one is a visible act.
+
+### Changed
+
+- **`docs/value_min_max.md`: the AP satisfaction-score decision is applied.** The three score sensors are documented at `min = 0`, and the old rationale — which argued for `-1` and warned that `0` would wrongly suppress newly provisioned APs — is replaced. `-1` is an _indicator_ that the score has not been computed, not a measurement; admitting it would put a non-percentage on a percentage sensor where it would chart, average and enter long-term statistics as though an AP had scored below zero. Suppression is the intended outcome, and `unknown` is the honest answer. **The code was always right; this document was the side that was wrong.**
+- **All 34 previously-undocumented guard bands are documented**, in three new sections — Internet & WAN, Speedtest, and Configuration Counts. That is `sensor_review`'s 32 plus the two Projected Usage sensors added at `[1.0.1-dev12]`, which reconciles exactly. `docs/value_min_max.md` now matches the code in both directions with **zero** undocumented bands.
+- **`docs/DEVELOPMENT.md` records the `PARALLEL_UPDATES` reasoning**, traced per write path rather than settled by the house rule about read-only entities. `0` is correct on all six platforms — and the exercise is what found the debounce-cancel hazard fixed at `[1.0.1-dev12]`, which a concurrency cap would not have prevented.
+- **The API-key menu path in `strings.json` and `translations/en.json`** now matches the README: **UniFi Network → Integrations → Create New API Key**. The setup form previously showed a different path from the documentation, and the form is the one users follow.
+- **Section counts in `docs/all_sensors.md`**: Security 19→20, System 9→10 (both stale headers), Internet 39→41 for the Projected Usage sensors. Base total 128→130, with the registered and enabled figures in the mode table moved by +2 and the reason stated inline.
+- **README** documents the Projected Usage sensors, including that the confidence attribute is how to judge them and that they deliberately carry no `state_class`.
+- **`AGENTS.md`**: forward work now points at `docs/ROADMAP.md` rather than being restated; the stale claim that `validate.yaml` still carries a placeholder `CHANGEME` gist_id is removed (it is populated); and the coverage note is re-verified rather than rewritten — **100% line, 99% branch, 802 tests, 0 statements missing**.
+
+### Notes
+
+- **The §14 / §21 cells in the `[1.0.1-dev5]` Standards Test Coverage matrix stay `UNVERIFIED`, but their stated reason no longer holds.** That reason — "the test exists but has never been executed (container down)" — is obsolete: both tests execute and pass, and §21's asserts the live-key comparison rather than the tautology. The cells are held deliberately until mutation testing shows them failing on a real regression, which is what `UNVERIFIED` means. The historical entry is left as written rather than edited; this note is the correction.
+- Two further cells in that matrix are now met by Phase 2 and will be re-graded alongside: **§10** (session-terminating call awaited on unload) and **§12** (translations and icons reconciled against code).
+
+### Verified
+
+- `pytest tests/` — **811 passed**, 0 failed. `ruff check`, `ruff format --check` and `mypy --strict` clean.
+- prettier, markdownlint (project config), codespell and the markdown link check all clean across `README.md`, `AGENTS.md` and `docs/`.
 
 ## [1.0.1-dev15] - 2026-08-08 - Branch Coverage Complete: Sixteen of Seventeen Modules at 100%
 

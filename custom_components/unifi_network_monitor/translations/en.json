@@ -14,7 +14,7 @@
         },
         "data_description": {
           "host": "IP address or hostname of the UDM Pro (e.g. 192.168.1.1)",
-          "api_key": "Local API key from UniFi Network Settings → Control Plane → API Keys",
+          "api_key": "Local API key from UniFi Network → Integrations → Create New API Key",
           "username": "Username only required if not using an API key",
           "password": "Password only required if not using an API key",
           "site": "UniFi site ID — leave as 'default' unless you have multiple sites",
