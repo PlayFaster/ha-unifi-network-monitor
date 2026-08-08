@@ -15,6 +15,7 @@ PUTs against a write the coordinator already shields to completion.
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
@@ -112,7 +113,7 @@ async def test_wan_removal_does_not_reapply_a_started_write(hass: Any) -> None:
     assert coordinator.async_set_wan_weights.await_count == 1
 
 
-async def test_wan_flush_swallows_write_errors(hass: Any) -> None:
+async def test_wan_flush_swallows_write_errors(hass: Any, caplog: Any) -> None:
     """A failing flush is logged, never raised — removal must not be blocked."""
     from custom_components.unifi_network_monitor.api import UnifiConnectionError
     from custom_components.unifi_network_monitor.number import WanLoadBalanceNumber
@@ -126,7 +127,13 @@ async def test_wan_flush_swallows_write_errors(hass: Any) -> None:
     number.async_write_ha_state = MagicMock()  # type: ignore[method-assign]
 
     await number.async_set_native_value(70.0)
-    await number.async_will_remove_from_hass()  # must not raise
+
+    with caplog.at_level(logging.ERROR):
+        await number.async_will_remove_from_hass()
+
+    # Swallowed, but not silently: removal proceeds and the loss is on record.
+    coordinator.async_set_wan_weights.assert_awaited_once_with(70)
+    assert any("WAN load balance weight" in r.message for r in caplog.records)
 
 
 # ---------------------------------------------------------------------------

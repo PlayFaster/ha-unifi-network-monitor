@@ -13,6 +13,7 @@ from custom_components.unifi_network_monitor.api import (
     UnifiAuthError,
     UnifiConnectionError,
 )
+from custom_components.unifi_network_monitor.const import EVENT_NEW_ROGUE_AP
 from custom_components.unifi_network_monitor.coordinator import (
     UnifiNetworkDataUpdateCoordinator,
     _derive_boot_time,
@@ -2940,18 +2941,22 @@ async def test_fire_new_rogue_events_baseline(
 async def test_fire_new_rogue_events_new_bssid(
     hass: Any, mock_config_entry: Any
 ) -> None:
-    """New BSSID (in new_bssids set) fires a bus event."""
+    """New BSSID (in new_bssids set) fires a bus event carrying that BSSID."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
     coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
     coordinator._rogue_baseline_done = True
 
+    fired: list[Any] = []
+    hass.bus.async_listen(EVENT_NEW_ROGUE_AP, lambda event: fired.append(event.data))
+
     coordinator._fire_new_rogue_events(
         [{"bssid": "66:77:88:99:aa:bb", "essid": "NewRogue"}], {"66:77:88:99:aa:bb"}
     )
-    # The event fires but the BSSID is recorded by _update_rogue_history
-    # not _fire_new_rogue_events. Just verify no exception —
-    #  the event assertion is in test_fire_new_rogue_events_only_new
+    await hass.async_block_till_done()
+
+    assert len(fired) == 1
+    assert fired[0]["bssid"] == "66:77:88:99:aa:bb"
 
 
 async def test_fire_new_rogue_events_skips_seen(
@@ -2963,11 +2968,16 @@ async def test_fire_new_rogue_events_skips_seen(
     coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
     coordinator._rogue_baseline_done = True
 
+    fired: list[Any] = []
+    hass.bus.async_listen(EVENT_NEW_ROGUE_AP, lambda event: fired.append(event.data))
+
     coordinator._fire_new_rogue_events(
         [{"bssid": "00:11:22:33:44:55", "essid": "Seen"}], set()
     )
-    # No assertion needed on _seen_rogue_bssids — it no longer exists.
-    # With empty new_bssids, no event fires.
+    await hass.async_block_till_done()
+
+    # An empty new_bssids set means every rogue present is already known.
+    assert fired == []
 
 
 async def test_fire_new_rogue_events_skips_missing_bssid(
@@ -2979,8 +2989,15 @@ async def test_fire_new_rogue_events_skips_missing_bssid(
     coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
     coordinator._rogue_baseline_done = True
 
-    coordinator._fire_new_rogue_events([{"essid": "NoBSSID"}], set())
-    # No exception means the missing BSSID was skipped.
+    fired: list[Any] = []
+    hass.bus.async_listen(EVENT_NEW_ROGUE_AP, lambda event: fired.append(event.data))
+
+    # The BSSID is the event's dedup key, so a rogue without one cannot be
+    # tracked and must be dropped rather than fired with a null key.
+    coordinator._fire_new_rogue_events([{"essid": "NoBSSID"}], {"00:11:22:33:44:55"})
+    await hass.async_block_till_done()
+
+    assert fired == []
 
 
 # ---------------------------------------------------------------------------

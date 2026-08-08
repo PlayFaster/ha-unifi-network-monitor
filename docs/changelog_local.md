@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: UniFi Network Monitor](#internal-detailed-changelog-unifi-network-monitor)
+  - [\[1.0.1-dev13\] - 2026-08-08 - Standards Sweeps; Translation Reconciliation; Zero-Assertion Tests Fixed](#101-dev13---2026-08-08---standards-sweeps-translation-reconciliation-zero-assertion-tests-fixed)
   - [\[1.0.1-dev12\] - 2026-08-08 - WAN Write Path Hardened; Repairs Scoped; Projected Usage](#101-dev12---2026-08-08---wan-write-path-hardened-repairs-scoped-projected-usage)
   - [\[1.0.1-dev11\] - 2026-08-08 - Green Suite: Device-Registry Test Shape; Ruff Clean](#101-dev11---2026-08-08---green-suite-device-registry-test-shape-ruff-clean)
   - [\[1.0.1-dev9\] - 2026-08-07 - Readme Automation Corrections; Formats](#101-dev9---2026-08-07---readme-automation-corrections-formats)
@@ -19,6 +20,30 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-07-22 - Initial Public Release](#100---2026-07-22---initial-public-release)
 
 ---
+
+## [1.0.1-dev13] - 2026-08-08 - Standards Sweeps; Translation Reconciliation; Zero-Assertion Tests Fixed
+
+Phase 2 of the August 2026 update plan — the test baseline. No production behaviour changes; this release is entirely about what the suite can catch.
+
+### Added
+
+- **Guard-band coverage sweeps** (`tests/test_standards_guards.py`). Every numeric sensor must declare a lower bound or appear on a named, currently-empty allow-list, and no accumulating counter may carry an upper bound. The sweep is deliberately **static**: a guard band is never published as state or an attribute — it only suppresses an out-of-range value — so no live query can tell whether one exists. The upper-bound requirement is scoped to percentages, the only quantity here with a real ceiling; demanding one of every counter would push the next author into inventing a number that silently suppresses real data.
+- **A ban on `SensorStateClass.TOTAL`**, with an empty allow-list and a stale-entry check. Under `TOTAL` the recorder recognises a reset only from a changing `last_reset`; every counter here resets to zero without publishing one, so `TOTAL_INCREASING` is always correct and nothing fails at runtime when it is not.
+- **Translation and icon reconciliation** (`tests/test_translations_icons.py`), against **code** rather than file-to-file — two hand-maintained files can agree perfectly and both describe an entity that no longer exists. Keys are read from module source so that single-instance entities, which set `_attr_translation_key` on the class rather than in a description, are not reported as dead entries. Exception messages are reconciled separately and in both directions.
+- **Stored-secret pre-fill guards** for all three config-flow schemas and both credentials. No defect today; the guard is on what comes next.
+- **Teardown contract tests** — `logout()` is awaited on unload, the store flush is ordered before it, a failing logout does not block the unload, and the platform-unload result is propagated.
+- **Shared device-registry helpers in `tests/conftest.py`** — `make_device`, `make_device_registry`, `assert_links_to_parent`, `assert_is_root` — with the three files that branched on the HA version ad hoc migrated onto them. The version question is now asked in one place.
+
+### Fixed
+
+- **The seven zero-assertion tests now assert an outcome.** The audit reports **0 of 687**, and no allow-list file was needed: every case had an observable outcome once looked for. The rogue-event tests listen on the bus and assert what fired — including that a rogue with no BSSID is dropped rather than fired with a null dedup key. `test_apply_after_debounce_handles_exception` was asserting nothing about nothing: it raised from a call the rewritten code no longer makes, so it could not have failed for any reason.
+- **Line coverage restored to 100%** — the five statements left uncovered by the Phase 1 changes are now exercised, including the three distinct write-outcome log levels.
+
+### Verified
+
+- `pytest tests/` — **715 passed**, 0 failed. Coverage **100% line** (2944 statements, 0 missing), 98% branch.
+- Assertion audit **PASSED**; `ruff check`, `ruff format --check` and `mypy --strict` all clean.
+- **Partial branches stand at 59** and are the outstanding half of this phase, listed by module in the plan's execution log.
 
 ## [1.0.1-dev12] - 2026-08-08 - WAN Write Path Hardened; Repairs Scoped; Projected Usage
 

@@ -316,3 +316,75 @@ async def test_set_wan_weights_unverified_when_readback_lacks_wan(
     coordinator = _make_coordinator(hass, mock_config_entry, api)
 
     assert await coordinator.async_set_wan_weights(70) == "unverified"
+
+
+# ---------------------------------------------------------------------------
+# The outcome reaches the log at the right level
+# ---------------------------------------------------------------------------
+
+
+async def test_force_refresh_sets_the_bypass_flag(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """The post-write refresh bypasses the pause guard (explicit user action)."""
+    from unittest.mock import AsyncMock as _AsyncMock
+
+    mock_config_entry.add_to_hass(hass)
+    coordinator = UnifiNetworkDataUpdateCoordinator(
+        hass, mock_config_entry, MagicMock()
+    )
+    coordinator.async_request_refresh = _AsyncMock()  # type: ignore[method-assign]
+
+    await coordinator.async_force_refresh()
+
+    assert coordinator._force_refresh_once is True
+    coordinator.async_request_refresh.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    ("outcome", "level"),
+    [("failed", "ERROR"), ("unverified", "WARNING"), ("confirmed", None)],
+)
+async def test_number_logs_each_write_outcome_at_its_own_level(
+    hass: Any, caplog: Any, outcome: str, level: str | None
+) -> None:
+    """A failed write is an error; an unverified one is only a warning.
+
+    Reporting *unverified* as a failure would send the user chasing a change
+    that most likely applied, which is precisely the distinction item 7 exists
+    to keep.
+    """
+    import logging
+
+    from custom_components.unifi_network_monitor.number import WanLoadBalanceNumber
+
+    coordinator = MagicMock()
+    coordinator.data = {"gateway": {"wan1_weight": 50}}
+    coordinator.async_add_listener = MagicMock()
+    coordinator.async_set_wan_weights = AsyncMock(return_value=outcome)
+    entry = MagicMock()
+    entry.unique_id = "aa:bb:cc:dd:ee:ff"
+
+    number = WanLoadBalanceNumber(coordinator, entry)
+    number.hass = hass
+
+    with caplog.at_level(logging.DEBUG):
+        await number._apply(70.0)
+
+    coordinator.async_set_wan_weights.assert_awaited_once_with(70)
+    records = [r for r in caplog.records if "load balance weight" in r.message]
+    if level is None:
+        assert not records
+    else:
+        assert [r.levelname for r in records] == [level]
+
+
+async def test_debounced_write_base_requires_an_apply() -> None:
+    """The mixin is abstract: a subclass that forgets ``_apply`` fails loudly.
+
+    Silently doing nothing is the failure mode this whole phase is about.
+    """
+    from custom_components.unifi_network_monitor.number import _DebouncedWriteEntity
+
+    with pytest.raises(NotImplementedError):
+        await _DebouncedWriteEntity()._apply(1.0)

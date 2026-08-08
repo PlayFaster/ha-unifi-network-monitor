@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -9,6 +10,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.unifi_network_monitor import _compat
 from custom_components.unifi_network_monitor.const import (
     CONF_API_KEY,
     CONF_ENABLE_SECURITY_MONITORING,
@@ -286,3 +288,65 @@ def mock_api() -> MagicMock:
 def mock_coordinator_data() -> dict[str, Any]:
     """Return a copy of the mock coordinator data."""
     return dict(MOCK_COORDINATOR_DATA)
+
+
+# ---------------------------------------------------------------------------
+# Device-registry shape helpers — one place per HA-version question
+# ---------------------------------------------------------------------------
+#
+# Item 20 of the August 2026 plan. HA 2026.8 changed three registry surfaces at
+# once, and the suite had adapted to them ad hoc: three files each branched on
+# `_compat._HAS_BY_IDENTIFIER` in their own way, and `test_cleanup.py` did not
+# branch at all — which is what left three tests red for weeks (see §Q Phase 0).
+#
+# The version question is asked here, once. A test that wants to know "does this
+# link to its parent?" should not have to know which HA release it is running
+# against to ask.
+
+
+def make_device(device_id: str, entry_id: str = "entry123") -> MagicMock:
+    """Build a mock device readable by both ``_compat`` ownership paths.
+
+    2026.8+ exposes a single ``config_entry_id``; older HA a ``config_entries``
+    set. Setting both keeps the mock correct on either.
+    """
+    device = MagicMock()
+    device.id = device_id
+    device.config_entries = {entry_id}
+    device.config_entry_id = entry_id
+    return device
+
+
+def make_device_registry(device: MagicMock | None) -> MagicMock:
+    """Build a mock registry answering both ``_compat`` lookup paths.
+
+    ``device_by_identifier`` calls ``async_get_device_by_identifier`` on 2026.8+
+    and ``async_get_device`` below it. A bare ``MagicMock`` answers whichever is
+    unstubbed with a truthy mock, so a test that stubs only one silently gets a
+    device it did not configure — the exact failure behind the three red
+    ``test_cleanup.py`` tests.
+    """
+    registry = MagicMock()
+    registry.async_get_device = MagicMock(return_value=device)
+    registry.async_get_device_by_identifier = MagicMock(return_value=device)
+    return registry
+
+
+def assert_links_to_parent(info: Mapping[str, Any], parent_ident: str) -> None:
+    """Assert a ``DeviceInfo`` links to its parent, whichever HA form is in use.
+
+    <=2026.7 emits the ``via_device`` identifier tuple; 2026.8+ emits
+    ``via_device_id``, a resolved device id — which in a mock-registry unit test
+    is a ``MagicMock``, so only its presence can be asserted there.
+    """
+    if _compat._HAS_BY_IDENTIFIER:
+        assert "via_device_id" in info, f"no parent link to {parent_ident}"
+        assert "via_device" not in info, "legacy via_device tuple emitted on 2026.8+"
+    else:
+        assert info["via_device"] == (DOMAIN, parent_ident)
+
+
+def assert_is_root(info: Mapping[str, Any]) -> None:
+    """Assert a ``DeviceInfo`` is a root device — it links to no parent."""
+    assert "via_device_id" not in info
+    assert "via_device" not in info

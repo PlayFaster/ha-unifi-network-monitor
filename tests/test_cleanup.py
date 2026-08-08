@@ -25,7 +25,12 @@ from custom_components.unifi_network_monitor.const import (
     EP_VPN_TUNNELS,
 )
 
-from .conftest import MOCK_COORDINATOR_DATA, MOCK_MAC
+from .conftest import (
+    MOCK_COORDINATOR_DATA,
+    MOCK_MAC,
+    make_device,
+    make_device_registry,
+)
 
 # ---------------------------------------------------------------------------
 # single_wan_excluded_keys (const.py line 151)
@@ -211,32 +216,6 @@ def _make_coordinator(data: dict[str, Any] | None) -> MagicMock:
     return coord
 
 
-def _make_device(device_id: str, entry_id: str = "entry123") -> MagicMock:
-    """Build a device-registry entry readable by both ``_compat`` ownership paths.
-
-    HA 2026.8+ exposes a single ``config_entry_id``; older HA a ``config_entries``
-    set. Setting both keeps the mock correct whichever HA the suite runs against.
-    """
-    device = MagicMock()
-    device.id = device_id
-    device.config_entries = {entry_id}
-    device.config_entry_id = entry_id
-    return device
-
-
-def _make_dev_reg(device: MagicMock | None) -> MagicMock:
-    """Build a device registry answering both ``_compat`` lookup paths.
-
-    ``device_by_identifier`` calls ``async_get_device_by_identifier`` on 2026.8+
-    and ``async_get_device`` below it; a bare ``MagicMock`` would answer the
-    unstubbed one with a truthy mock, so stub both.
-    """
-    dev_reg = MagicMock()
-    dev_reg.async_get_device = MagicMock(return_value=device)
-    dev_reg.async_get_device_by_identifier = MagicMock(return_value=device)
-    return dev_reg
-
-
 def _make_reg_entry(entity_id: str, unique_id: str) -> MagicMock:
     entry = MagicMock()
     entry.entity_id = entity_id
@@ -298,9 +277,9 @@ def test_plan_mode_none_marks_all() -> None:
     ent_reg_entries = [
         _make_reg_entry("sensor.ap_clients", f"{MOCK_MAC}_{ap_mac}_clients"),
     ]
-    device_entry = _make_device("device_ap_1")
+    device_entry = make_device("device_ap_1")
 
-    mock_dev_reg = _make_dev_reg(device_entry)
+    mock_dev_reg = make_device_registry(device_entry)
 
     with (
         patch(
@@ -440,7 +419,7 @@ def test_plan_gateway_orphan_entities_already_in_plan() -> None:
     ap_mac = "bb:cc:dd:ee:ff:00"
     ent_reg_entries: list[MagicMock] = []
 
-    mock_dev_reg = _make_dev_reg(None)
+    mock_dev_reg = make_device_registry(None)
 
     with (
         patch(
@@ -733,7 +712,7 @@ def test_plan_sub_device_card_cleanup_skips_none_device() -> None:
     }
     coordinator = _make_coordinator({"devices": {}})
 
-    mock_dev_reg = _make_dev_reg(None)
+    mock_dev_reg = make_device_registry(None)
 
     with (
         patch(
@@ -771,9 +750,9 @@ def test_plan_sub_device_card_adds_entities_and_device() -> None:
     uid = entry.unique_id or ""
 
     # Create a device for the "security" card
-    device_obj = _make_device("device_security_card")
+    device_obj = make_device("device_security_card")
 
-    mock_dev_reg = _make_dev_reg(device_obj)
+    mock_dev_reg = make_device_registry(device_obj)
 
     # Entity on the security sub-device card
     ent_reg_entries = [
@@ -817,9 +796,9 @@ def test_plan_sub_device_card_skips_already_planned() -> None:
 
     uid = entry.unique_id or ""
 
-    device_obj = _make_device("device_security_card")
+    device_obj = make_device("device_security_card")
 
-    mock_dev_reg = _make_dev_reg(device_obj)
+    mock_dev_reg = make_device_registry(device_obj)
 
     # This entity would match the security card, but it also matches WAN2 exclusion
     # and is already in plan via that path. We simulate this by using `_make_entry`

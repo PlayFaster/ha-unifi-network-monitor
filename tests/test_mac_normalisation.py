@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import MagicMock
 
-from custom_components.unifi_network_monitor import _compat
+from .conftest import assert_links_to_parent
 
 CANONICAL = "aa:bb:cc:dd:ee:ff"
 # The same address in the forms a controller or firmware might legitimately emit.
@@ -91,6 +91,4 @@ def test_sub_device_identifiers_derive_from_canonical_mac() -> None:
     info = build_sub_device_info(_coordinator("AABBCCDDEEFF"), entry, "security")
 
     assert any(i[1] == f"{CANONICAL}_security" for i in info["identifiers"])
-    # ≤2026.7 links by the via_device tuple; 2026.8+ by via_device_id.
-    if not _compat._HAS_BY_IDENTIFIER:
-        assert info["via_device"][1] == CANONICAL
+    assert_links_to_parent(info, CANONICAL)

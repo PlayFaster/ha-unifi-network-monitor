@@ -212,4 +212,17 @@ async def test_clearing_repairs_is_safe_when_none_raised(
     from custom_components.unifi_network_monitor import async_remove_entry
 
     mock_config_entry.add_to_hass(hass)
+    reg = ir.async_get(hass)
+
     await async_remove_entry(hass, mock_config_entry)
+
+    # Nothing was raised, so nothing is left — and no issue belonging to any
+    # other integration was swept up on the way past.
+    for name in REPAIR_ISSUE_NAMES:
+        assert (
+            reg.async_get_issue(
+                DOMAIN, repair_issue_id(mock_config_entry.entry_id, name)
+            )
+            is None
+        )
+    assert reg.issues == {}
