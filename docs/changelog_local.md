@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: UniFi Network Monitor](#internal-detailed-changelog-unifi-network-monitor)
+  - [\[1.0.1-dev21\] - 2026-08-08 - Code Review: One Finding, Fifteen Clean Checks](#101-dev21---2026-08-08---code-review-one-finding-fifteen-clean-checks)
   - [\[1.0.1-dev20\] - 2026-08-08 - Deeper Testing: Boundaries Approached from Both Sides](#101-dev20---2026-08-08---deeper-testing-boundaries-approached-from-both-sides)
   - [\[1.0.1-dev19\] - 2026-08-08 - Mutation Testing: The Diagnostics Scrubber Was Only Ever Tested for Absence](#101-dev19---2026-08-08---mutation-testing-the-diagnostics-scrubber-was-only-ever-tested-for-absence)
   - [\[1.0.1-dev18\] - 2026-08-08 - Zero Partial Branches: Five Unreachable Guards Removed](#101-dev18---2026-08-08---zero-partial-branches-five-unreachable-guards-removed)
@@ -28,6 +29,28 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-07-22 - Initial Public Release](#100---2026-07-22---initial-public-release)
 
 ---
+
+## [1.0.1-dev21] - 2026-08-08 - Code Review: One Finding, Fifteen Clean Checks
+
+Phase 7 of the August 2026 plan — `code_review`, run last with Phases 0–6 supplied as established preconditions so it did not re-derive them. **No code changed.** Report at `.notes/code_review/code_review_20260808_2010.md`.
+
+**Zero Critical, zero High, one Medium, zero Low.** Quiet because it is the seventh pass over the same code in two days and the six before it did the finding.
+
+### Notes
+
+- **The finding — Refresh Now cannot report failure to an automation** (`button.py:94-96`). `async_force_refresh` awaits `async_request_refresh`, Home Assistant's **debounced** refresh, which records failure on `last_update_success` and does not propagate it to the caller. So `async_press` cannot raise, and a script or automation pressing the button always reports success even when the refresh failed. `SpeedtestButton` two entities away does re-raise `HomeAssistantError`; the inconsistency inside one file is what makes this a finding rather than a design choice.
+
+  **The named `dev_standards` §13 regression is not present** — Refresh Now correctly overrides Pause Polling, which is exactly what `_force_refresh_once` is for.
+
+  **Parked rather than applied**, in §P of the status plan: it changes behaviour on a user-facing control, needs a new translation key, and carries a real trade-off over whether the one-shot flag should be consumed on attempt or on success.
+
+- **Fifteen checks came back clean and are recorded as such** — the useful half of a result like this. Among them: no bare-tuple `except`, no `or 0 >` precedence bug, no blocking I/O in async, no bare `asyncio.create_task`, no direct `hass.data` mutation, no unguarded `coordinator.data[...]`, and both masked-error classes clean in `api.py`, where every broad `except Exception` re-raises as a typed domain exception.
+
+- **The data-volume unit defect cannot exist here.** Every volume sensor declares `native_unit_of_measurement=BYTES` and carries raw bytes, leaving the conversion to HA — there is not a single manual divisor (`1024**3` or `1_000_000_000`) anywhere in the codebase.
+
+- **Two greps would have become false findings.** `services.py` contains zero occurrences of `HomeAssistantError` but raises `ServiceValidationError`, its subclass, on every invalid path; and five service schemas declare `device_id`, which here really is a device-registry UUID resolved through the registry. Both are recorded in the report so the next review does not raise them.
+
+- **Method stated in the report deliberately:** pattern-driven analysis across all 17 source files, not a verbatim read of 26,000 lines. Every mechanical pattern in categories 1–7 and the masked-errors companion was scanned and each hit read in context. A review that claims a full read it did not perform is worse than one that states its method.
 
 ## [1.0.1-dev20] - 2026-08-08 - Deeper Testing: Boundaries Approached from Both Sides
 
