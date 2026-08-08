@@ -92,8 +92,20 @@ class UnifiRefreshButton(
         self._attr_unique_id = f"{entry.unique_id}_refresh"
 
     async def async_press(self) -> None:
-        """Trigger an immediate data refresh (overrides Pause Polling)."""
-        await self.coordinator.async_force_refresh()
+        """Trigger an immediate data refresh (overrides Pause Polling).
+
+        Raises rather than returning quietly on failure, so an automation or
+        script pressing this button can tell that it did not work. The
+        debounced ``async_force_refresh`` cannot support that - it may return
+        before the fetch has run - so the non-debounced variant is used and its
+        outcome read from ``last_update_success``.
+        """
+        await self.coordinator.async_force_refresh_now()
+        if not self.coordinator.last_update_success:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="refresh_failed",
+            )
 
     @property
     def device_info(self) -> DeviceInfo:

@@ -853,3 +853,95 @@ async def test_every_claimed_parse_error_skips_one_device_and_spares_the_rest(
     assert ap_mac not in result["devices"]
     assert result["gateway"] is not None
     assert result["gateway"]["mac"] == MOCK_MAC
+
+
+# ---------------------------------------------------------------------------
+# Pause Polling, and the one-shot bypass — dev_standards §13
+# ---------------------------------------------------------------------------
+
+
+async def test_paused_polling_returns_cached_data_without_fetching(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """With polling paused and data already held, no fetch is made.
+
+    The baseline for the bypass test below: without it, "the forced refresh
+    fetched" proves nothing, because an unpaused coordinator fetches anyway.
+    """
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_config_entry,
+        options={**mock_config_entry.options, "stop_polling": True},
+    )
+    api = _api()
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+    coordinator.data = {"gateway": {"mac": MOCK_MAC}, "devices": {}}
+
+    result = await coordinator._async_update_data()
+
+    api.get_devices.assert_not_awaited()
+    assert result is coordinator.data
+
+
+async def test_an_explicit_refresh_overrides_paused_polling_once(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """Refresh Now fetches while paused, and the bypass is spent on one poll.
+
+    This is the `dev_standards` §13 regression — a Refresh Now swallowed while
+    polling is paused — asserted directly for the first time. It shipped in one
+    sibling project and was live in another; here it works, and now there is a
+    test that would notice if it stopped.
+
+    The second half matters as much as the first: ``_force_refresh_once`` is
+    consumed on **attempt**, so the poll after the forced one must go back to
+    returning cached data rather than staying unpaused.
+    """
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_config_entry,
+        options={**mock_config_entry.options, "stop_polling": True},
+    )
+    api = _api()
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+    coordinator.data = {"gateway": {"mac": MOCK_MAC}, "devices": {}}
+
+    coordinator._force_refresh_once = True
+    result = await coordinator._async_update_data()
+
+    api.get_devices.assert_awaited()
+    assert result["gateway"]["mac"] == MOCK_MAC
+    assert coordinator._force_refresh_once is False
+
+    # The bypass was one-shot: the next poll is paused again.
+    api.get_devices.reset_mock()
+    await coordinator._async_update_data()
+    api.get_devices.assert_not_awaited()
+
+
+async def test_force_refresh_now_fetches_inline_while_paused(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """The non-debounced variant runs the update before it returns.
+
+    Exercises ``async_force_refresh_now`` through its public surface rather
+    than by setting ``_force_refresh_once`` by hand, because the point of the
+    method is that the caller can read ``last_update_success`` afterwards -
+    which only holds if the fetch has already happened when it returns. The
+    debounced sibling cannot promise that, which is the whole reason the Refresh
+    Now button moved off it.
+    """
+    mock_config_entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        mock_config_entry,
+        options={**mock_config_entry.options, "stop_polling": True},
+    )
+    api = _api()
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+    coordinator.data = {"gateway": {"mac": MOCK_MAC}, "devices": {}}
+
+    await coordinator.async_force_refresh_now()
+
+    api.get_devices.assert_awaited()
+    assert coordinator.last_update_success is True
+    assert coordinator._force_refresh_once is False

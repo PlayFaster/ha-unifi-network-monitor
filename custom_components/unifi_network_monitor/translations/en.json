@@ -555,6 +555,9 @@
     "not_a_monitor_device": {
       "message": "Device {device_id} is not a UniFi Network Monitor device."
     },
+    "refresh_failed": {
+      "message": "Failed to refresh UniFi Network data. The gateway did not respond; see the log for details."
+    },
     "speedtest_failed": {
       "message": "Failed to trigger speedtest: {error}"
     },

@@ -1049,9 +1049,33 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         return "failed"
 
     async def async_force_refresh(self) -> None:
-        """Refresh now, bypassing the pause guard (explicit user action)."""
+        """Refresh now, bypassing the pause guard (explicit user action).
+
+        Debounced: the fetch may not have run by the time this returns, so the
+        outcome is not knowable here. Callers that must report failure want
+        ``async_force_refresh_now`` instead.
+        """
         self._force_refresh_once = True
         await self.async_request_refresh()
+
+    async def async_force_refresh_now(self) -> None:
+        """Refresh immediately, bypassing both the pause guard and the debouncer.
+
+        For a control that has to tell the caller whether it worked. ``async_refresh``
+        runs the update inline and records the outcome on ``last_update_success``
+        rather than raising, so the caller checks that flag afterwards - which it
+        can only do if the fetch has actually happened, hence not the debounced
+        path.
+
+        ``_force_refresh_once`` is still consumed on **attempt**, inside
+        ``_async_update_data``, not on success. A failed forced refresh therefore
+        does not bypass the pause again on the next scheduled poll. That is
+        deliberate: the alternative re-arms the bypass until a fetch succeeds,
+        which turns a paused integration into a polling one for as long as the
+        gateway stays unreachable.
+        """
+        self._force_refresh_once = True
+        await self.async_refresh()
 
     @callback
     def async_schedule_refresh_in(self, seconds: float) -> None:

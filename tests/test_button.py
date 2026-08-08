@@ -27,6 +27,8 @@ def _make_coordinator(data: dict[str, Any] | None) -> MagicMock:
     coord.sw_version = "5.1.19.33549"
     coord.async_request_refresh = AsyncMock()
     coord.async_force_refresh = AsyncMock()
+    coord.async_force_refresh_now = AsyncMock()
+    coord.last_update_success = True
     coord.async_add_listener = MagicMock()
     coord.async_trigger_speedtest = AsyncMock()
     return coord
@@ -66,7 +68,13 @@ async def test_async_setup_entry_creates_button(hass: Any) -> None:
 
 
 async def test_button_press_calls_refresh() -> None:
-    """async_press calls coordinator.async_request_refresh."""
+    """async_press drives the non-debounced refresh so the outcome is knowable.
+
+    It uses ``async_force_refresh_now`` rather than the debounced
+    ``async_force_refresh``: the debounced call can return before the fetch has
+    run, and the button has to report failure. Covers the code review finding
+    of 2026-08-08.
+    """
     coordinator = _make_coordinator(MOCK_COORDINATOR_DATA)
     entry = _make_entry()
 
@@ -74,7 +82,32 @@ async def test_button_press_calls_refresh() -> None:
 
     button = UnifiRefreshButton(coordinator, entry)
     await button.async_press()
-    coordinator.async_force_refresh.assert_awaited_once()
+    coordinator.async_force_refresh_now.assert_awaited_once()
+    coordinator.async_force_refresh.assert_not_awaited()
+
+
+async def test_button_press_raises_when_the_refresh_fails() -> None:
+    """A failed refresh must reach the caller, not be reported as success.
+
+    Covers the Medium finding from `code_review_20260808_2010.md`. The button
+    previously awaited the debounced refresh, which records failure on
+    ``last_update_success`` but does not propagate it - so ``async_press``
+    could not raise and an automation pressing this button always reported
+    success, including when the gateway was unreachable. ``SpeedtestButton``
+    in this same file already raised; this is the inconsistency closed.
+    """
+    coordinator = _make_coordinator(MOCK_COORDINATOR_DATA)
+    coordinator.last_update_success = False
+    entry = _make_entry()
+
+    from custom_components.unifi_network_monitor.button import UnifiRefreshButton
+
+    button = UnifiRefreshButton(coordinator, entry)
+
+    with pytest.raises(HomeAssistantError):
+        await button.async_press()
+
+    coordinator.async_force_refresh_now.assert_awaited_once()
 
 
 def test_button_unique_id() -> None:

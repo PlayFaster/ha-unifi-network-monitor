@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: UniFi Network Monitor](#internal-detailed-changelog-unifi-network-monitor)
+  - [\[1.0.1-dev22\] - 2026-08-08 - Refresh Now Reports Failure; Diagnostics and About Verified Live](#101-dev22---2026-08-08---refresh-now-reports-failure-diagnostics-and-about-verified-live)
   - [\[1.0.1-dev21\] - 2026-08-08 - Code Review: One Finding, Fifteen Clean Checks](#101-dev21---2026-08-08---code-review-one-finding-fifteen-clean-checks)
   - [\[1.0.1-dev20\] - 2026-08-08 - Deeper Testing: Boundaries Approached from Both Sides](#101-dev20---2026-08-08---deeper-testing-boundaries-approached-from-both-sides)
   - [\[1.0.1-dev19\] - 2026-08-08 - Mutation Testing: The Diagnostics Scrubber Was Only Ever Tested for Absence](#101-dev19---2026-08-08---mutation-testing-the-diagnostics-scrubber-was-only-ever-tested-for-absence)
@@ -29,6 +30,30 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-07-22 - Initial Public Release](#100---2026-07-22---initial-public-release)
 
 ---
+
+## [1.0.1-dev22] - 2026-08-08 - Refresh Now Reports Failure; Diagnostics and About Verified Live
+
+Closes the three items the phased work had parked or deferred. Two of them needed the live instance and the owner supplied access; the third was the code review's only finding.
+
+### Fixed
+
+- **Refresh Now now tells the caller when it failed** (`button.py`, `coordinator.py`). The Phase 7 finding: `async_press` awaited the **debounced** `async_request_refresh`, which records failure on `last_update_success` but does not propagate it — so the button could not raise, and an automation pressing it reported success even when the gateway was unreachable. `SpeedtestButton` two entities away already raised.
+
+  Adds `async_force_refresh_now`, a non-debounced variant, so the outcome is known when the call returns; the button reads `last_update_success` and raises `HomeAssistantError` with a new `refresh_failed` translation key.
+
+  **`_force_refresh_once` still consumed on attempt, not on success** — deliberate. Consuming on success re-arms the pause bypass until a fetch works, which turns a paused integration into a polling one for as long as the gateway stays down. The un-surfaced failure was the defect; the consumption rule was not.
+
+### Added
+
+- **Three tests**, taking the suite to **842**. Two cover the button (non-debounced path taken, raises on failure) and one covers `async_force_refresh_now` through its public surface. Plus **the first direct assertion of the §13 pause-bypass itself** — Refresh Now overriding Pause Polling had no test at all, despite being the named regression this family has shipped twice. It also asserts the bypass is genuinely one-shot.
+
+- **Five `About` entries in `docs/all_sensors.md`**, filled from live text: the WAN1/WAN2 speedtest buttons, the Integration Health and Rogue AP Proximity binary sensors, and the Rogue Detection Period select.
+
+### Notes
+
+- **§20 Diagnostics closed — verified against a real, populated capture**, not by reading code. This module held `diagnostics: done` across two IQS scans while leaking real identifiers, so source-reading was not acceptable evidence. The capture carried 95 gateway keys, 20 devices, 5 rogue-history entries and a live alert block. Scanning the whole file found **0 raw MACs and 0 private IPs**; identifiers are tokenised or redacted on every surface, and the alert **free text** is scrubbed inline — the path that cannot be confirmed from source.
+
+- **The live `About` reconciliation needed the source key mapping, not string matching.** Live carries 48 against the doc's 46. Three naive comparisons in a row produced artefacts, because the doc's Key column holds `translation_key` (`gateway_board_temp`) while `unique_id` holds `key` (`board_temp`) — comparing them directly is vacuous. Mapped properly, the arithmetic closes: 46 − 3 disabled entities that cannot appear live = 43 overlap, + 5 undocumented = 48. The five were all non-sensor platforms, which is why a sensor-focused column had missed them.
 
 ## [1.0.1-dev21] - 2026-08-08 - Code Review: One Finding, Fifteen Clean Checks
 
