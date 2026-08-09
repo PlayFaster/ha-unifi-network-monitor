@@ -128,11 +128,11 @@ All six platforms set `PARALLEL_UPDATES = 0`. That is **not** an appeal to the h
 
 **Speedtest button → `POST cmd/devmgr {"cmd":"speedtest"}`.** Two concurrent presses send two commands. The gateway runs one speedtest at a time and the controller rejects or queues the second; nothing is corrupted and nothing is left half-done. `0` is safe.
 
-**Load-balance number → two sequential PUTs of the whole `networkconf` object.** This is the one place a concurrency cap could have mattered, because the invariant — WAN1 + WAN2 = 100 — is held across _two separate writes_. But `PARALLEL_UPDATES` is not what protects it and `1` would not have helped: the entity already serialises itself, cancelling its previous debounce task before starting a new one, so two rapid calls collapse rather than interleave.
+**Load-balance number → two sequential PUTs of the whole `networkconf` object.** This is the one place a concurrency cap could have mattered, because the invariant — WAN1 + WAN2 = 100 — is held across _two separate writes_. But `PARALLEL_UPDATES` is not what protects it and `1` would not have helped: the entity already serializes itself, cancelling its previous debounce task before starting a new one, so two rapid calls collapse rather than interleave.
 
 **That cancel was itself the defect.** Once the two-second debounce had elapsed, the task was suspended _between the two PUTs_, so `cancel()` raised there and the handler swallowed it — WAN1 written, WAN2 not, the pair no longer summing to 100, and nothing reporting it. Two slider moves about two seconds apart were enough. Fixed at `[1.0.1-dev12]` by awaiting the pair through `asyncio.shield`, so the caller can be cancelled while the write completes. A concurrency cap would never have addressed it.
 
-**Conclusion:** `0` is correct on all six — by construction for the four read-only platforms, because a duplicate speedtest command is harmless for the button, and because the number serialises itself. The hazard was real but orthogonal to the setting.
+**Conclusion:** `0` is correct on all six — by construction for the four read-only platforms, because a duplicate speedtest command is harmless for the button, and because the number serializes itself. The hazard was real but orthogonal to the setting.
 
 ### 3-Strike Resilience
 

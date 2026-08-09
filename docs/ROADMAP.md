@@ -2,33 +2,41 @@
 
 A Home Assistant custom integration for Ubiquiti UniFi networks anchored by a UDM Pro, distributed via HACS. It polls the controller's classic and v3 APIs and publishes sensors, binary sensors, buttons, numbers, switches and a select across seven sub-devices, plus optional per-AP and per-switch entities. The feature set is broadly complete; what remains is verification work, two feature ideas, and a handful of decisions worth recording so they are not re-argued.
 
-**This is the project's first roadmap document.** There is therefore no **Done** group: membership there is by provenance — an item qualifies only if it was on the roadmap and was subsequently built — and nothing has been on this roadmap before today. Features that shipped without ever appearing here do not belong in it, however significant. The group will populate as items below are met.
+**Membership of Done is by provenance** — an item qualifies only if it was on this roadmap and was subsequently built. Features that shipped without ever appearing here do not belong in it, however significant. The group was empty when this document was created on 2026-08-08 and gained its first three entries the same day, as the August 2026 update cycle met them.
 
-**Reviewed 2026-08-08** against `AGENTS.md`, `docs/DEVELOPMENT.md`, the August 2026 update plan (`.notes/info/updates_202608/status_plan.md`), and the four Phase 0 review reports.
+**Reviewed 2026-08-08**, and again after the August cycle closed at `[1.1.0]`, against `AGENTS.md`, `docs/DEVELOPMENT.md`, the August 2026 update plan (`.notes/info/updates_202608/status_plan.md`), and the four Phase 0 review reports.
+
+---
+
+## Done
+
+### `about` note coverage across the entity set
+
+_Original roadmap item, met 2026-08-08 (`[1.0.1-dev17]`, extended at `[1.1.0]`)._
+
+Raised from 23 declared notes to **46 source-declared / 48 live**, and the distribution problem is what was actually fixed: Internet went from **1 note across 41 entities** to 18. Deliberate omissions are recorded rather than left to read as neglect. The final five came from the live instance and were all non-sensor platforms — the two speedtest buttons, two binary sensors and a select — which a sensor-focused pass had missed.
+
+### Mutation testing, starting from a measured module list
+
+_Original roadmap item, met 2026-08-08 (`[1.0.1-dev19]`)._
+
+`.validate/mutmut_modules.txt` decided by measurement — `diagnostics.py`, `helpers.py`, `alerts.py`, `sensor.py`; everything else excluded with a written reason. Three runs, ending at **840 killed / 205 survived of 1045, 0 timeouts**.
+
+It found what coverage could not. Five boundary and arithmetic gaps in the projection code, and 87 survivors in `diagnostics.py` with a single cause: the tests asserted the output carried **no secret** and never that it carried the **right token**, which a skipped or nulled scrub satisfies. Every remaining survivor carries a written verdict in `.notes/issues/testing_deeper/mutation_equivalents.md`.
+
+One triage rule was corrected in the process and now sits in the shared guide: dict-key mutants are snapshot noise only when the key is **written**. A mutated key that is **read** makes the guard falsy and skips the branch, leaving the real value in the output.
+
+### §20 Diagnostics verification against a populated capture
+
+_Original roadmap item, met 2026-08-08 (`[1.0.1-dev22]`). Was **Blocked**; the owner supplied the capture._
+
+Graded against a real capture carrying 95 gateway keys, 20 devices, 5 rogue-history entries and a live alert block — the populated data the item was blocked on. The whole file was scanned rather than the source read: **0 raw MACs and 0 private IPs**, keys and device names tokenized, `bssid` redacted, the alert `DEVICE` block reduced to its `gateway` label, `CONSOLE_NAME` blanked, and the alert **free text** scrubbed inline.
+
+That last one is the part source-reading cannot confirm, and it is why this item existed: reasoning from source produced a false clean verdict here twice.
 
 ---
 
 ## To Be Done
-
-### `about` note coverage across the entity set
-
-Populate the unrecorded `about:` attribute on more entities. It currently sits at 23 declared notes (26 live, because one class-level note serves two entities) out of 130, and the distribution is the real problem rather than the total: **Internet carries 1 note across 41 entities**, while Security and Alerts — the newest feature areas — are at 12 of 20 and 4 of 4.
-
-Not a sweep. A note on every entity trains users to ignore notes, so the work is to annotate where the answer is genuinely non-obvious — the WAN availability, latency and usage metrics, the Gateway hardware readings, and the Speedtest group — and to **record the deliberate omissions** so a future count does not read as neglect.
-
-- **Value:** ⭐⭐⭐
-- **Effort:** Medium
-
-### Mutation testing, starting from a measured module list
-
-Decide `.validate/mutmut_modules.txt` by measurement rather than by guess, then run and triage. `diagnostics.py` is the first candidate on the numbers — 193 statements, 124 branches, and the module whose failure mode is silent.
-
-Two traps are already paid for elsewhere and must not be re-learned: `only_mutate` needs an **indented newline list**, because the comma-separated form silently generates zero mutants and reports success; and `mutants/` must **never** be deleted, since it is both the incremental cache and the results store.
-
-**One live dependency, created by this project on 2026-08-08.** `scripts/` now exists (the write-classification register and hardware check), and `tests/test_write_classification.py` imports from it. mutmut copies only `source_paths` and `tests` into `mutants/`, so the run aborts before it starts unless `also_copy = scripts/` is present. That setting is in the shared workbench template but **this project has no `setup.cfg` yet** — it arrives on the next sync. Confirm it is there first, or the failure looks unrelated to the cause.
-
-- **Value:** ⭐⭐⭐
-- **Effort:** High
 
 ### Prior-cycle blending for the Projected Usage sensors
 
@@ -67,19 +75,6 @@ Today that suppression is invisible: the sensor reads `unknown` and nothing dist
 
 ## Blocked
 
-### §20 Diagnostics verification against a populated capture
-
-Grade the diagnostics output against `dev_standards.md` §20 by reading a **regenerated download with the optional data populated** — alerts, threat detections, and secondary hardware present.
-
-**Blocked by:** the absence of such a capture. The rig does not currently produce alerts or detections on demand, and every empty branch in the sanitiser reads as clean whether it is or not.
-
-This is not a theoretical concern on this project specifically. It is the one that held `diagnostics: done` across two full IQS scans while leaking device MACs, user-assigned device names, internal IPs, the subscriber's ISP and third-party SSIDs — and every one of those was found by reading real output, not by reasoning from source. Reasoning from source has produced a false clean verdict here **twice**.
-
-**Nothing is queued behind this.** The outcome would be informative rather than enabling; no other work waits on it.
-
-- **Value:** ⭐⭐⭐⭐
-- **Effort:** Low once unblocked — it is a read-and-compare, not a build.
-
 ### Cross-model verification beyond the UDM Pro
 
 Confirm the gateway parse against a second gateway model — a UDM SE, UDM Base, UCG-Ultra or UNVR. `GATEWAY_MODELS` lists nine, and exactly one has ever been exercised.
@@ -97,9 +92,9 @@ Confirm the gateway parse against a second gateway model — a UDM SE, UDM Base,
 
 **Not doing it. `0` is correct on all six platforms.**
 
-**Detail.** The decision was reached by tracing each write path rather than by quoting the house rule about read-only entities, and the trace is recorded in `docs/DEVELOPMENT.md`. The speedtest button is safe at `0` because a duplicate `cmd/devmgr` speedtest command is rejected or queued by the controller and corrupts nothing. The load-balance number is a more interesting case — its WAN1 + WAN2 = 100 invariant is held across two separate PUTs — but the entity already serialises itself by cancelling its previous debounce task, so `1` would change nothing. The genuine hazard there was that the cancel landed _between_ the two writes, and it was fixed by shielding the pair, not by capping concurrency.
+**Detail.** The decision was reached by tracing each write path rather than by quoting the house rule about read-only entities, and the trace is recorded in `docs/DEVELOPMENT.md`. The speedtest button is safe at `0` because a duplicate `cmd/devmgr` speedtest command is rejected or queued by the controller and corrupts nothing. The load-balance number is a more interesting case — its WAN1 + WAN2 = 100 invariant is held across two separate PUTs — but the entity already serializes itself by cancelling its previous debounce task, so `1` would change nothing. The genuine hazard there was that the cancel landed _between_ the two writes, and it was fixed by shielding the pair, not by capping concurrency.
 
-**What would reopen it:** a new write path that does **not** serialise itself — a service call, or a control without a debounce, that issues a multi-step write against the same object.
+**What would reopen it:** a new write path that does **not** serialize itself — a service call, or a control without a debounce, that issues a multi-step write against the same object.
 
 ### The AP satisfaction-score guard band
 
@@ -117,7 +112,7 @@ Confirm the gateway parse against a second gateway model — a UDM SE, UDM Base,
 
 **Not doing it. Monitor owns its own device tree.**
 
-**Detail.** Devices are identity-only — `identifiers={(DOMAIN, …)}` with deliberately no `connections={(CONNECTION_NETWORK_MAC, …)}` — so they never collide with core UniFi's. Merging depended on the shared MAC connection, which HA 2026.8 no longer honours; keeping it would have produced two different behaviours across the 2026.8 line (merged on ≤2026.7, split on 2026.8+). Dropping it gives one no-merge model on every version with **no minimum-version floor**, which is worth more than the shared device card.
+**Detail.** Devices are identity-only — `identifiers={(DOMAIN, …)}` with deliberately no `connections={(CONNECTION_NETWORK_MAC, …)}` — so they never collide with core UniFi's. Merging depended on the shared MAC connection, which HA 2026.8 no longer honours; keeping it would have produced two different behaviors across the 2026.8 line (merged on ≤2026.7, split on 2026.8+). Dropping it gives one no-merge model on every version with **no minimum-version floor**, which is worth more than the shared device card.
 
 Monitor stays core-**aware** at the entity level, which is the part that actually mattered: when core `unifi` is installed, sensors that duplicate what it already provides are created but disabled by default. So the redundancy is avoided without sharing a device.
 
@@ -139,20 +134,20 @@ Monitor stays core-**aware** at the entity level, which is the part that actuall
 
 Forward work only, ordered by Value.
 
-| Item                                                     | Group      | Value    | Effort             |
-| :------------------------------------------------------- | :--------- | :------- | :----------------- |
-| §20 Diagnostics verification against a populated capture | Blocked    | ⭐⭐⭐⭐ | Low once unblocked |
-| `about` note coverage across the entity set              | To Be Done | ⭐⭐⭐   | Medium             |
-| Mutation testing, starting from a measured module list   | To Be Done | ⭐⭐⭐   | High               |
-| Cross-model verification beyond the UDM Pro              | Blocked    | ⭐⭐⭐   | Low once unblocked |
-| Prior-cycle blending for the Projected Usage sensors     | To Be Done | ⭐⭐     | Medium             |
-| Formal child devices (#1414)                             | Maybe      | ⭐⭐     | Medium             |
-| A `problem` binary sensor for guard-band suppression     | Maybe      | ⭐       | Low                |
+| Item | Group | Value | Effort |
+| :-- | :-- | :-- | :-- |
+| Cross-model verification beyond the UDM Pro | Blocked | ⭐⭐⭐ | Low once unblocked |
+| Prior-cycle blending for the Projected Usage sensors | To Be Done | ⭐⭐ | Medium |
+| Formal child devices (#1414) | Maybe | ⭐⭐ | Medium |
+| A `problem` binary sensor for guard-band suppression | Maybe | ⭐ | Low |
+
+Three items left this table on 2026-08-08 and are now in **Done** — `about` note coverage, mutation testing, and the §20 diagnostics verification that had been the highest-value entry here. Only one blocked item remains, and nothing is queued behind it.
 
 ---
 
 ## Version Control
 
-| Version | Date       | Change                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| :------ | :--------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| v1.0.0  | 2026-08-08 | Initial, per `roadmap_format.md` v1.2.0. Records three forward items, two Maybes with stated triggers, two Blocked items with the obstacle named and the note that nothing is queued behind the diagnostics one, two Revisit decisions with observable reopening triggers, and three Declines. **No Done group**, because membership there is by provenance and this is the first roadmap this project has had — the group will populate as the items above are met rather than being backfilled from the changelog. Created as item 27 of the August 2026 update plan. |
+| Version | Date | Change |
+| :-- | :-- | :-- |
+| v1.1.0 | 2026-08-08 | **First three items met, and the Done group opened.** The August 2026 update cycle closed at `[1.1.0]`, meeting `about` note coverage (23 → 46 declared / 48 live, with the Internet distribution problem fixed at 1 → 18), mutation testing (module list decided by measurement; three runs ending 840 killed / 205 survived of 1045), and the **§20 diagnostics verification**, which moved out of **Blocked** when the owner supplied a populated capture — 0 raw MACs and 0 private IPs across the whole file, with the alert free text scrubbed inline. Removed a stale precondition from the mutation entry: it warned that the project had no `setup.cfg`, which stopped being true when the module list was written. The summary table drops to four forward items, one of them blocked. |
+| v1.0.0 | 2026-08-08 | Initial, per `roadmap_format.md` v1.2.0. Records three forward items, two Maybes with stated triggers, two Blocked items with the obstacle named and the note that nothing is queued behind the diagnostics one, two Revisit decisions with observable reopening triggers, and three Declines. **No Done group**, because membership there is by provenance and this is the first roadmap this project has had — the group will populate as the items above are met rather than being backfilled from the changelog. Created as item 27 of the August 2026 update plan. |

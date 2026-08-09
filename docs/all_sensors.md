@@ -8,6 +8,10 @@ This document is split into two logical parts:
 - **Part II: Dynamic UniFi Devices (APs & Switches)**: Dynamic sensor entities generated for each physical UniFi Access Point and Switch monitored by the integration (~20 devices, adding ~160 entities when enabled).
 
 > **🔑 API-key-only sensors:** rows marked **_API-key only_** in the Notes column are served by the UniFi Integration (v3) API, which cannot be reached with username/password auth. Under username/password these seven sensors (Rules Active/Configured/Disabled, VPN Connections Active/Total, WAN1/WAN2 Name) are permanently `unknown`. Use an API key to enable them.
+>
+> **🔑 What the `Key` column holds — read this before comparing it to anything.** It is the entity description's **`translation_key`** (`gateway_board_temp`), **not** its `key` (`board_temp`), and not the entity ID slug (`gateway_board_temperature`). Those are three different identifier spaces and they do not diff against each other.
+>
+> That matters because the mismatch is **silent**: comparing this column against `unique_id` (which is built from `key`, not `translation_key`) produces a plausible-looking delta that is entirely artificial. The mapping lives in the entity descriptions in source — `key=` beside `translation_key=` — and that is the only reliable way to line the two up.
 
 ---
 
@@ -222,7 +226,7 @@ _Group: `system`_
 >
 > - **WAN2 twins of an annotated WAN1 sensor** — WAN2 Today Total, Month Total, Local/Public IP, Last Restart, Uptime, Interface Name and the three Speedtest figures. Each means exactly what its WAN1 counterpart means, and duplicating the text doubles the maintenance for no information. WAN2 Availability and WAN2 Latency _are_ annotated, because those two are the ones read during a failover.
 > - **Self-describing counts** — Device/client/guest counts, VLANs Total, WiFi Networks Total, the rule counts. The name is the definition; a note would restate it.
-> - **The `rx`/`tx` halves of an annotated total** — WAN1 Today Download/Upload sit beside WAN1 Today Total, which carries the note explaining the clamping behaviour that applies to all three.
+> - **The `rx`/`tx` halves of an annotated total** — WAN1 Today Download/Upload sit beside WAN1 Today Total, which carries the note explaining the clamping behavior that applies to all three.
 > - **Binary sensors whose name is the question** — Internet Connected, WAN1 Link Connected, Update Available. On/off against a plain-English name needs no gloss.
 >
 > Coverage by group: Alerts 4/4, Internet 18/35, Security 5/11, Speedtest 4/11, Status 4/16, System 2/4, Gateway 1/17. **Gateway is the remaining gap** — the hardware readings (CPU, memory, uptime, the SFP diagnostics) are candidates, and are listed in `docs/ROADMAP.md`.
