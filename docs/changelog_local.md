@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: UniFi Network Monitor](#internal-detailed-changelog-unifi-network-monitor)
+  - [\[1.1.0-dev3\] - 2026-08-14 - CI Bumps Zizmor MyPy JSONSchema PHACC](#110-dev3---2026-08-14---ci-bumps-zizmor-mypy-jsonschema-phacc)
   - [\[1.0.1-dev22\] - 2026-08-08 - Refresh Now Reports Failure; Diagnostics and About Verified Live](#101-dev22---2026-08-08---refresh-now-reports-failure-diagnostics-and-about-verified-live)
   - [\[1.0.1-dev21\] - 2026-08-08 - Code Review: One Finding, Fifteen Clean Checks](#101-dev21---2026-08-08---code-review-one-finding-fifteen-clean-checks)
   - [\[1.0.1-dev20\] - 2026-08-08 - Deeper Testing: Boundaries Approached from Both Sides](#101-dev20---2026-08-08---deeper-testing-boundaries-approached-from-both-sides)
@@ -30,6 +31,15 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-07-22 - Initial Public Release](#100---2026-07-22---initial-public-release)
 
 ---
+
+## [1.1.0-dev3] - 2026-08-14 - CI Bumps Zizmor MyPy JSONSchema PHACC
+
+### Bumps
+
+- **Validate Bump**: Update `zizmor` from 1.28.0 to 1.29.0
+- **Validate Bump**: Update `mypy` from 2.1.0 to 2.3.0
+- **Validate Bump**: Update `check-jsonschema` from 0.37.4 to 0.38.0
+- **Validate Bump**: Bumped PHACC `pytest-homeassistant-custom-component` from 0.13.354 to 0.13.355
 
 ## [1.0.1-dev22] - 2026-08-08 - Refresh Now Reports Failure; Diagnostics and About Verified Live
 
