@@ -21,7 +21,7 @@ permissions:
 jobs:
   validate:
     # Branch @main — update SHA after pushing .github changes v2.0.6
-    uses: PlayFaster/.github/.github/workflows/validate.yaml@e604ffdf9041f085834e635faecd428c78fe8d6a
+    uses: PlayFaster/.github/.github/workflows/validate.yaml@3ba3afea4cef9eba7bed16034b7ee30a6bb5e83e
     with:
       category: integration
       component_name: unifi_network_monitor
