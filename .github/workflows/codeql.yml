@@ -25,4 +25,4 @@ jobs:
       contents: read
       security-events: write # Required to upload CodeQL SARIF results to GitHub Security
     # Branch @main — replace SHA after releasing .github repo with codeql.yaml v2.0.6
-    uses: PlayFaster/.github/.github/workflows/codeql.yaml@e604ffdf9041f085834e635faecd428c78fe8d6a
+    uses: PlayFaster/.github/.github/workflows/codeql.yaml@b12898ea9b0d954deaf2a099f6bb9fb1fd0bc041
