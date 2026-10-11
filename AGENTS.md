@@ -2,7 +2,7 @@
 
 This file provides guidance to AI coding agents when working with code in this repository.
 
-> **Read the shared conventions first:** [`.shared/dev_std/agent_conventions.md`](.shared/dev_std/agent_conventions.md) — commands (tests, lint, mypy, validation), the Windows-host `docker exec` workflow, devcontainer access, HAB/MCP for interrogating the running HA instance, the post-modification SCOPE table, code conventions, and the markdown/Python rules. That file is the single source of truth for everything shared across the integration projects; this file covers only what is specific to **ha-unifi-network-monitor**.
+> **Read the shared conventions first:** `.shared/dev_std/agent_conventions.md` — commands (tests, lint, mypy, validation), the Windows-host `docker exec` workflow, devcontainer access, HAB/MCP for interrogating the running HA instance, the post-modification SCOPE table, code conventions, and the markdown/Python rules. That file is the single source of truth for everything shared across the integration projects; this file covers only what is specific to **ha-unifi-network-monitor**.
 >
 > **[!] Note:** If you edit files inside directory junctions (`.notes/` or `.shared/`), do not run container validation on them. Validate them on the Windows host from the `shared/` folder.
 
@@ -10,13 +10,17 @@ This file provides guidance to AI coding agents when working with code in this r
 
 > [!CAUTION]
 >
-> **Never run `git checkout`, `git restore`, `git reset`, `git stash` or `git clean`. Ask first, every time — no exceptions, whoever's changes you think they are.** Reading git (`status`, `diff`, `log`, `show`) is always fine. Full rule and the incident behind it: [`agent_conventions.md`](.shared/dev_std/agent_conventions.md).
+> **Never run `git checkout`, `git restore`, `git reset`, `git stash` or `git clean`. Ask first, every time — no exceptions, whoever's changes you think they are.** Reading git (`status`, `diff`, `log`, `show`) is always fine. Full rule and the incident behind it: `agent_conventions.md` (`.shared/dev_std/agent_conventions.md`).
 
 ## What This Integration Does
 
 A Home Assistant custom integration (`unifi_network_monitor`) for Ubiquiti UniFi networks anchored by a UDM Pro (or similar gateway). It is a `local_polling` `hub` integration distributed via HACS. It replaces a previous shell-command + template sensor setup, exposing sensors, binary sensors, buttons, numbers, switches, and a select across **seven** sub-devices — Gateway, Internet, Speedtest, **Security**, **Alerts**, Status, System — plus optional per-AP/switch sensors. Auth supports both API key (`X-API-Key` header — preferred) and username/password (TOKEN cookie + X-CSRF-Token). There are no external `requirements` beyond `aiohttp` and HA core.
 
-> **Entity and service inventory lives in [`docs/all_sensors.md`](docs/all_sensors.md)** — it is authoritative and kept current against live HA by `sensor_review.md`. This file deliberately carries no entity counts or service descriptions; the sections below describe architecture and behavior.
+> **Entity and service inventory lives in [`docs/all_sensors.md`](docs/all_sensors.md)** — it is authoritative and synchronized from code descriptions via `python .workbench/check_sensor_manifest.py --sync-docs` (and validated against live HA via `--verify-ha`). This file deliberately carries no entity counts or service descriptions; the sections below describe architecture and behavior.
+
+---
+
+> **Home Assistant version compatibility lives in [`docs/ha_compatibility.md`](docs/ha_compatibility.md)** — supported version floors and active core API deprecation statuses for this integration are tracked there per `agent_conventions.md` §4 (`.shared/dev_std/agent_conventions.md`).
 
 Setup/reconfigure options let users scope which per-device sensors and gateway sensor groups are created (a disabled group also skips its API calls), with per-endpoint hold-then-`unavailable` resilience, an explicit cleanup button/service, and the UI device-delete hook. See **Setup Options, Sensor-Group Scoping & Cleanup** below.
 
@@ -31,7 +35,7 @@ See **Architecture** and the sections below.
 
 ## Commands
 
-Standard for all integration projects — see [shared conventions §2](.shared/dev_std/agent_conventions.md). Nothing about this project's commands differs.
+Standard for all integration projects — see shared conventions §2 (`.shared/dev_std/agent_conventions.md`). Nothing about this project's commands differs.
 
 ## Architecture
 
@@ -72,7 +76,6 @@ Data flows in one direction: **`api.py` → `coordinator.py` → platform entiti
 
 - **Platforms** (`sensor`, `binary_sensor`, `button`, `number`, `switch`, `select`) — read `coordinator.data` only.
   - All platforms set `PARALLEL_UPDATES = 0`.
-  - All entity descriptions use `translation_key=` (never `name=`); `_attr_has_entity_name = True`.
   - **Guard bands** — `UnifiSensorEntityDescription` carries `min_limit`/`max_limit`; `native_value` returns `None` for out-of-range numeric values.
   - **Dynamic entities** — entities for APs and switches are created from coordinator data at setup time, plus a coordinator listener adds entities for newly-discovered devices.
   - **Option-gated creation** — each platform's static loop **and** dynamic listener honour `unifi_device_mode` (per-device sensors) and the feature toggles (gateway sensor groups). A disabled group is _not created_ (not created-disabled). See below.
@@ -112,11 +115,11 @@ Full design: `.notes/design_monitor_setup_options.md`. Cross-project porting gui
 
 ## Key Patterns & Conventions
 
-Shared conventions (ruff/mypy strictness, `_LOGGER` prefixing, `PARALLEL_UPDATES`, `translation_key`, icons, exception tuple syntax, markdown emoji rules) are in [shared conventions §4–5](.shared/dev_std/agent_conventions.md). Nothing in this project deviates.
+Shared conventions (ruff/mypy strictness, `_LOGGER` prefixing, `PARALLEL_UPDATES`, `translation_key`, icons, exception tuple syntax, markdown emoji rules) are in shared conventions §4–5 (`.shared/dev_std/agent_conventions.md`). Nothing in this project deviates.
 
 Note: this project's README was cleaned of all ten VS16-emoji occurrences on 2026-07-22.
 
-## Tests that will stop you, and why they exist
+## Tests that will stop you
 
 Several tests here are **sweeps**: they assert that every member of a _set_ is covered, so they fail when the set **grows**, not when a known member breaks. The failure therefore looks unrelated to whatever you just changed, and the reflex is to suppress it.
 
@@ -126,36 +129,34 @@ Several tests here are **sweeps**: they assert that every member of a _set_ is c
 
 | Add or change this | This fails | Do this |
 | :-- | :-- | :-- |
-| A sensor with a unit or `state_class` | `test_every_numeric_sensor_has_a_lower_guard_band` | Declare `min_limit`, or add the key to `ALLOWED_NO_MIN_LIMIT` **with a reason**. Then add a row to `docs/value_min_max.md` — §6 wants it to match the code in both directions, and it currently does (0 undocumented). `test_guard_band_allow_lists_have_no_stale_entries` fails if an exemption outlives its sensor. |
-| A sensor measured in `%` | `test_every_percentage_sensor_has_an_upper_guard_band` | Declare `max_limit`. Scoped to percentages on purpose: a ceiling on a count or a byte total would suppress real data the first time it was crossed, which is why `test_no_accumulating_counter_carries_an_upper_bound` asserts the **absence** of one on every `TOTAL_INCREASING` sensor. |
-| Any sensor at all | `test_no_sensor_uses_the_total_state_class` | Use `TOTAL_INCREASING`. Plain `TOTAL` needs a changing `last_reset` for the recorder to see a rollover; every counter here resets to zero without publishing one, so `TOTAL` walks long-term statistics backwards on each cycle. |
-| A sensor whose value is a forecast | `test_a_forecast_never_carries_a_state_class` | Leave `state_class` unset and publish the caveat as an attribute. A revising forecast in long-term statistics corrupts the series. |
-| Any entity | `test_every_declared_translation_key_has_a_name`, `test_every_declared_key_has_an_icon` | Add entries under **that entity's own platform** in `strings.json`, `translations/en.json` and `icons.json`. Keys are read from **module source**, matching both `translation_key=` in a description and `_attr_translation_key` on a class, so a single-instance entity is covered the same way. |
-| Removing an entity | `test_no_dead_translation_entries`, `test_no_dead_icon_entries` | Remove its entries too. A dead entry costs nothing at runtime, which is exactly why it is never noticed — and it makes every count in `docs/all_sensors.md` wrong. |
-| A raised `HomeAssistantError` | `test_every_raised_exception_key_has_a_message`, `test_no_dead_exception_messages` | Add the key to the `exceptions` block in **both** translation files. Checked in both directions. |
-| An entity attribute | `test_no_entity_publishes_a_recorded_attribute` | Add the key to that class's `_unrecorded_attributes`. **Repeat `"about"` if the class declares its own set** — HA does not merge this across the hierarchy, so a subclass assignment shadows the mixin's entirely. |
-| A credential field in any config-flow schema | `test_stored_secrets_are_never_pre_filled`, `test_no_field_leaks_a_stored_secret` | Never seed it from stored options — not as `default` and not as `suggested_value`. The failure is silent: the screen looks right and the value is exposed only when someone clicks the eye icon. Two projects in this family have shipped exactly this. |
-| A new write command in `api.py` | `test_every_write_is_classified`, `test_every_entry_carries_a_written_reason` | Add it to `scripts/write_classification.py` as `SAFE`, `ATTENDED` or `NEVER_AUTOMATED`, **with a written reason**. Classify it `SAFE` and `test_every_safe_write_is_exercised_by_the_hardware_check` additionally requires `scripts/hardware_check.py` to actually send it. The detector keys on the **endpoint, not the verb** — this controller answers queries with `POST`, so five read methods would otherwise be reported as writes. |
-| A new repair issue | `test_repair_issue_names_cover_both_repairs` | Add the name to `REPAIR_ISSUE_NAMES` in `const.py` and raise it through `repair_issue_id(entry_id, name)`. The list is what `_clear_repair_issues` sweeps on teardown; a repair missing from it survives the integration being deleted, with nothing left that could ever clear it. |
-| A test with no assertion | the assertion audit (`python .workbench/check_test_assertions.py`) | Assert the observable outcome — nothing cancelled, nothing written, the error logged. It currently reports **0 of 802**, and there is no allow-list file because every case turned out to have one. Report-only, so read the PASSED/FAILED line rather than the exit code. |
-| **Any new partial branch** | branch coverage (`pytest --cov --cov-branch`) | **The bar is zero.** As of `[1.0.1]` this project is at **100% line and 100% branch, 0 partials** — so a partial is now a signal rather than noise, and "it was already like that" is no longer an answer. Treat each as a missing test until proved otherwise: measured 12-of-12 on WiFi, 11-of-11 on ZTE and 33-of-33 here, with not one dead guard between them. If a branch really is unreachable, **delete it** rather than leaving it to erode the number — the five removed at `[1.0.1]` were `isinstance(x, list)` checks on payloads `_fetch_optional` had already normalized with `list()`. `# pragma: no cover` changes the denominator instead of testing anything; the count stays at 1 unless there is a written reason. |
-| Any branch in a `for` loop guard | branch coverage (`pytest --cov --cov-branch`) | Use **at least two** items with the unwanted one **first**, and assert the later item was still processed. With one item, "skipped and continued" and "skipped and stopped" are indistinguishable. `--cov-branch` is a flag in `.vscode/tasks.json`, **not** in `pyproject.toml` — a plain `pytest --cov` reports no partials at all and every module looks clean. |
+| A sensor with a unit or `state_class` | `test_every_numeric_sensor_has_a_lower_guard_band` | Declare `min_limit`, or add the key to `ALLOWED_NO_MIN_LIMIT` **with a reason**. Then add a row to `docs/value_min_max.md`. |
+| A sensor measured in `%` | `test_every_percentage_sensor_has_an_upper_guard_band` | Declare `max_limit`. |
+| Any sensor at all | `test_no_sensor_uses_the_total_state_class` | Use `TOTAL_INCREASING`. |
+| A sensor whose value is a forecast | `test_a_forecast_never_carries_a_state_class` | Leave `state_class` unset and publish the caveat as an attribute. |
+| Any entity | `test_every_declared_translation_key_has_a_name`, `test_every_declared_key_has_an_icon` | Add entries under **that entity's own platform** in `strings.json`, `translations/en.json` and `icons.json`. |
+| Removing an entity | `test_no_dead_translation_entries`, `test_no_dead_icon_entries` | Remove its entries too. |
+| A raised `HomeAssistantError` | `test_every_raised_exception_key_has_a_message`, `test_no_dead_exception_messages` | Add the key to the `exceptions` block in **both** translation files. |
+| An entity attribute | `test_no_entity_publishes_a_recorded_attribute`, `test_health_detail_is_unrecorded`, `test_rogue_proximity_rssi_is_unrecorded`, `test_gateway_sensor_records_nothing` | Add the key to that class's `_unrecorded_attributes`. **Repeat `"about"` if the class declares its own set**. |
+| A credential field in any config-flow schema | `test_stored_secrets_are_never_pre_filled`, `test_no_field_leaks_a_stored_secret` | Never seed it from stored options — not as `default` and not as `suggested_value`. |
+| A new write command in `api.py` | `test_every_write_is_classified`, `test_every_entry_carries_a_written_reason` | Add it to `scripts/write_classification.py` as `SAFE`, `ATTENDED` or `NEVER_AUTOMATED`, **with a written reason**. |
+| A new repair issue | `test_repair_issue_names_cover_both_repairs` | Add the name to `REPAIR_ISSUE_NAMES` in `const.py` and raise it through `repair_issue_id(entry_id, name)`. |
+| A test with no assertion | the assertion audit (`python .workbench/check_test_assertions.py`) | Assert the observable outcome — nothing cancelled, nothing written, the error logged. |
+| **Any new partial branch** | branch coverage (`pytest --cov --cov-branch`) | Treat it as a missing test; the bar is zero partial branches. |
+| Any branch in a `for` loop guard | branch coverage (`pytest --cov --cov-branch`) | Use **at least two** items with the unwanted one **first**, and assert the later item was still processed. |
 
-## Development Environment
-
-Standard for all integration projects — see [shared conventions §3](.shared/dev_std/agent_conventions.md). Nothing about this project's environment differs.
+When you add a guard test, add its row here and its rationale to [`docs/test_guards.md`](docs/test_guards.md).
 
 ## API Endpoints Reference
 
-| Endpoint | Purpose |
-| :-- | :-- |
-| `GET /proxy/network/api/s/{site}/stat/device` | All adopted devices (UDM, APs, switches) with live stats |
-| `GET /proxy/network/api/s/{site}/stat/health` | Network health subsystems (wan, www, wlan, lan, vpn) |
-| `GET /proxy/network/api/s/{site}/stat/sysinfo` | System info including firmware version |
-| `POST /proxy/network/api/s/{site}/stat/rogueap` | Rogue APs within `{within}` hours (Security; queried at the live period + a fixed 24h for the raw sensor) |
+| Endpoint                                                | Purpose                                                                                                      |
+| :------------------------------------------------------ | :----------------------------------------------------------------------------------------------------------- |
+| `GET /proxy/network/api/s/{site}/stat/device`           | All adopted devices (UDM, APs, switches) with live stats                                                     |
+| `GET /proxy/network/api/s/{site}/stat/health`           | Network health subsystems (wan, www, wlan, lan, vpn)                                                         |
+| `GET /proxy/network/api/s/{site}/stat/sysinfo`          | System info including firmware version                                                                       |
+| `POST /proxy/network/api/s/{site}/stat/rogueap`         | Rogue APs within `{within}` hours (Security; queried at the live period + a fixed 24h for the raw sensor)    |
 | `POST /proxy/network/v2/api/site/{site}/system-log/all` | System-log alerts (Alerts group; `EP_SYSLOG` polls HIGH/VERY_HIGH; `get_alerts` queries all four severities) |
-| `POST /api/auth/login` | Obtain TOKEN cookie + X-CSRF-Token (username/password auth only) |
-| `POST /api/auth/logout` | Invalidate session |
+| `POST /api/auth/login`                                  | Obtain TOKEN cookie + X-CSRF-Token (username/password auth only)                                             |
+| `POST /api/auth/logout`                                 | Invalidate session                                                                                           |
 
 Full endpoint reference (incl. speedtest, reports, config, v3): `docs/api_endpoints.md`.
 
@@ -168,3 +169,17 @@ Still outstanding and not yet written up as a roadmap entry:
 - **Rogue-AP action/event fast-follow refinements** and any further alerts polish.
 
 Note: the test suite is at **100% line and 100% branch coverage** — 842 tests, 2944 statements, 0 missing, **0 partial branches** across all 17 modules (re-verified 2026-08-08). The assertion audit reports **0 of 802** tests asserting nothing. Coverage is necessary and not sufficient: mutation testing at `[1.0.1-dev19]` found the diagnostics scrubber fully covered and asserted only for the **absence** of secrets, which a skipped scrub satisfies — see `docs/changelog_local.md`. Coverage includes the 2026-07 work — options gating, per-endpoint resilience, `cleanup.py`, service/hook, config-flow sections, the Security/Alerts sub-devices, the `get_alerts`/`get_rogue_aps` actions + `new_alert`/`new_rogue_ap` events, `select.py`, the `about`/unrecorded-attribute layer, and the later rogue expansion — hidden-SSID naming + `ssid_anomaly` + new rogue fields, action `keyword`/`exclude`/`total_matched`/`count_total`, the persistent rogue history + `rogue_new_24h` sensor + `clear_rogue_history`, the ignore-list management actions, and the **Integration Health** self-diagnosis (`_compute_integration_health`/`_sync_health_issues` + the `schema_drift_detected` repair). Source is ruff/mypy-clean.
+
+## Development Environment
+
+Standard for all integration projects — see shared conventions §3 (`.shared/dev_std/agent_conventions.md`). Nothing about this project's environment differs.
+
+## Known Open Issues
+
+**Nothing is recorded here, and nothing should be.** This project's open work lives in `.notes/todo.md`, `.notes/tasks/`, the cross-project chore register, the cross-project queue and [`docs/ROADMAP.md`](docs/ROADMAP.md). One command reads all of them, from `dev-workbench/`:
+
+```bash
+uv run python scripts/check_queue_format.py --open ha-unifi-network-monitor
+```
+
+**Which one a new item belongs in, and how to add, check and close it, is `issue_tracking_workflow.md` (`.shared/issues/issue_tracking_workflow.md`)** — authoritative, with the summary at shared conventions §8 (`.shared/dev_std/agent_conventions.md`).

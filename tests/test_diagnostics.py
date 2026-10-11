@@ -144,10 +144,7 @@ async def test_diagnostics_includes_coordinator_state(hass: Any) -> None:
 
 def test_device_token_empty_returns_redacted() -> None:
     """device_token returns REDACTED for empty/falsy value (line 95)."""
-    from custom_components.unifi_network_monitor.diagnostics import (
-        REDACTED,
-        _Scrubber,
-    )
+    from custom_components.unifi_network_monitor.diagnostics import REDACTED, _Scrubber
 
     scrub = _Scrubber()
     assert scrub.device_token("") == REDACTED
@@ -157,10 +154,7 @@ def test_device_token_empty_returns_redacted() -> None:
 
 def test_rogue_token_empty_returns_redacted() -> None:
     """rogue_token returns REDACTED for empty value (line 111)."""
-    from custom_components.unifi_network_monitor.diagnostics import (
-        REDACTED,
-        _Scrubber,
-    )
+    from custom_components.unifi_network_monitor.diagnostics import REDACTED, _Scrubber
 
     scrub = _Scrubber()
     assert scrub.rogue_token("") == REDACTED

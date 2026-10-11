@@ -45,11 +45,14 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import json
-import sys
 from datetime import UTC, datetime
+import json
 from pathlib import Path
+import sys
 from typing import Any
+
+# Installs probatio as `voluptuous` before the package imports it (C-036).
+import homeassistant  # noqa: F401
 
 _PROJECT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_PROJECT))

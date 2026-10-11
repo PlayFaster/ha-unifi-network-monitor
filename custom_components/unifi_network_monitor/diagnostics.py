@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-import re
 from copy import deepcopy
+import re
 from typing import Any
 
 from homeassistant.components.diagnostics import async_redact_data
@@ -243,7 +243,7 @@ def _scrub_alert(scrub: _Scrubber, attrs: Any) -> Any:
     return out
 
 
-async def async_get_config_entry_diagnostics(
+async def async_get_config_entry_diagnostics(  # noqa: C901
     hass: HomeAssistant, entry: ConfigEntry
 ) -> dict[str, Any]:
     """Return diagnostics for a config entry."""

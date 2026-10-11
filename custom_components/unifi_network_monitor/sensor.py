@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Callable
 from dataclasses import dataclass
+import logging
 from typing import Any, Final
 
 from homeassistant.components.sensor import (
@@ -55,15 +55,8 @@ from .const import (
     dual_wan_enabled,
     single_wan_excluded_keys,
 )
-from .coordinator import (
-    UnifiNetworkDataUpdateCoordinator,
-    disabled_endpoints,
-)
-from .helpers import (
-    UnifiAboutEntity,
-    build_sub_device_info,
-    build_unifi_device_info,
-)
+from .coordinator import UnifiNetworkDataUpdateCoordinator, disabled_endpoints
+from .helpers import UnifiAboutEntity, build_sub_device_info, build_unifi_device_info
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -1643,7 +1636,7 @@ class UnifiHealthSensor(UnifiSensorBase):
         val = self.entity_description.value_fn(health_data)
         if val is not None:
             return val
-        # Fallback to gateway sub-dict for telemetry configured rules/VLANs/VPNs/WiFi
+        # Fallback to gateway sub-dict for configured rules/VLANs/VPNs/WiFi
         gw_data = self.coordinator.data.get("gateway") or {}
         return self.entity_description.value_fn(gw_data)
 

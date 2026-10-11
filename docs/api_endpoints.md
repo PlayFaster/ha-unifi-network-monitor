@@ -27,9 +27,9 @@ These endpoints are called during regular polling cycles or user actions.
 ### `GET /proxy/network/api/s/{site}/stat/device`
 
 - **Used**: Yes
-- **Purpose**: Fetches status and telemetry for all network devices (gateways, switches, access points).
+- **Purpose**: Fetches status and performance data for all network devices (gateways, switches, access points).
 - **Payload**: Medium to Large (contains complete device tables).
-- **Use Case**: Powers the main entities for devices, ports, CPU, memory, general hardware health, and WAN IP telemetry:
+- **Use Case**: Powers the main entities for devices, ports, CPU, memory, general hardware health, and WAN IP status:
   - **WAN1 Local IP**: Extracted from `wan1.ip` (with fallback to `uplink.ip`).
   - **WAN2 Local IP**: Extracted from `wan2.ip`.
   - **WAN1 Public IP**: Extracted from `geo_info.WAN.address` or `active_geo_info.WAN.address`.
@@ -122,7 +122,7 @@ These endpoints are called during regular polling cycles or user actions.
 
 ### Official API v3 Endpoints (API Key / Integration v1 paths)
 
-- **Used**: Yes (for supplementary configuration telemetry)
+- **Used**: Yes (for supplementary configuration data)
 - **Purpose**: Modern official endpoints introduced for structured config querying.
 - **⚠️ Auth mode — API key only**: unlike the classic `/proxy/network/api/s/{site}/…` endpoints (which work under either auth mode), these Integration (v1) endpoints are **only reachable with an API key**. Under username/password (cookie) auth `get_sites()` fails, `coordinator.site_uuid` latches to `"failed"`, and the seven sensors these endpoints feed (Rules Active/Configured/Disabled, VPN Connections Active/Total, WAN1/WAN2 Name) are permanently `unknown`. This is expected, not a bug — see `DEVELOPMENT.md` §5 "Gotcha — auth mode gates the v3 (integration) endpoints".
 - **Endpoints Used**:
@@ -131,7 +131,7 @@ These endpoints are called during regular polling cycles or user actions.
   - `GET /proxy/network/integration/v1/sites/{site_uuid}/vpn/site-to-site-tunnels`: Retrieves site-to-site VPN tunnels and their connectivity states.
   - `GET /proxy/network/integration/v1/sites/{site_uuid}/vpn/servers`: Retrieves configured VPN servers.
   - `GET /proxy/network/integration/v1/sites/{site_uuid}/firewall/policies`: Retrieves firewall rules and policies.
-- **Use Case**: Extracted to populate total/active telemetry counts for VPN connections, firewall rules, VLAN networks, and custom interface names. If any of these endpoints fail or return empty/404 on older controllers, the integration degrades gracefully and marks the corresponding telemetry sensors unavailable rather than crashing.
+- **Use Case**: Extracted to populate total/active count sensors for VPN connections, firewall rules, VLAN networks, and custom interface names. If any of these endpoints fail or return empty/404 on older controllers, the integration degrades gracefully and marks the corresponding sensors unavailable rather than crashing.
 
 ---
 
@@ -142,7 +142,7 @@ These endpoints are documented for reference but are **not** actively used by th
 ### `GET /proxy/network/api/s/{site}/stat/device/{mac}`
 
 - **Used**: **No**
-- **Purpose**: Fetches telemetry for a single device matching the provided MAC address (e.g., the gateway).
+- **Purpose**: Fetches metrics for a single device matching the provided MAC address (e.g., the gateway).
 - **Rationale for omission**: While this endpoint is utilized by some other integrations (like `Unifi-WAN`) for high-frequency ("fast") polling of live WAN rates, this integration uses a centralized polling approach via the full device list (`stat/device`). We poll the full list at a standard scan interval to avoid rate limiting and excessive requests on the UniFi OS controller.
 - **Payload Difference**: It returns the exact same data schema/structure for the device as the parent `stat/device` endpoint, but filters the response to only return the single matching device, saving bandwidth and JSON parsing overhead when querying a single device frequently.
 

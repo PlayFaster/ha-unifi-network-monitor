@@ -60,9 +60,7 @@ def test_number_unique_id() -> None:
     coordinator = _make_coordinator(MOCK_COORDINATOR_DATA)
     entry = _make_entry("aa:bb:cc:dd:ee:ff")
 
-    from custom_components.unifi_network_monitor.number import (
-        UnifiScanIntervalNumber,
-    )
+    from custom_components.unifi_network_monitor.number import UnifiScanIntervalNumber
 
     number = UnifiScanIntervalNumber(coordinator, entry, 30)
     assert number.unique_id == "aa:bb:cc:dd:ee:ff_scan_interval"
@@ -73,9 +71,7 @@ def test_number_native_min_max() -> None:
     coordinator = _make_coordinator(MOCK_COORDINATOR_DATA)
     entry = _make_entry()
 
-    from custom_components.unifi_network_monitor.number import (
-        UnifiScanIntervalNumber,
-    )
+    from custom_components.unifi_network_monitor.number import UnifiScanIntervalNumber
 
     number = UnifiScanIntervalNumber(coordinator, entry, 30)
     assert number.native_min_value == 10
@@ -88,9 +84,7 @@ def test_number_initial_value() -> None:
     coordinator = _make_coordinator(MOCK_COORDINATOR_DATA)
     entry = _make_entry()
 
-    from custom_components.unifi_network_monitor.number import (
-        UnifiScanIntervalNumber,
-    )
+    from custom_components.unifi_network_monitor.number import UnifiScanIntervalNumber
 
     number = UnifiScanIntervalNumber(coordinator, entry, 60)
     assert number.native_value == 60
@@ -101,9 +95,7 @@ async def test_number_set_native_value_updates_state(hass: Any) -> None:
     coordinator = _make_coordinator(MOCK_COORDINATOR_DATA)
     entry = _make_entry()
 
-    from custom_components.unifi_network_monitor.number import (
-        UnifiScanIntervalNumber,
-    )
+    from custom_components.unifi_network_monitor.number import UnifiScanIntervalNumber
 
     number = UnifiScanIntervalNumber(coordinator, entry, 30)
     number.hass = hass
@@ -120,9 +112,7 @@ def test_number_device_info() -> None:
     coordinator = _make_coordinator(MOCK_COORDINATOR_DATA)
     entry = _make_entry()
 
-    from custom_components.unifi_network_monitor.number import (
-        UnifiScanIntervalNumber,
-    )
+    from custom_components.unifi_network_monitor.number import UnifiScanIntervalNumber
 
     number = UnifiScanIntervalNumber(coordinator, entry, 30)
     info = number.device_info
@@ -134,9 +124,7 @@ async def test_number_will_remove_from_hass_cancels_debounce(hass: Any) -> None:
     coordinator = _make_coordinator(MOCK_COORDINATOR_DATA)
     entry = _make_entry()
 
-    from custom_components.unifi_network_monitor.number import (
-        UnifiScanIntervalNumber,
-    )
+    from custom_components.unifi_network_monitor.number import UnifiScanIntervalNumber
 
     number = UnifiScanIntervalNumber(coordinator, entry, 30)
     number.hass = hass
@@ -156,9 +144,7 @@ async def test_apply_after_debounce_refreshes_coordinator(hass: Any) -> None:
     coordinator = _make_coordinator(MOCK_COORDINATOR_DATA)
     entry = _make_entry()
 
-    from custom_components.unifi_network_monitor.number import (
-        UnifiScanIntervalNumber,
-    )
+    from custom_components.unifi_network_monitor.number import UnifiScanIntervalNumber
 
     number = UnifiScanIntervalNumber(coordinator, entry, 30)
     number.hass = hass
@@ -173,9 +159,7 @@ async def test_apply_after_debounce_handles_exception(hass: Any, caplog: Any) ->
     coordinator = _make_coordinator(MOCK_COORDINATOR_DATA)
     entry = _make_entry()
 
-    from custom_components.unifi_network_monitor.number import (
-        UnifiScanIntervalNumber,
-    )
+    from custom_components.unifi_network_monitor.number import UnifiScanIntervalNumber
 
     number = UnifiScanIntervalNumber(coordinator, entry, 30)
     number.hass = hass
@@ -198,9 +182,7 @@ async def test_async_set_native_value_cancels_prior_debounce(hass: Any) -> None:
     coordinator = _make_coordinator(MOCK_COORDINATOR_DATA)
     entry = _make_entry()
 
-    from custom_components.unifi_network_monitor.number import (
-        UnifiScanIntervalNumber,
-    )
+    from custom_components.unifi_network_monitor.number import UnifiScanIntervalNumber
 
     number = UnifiScanIntervalNumber(coordinator, entry, 30)
     number.hass = hass
@@ -240,9 +222,7 @@ def test_wan_load_balance_native_value() -> None:
     coordinator = _make_wlb_coordinator(MOCK_COORDINATOR_DATA)
     entry = _make_entry()
 
-    from custom_components.unifi_network_monitor.number import (
-        WanLoadBalanceNumber,
-    )
+    from custom_components.unifi_network_monitor.number import WanLoadBalanceNumber
 
     number = WanLoadBalanceNumber(coordinator, entry)
     assert number.native_value == pytest.approx(55.0)
@@ -253,9 +233,7 @@ def test_wan_load_balance_native_value_no_data() -> None:
     coordinator = _make_wlb_coordinator(None)
     entry = _make_entry()
 
-    from custom_components.unifi_network_monitor.number import (
-        WanLoadBalanceNumber,
-    )
+    from custom_components.unifi_network_monitor.number import WanLoadBalanceNumber
 
     number = WanLoadBalanceNumber(coordinator, entry)
     assert number.native_value is None
@@ -267,9 +245,7 @@ def test_wan_load_balance_native_value_missing_key() -> None:
     coordinator = _make_wlb_coordinator(data)
     entry = _make_entry()
 
-    from custom_components.unifi_network_monitor.number import (
-        WanLoadBalanceNumber,
-    )
+    from custom_components.unifi_network_monitor.number import WanLoadBalanceNumber
 
     number = WanLoadBalanceNumber(coordinator, entry)
     assert number.native_value is None
@@ -280,9 +256,7 @@ def test_wan_load_balance_unique_id() -> None:
     coordinator = _make_wlb_coordinator(MOCK_COORDINATOR_DATA)
     entry = _make_entry("aa:bb:cc:dd:ee:ff")
 
-    from custom_components.unifi_network_monitor.number import (
-        WanLoadBalanceNumber,
-    )
+    from custom_components.unifi_network_monitor.number import WanLoadBalanceNumber
 
     number = WanLoadBalanceNumber(coordinator, entry)
     assert number.unique_id == "aa:bb:cc:dd:ee:ff_wan1_load_balance_weight"
@@ -293,9 +267,7 @@ def test_wan_load_balance_device_info() -> None:
     coordinator = _make_wlb_coordinator(MOCK_COORDINATOR_DATA)
     entry = _make_entry()
 
-    from custom_components.unifi_network_monitor.number import (
-        WanLoadBalanceNumber,
-    )
+    from custom_components.unifi_network_monitor.number import WanLoadBalanceNumber
 
     number = WanLoadBalanceNumber(coordinator, entry)
     assert number.device_info is not None
@@ -306,9 +278,7 @@ async def test_wan_load_balance_set_native_value(hass: Any) -> None:
     coordinator = _make_wlb_coordinator(MOCK_COORDINATOR_DATA)
     entry = _make_entry()
 
-    from custom_components.unifi_network_monitor.number import (
-        WanLoadBalanceNumber,
-    )
+    from custom_components.unifi_network_monitor.number import WanLoadBalanceNumber
 
     number = WanLoadBalanceNumber(coordinator, entry)
     number.hass = hass
@@ -325,9 +295,7 @@ async def test_wan_load_balance_set_native_value_cancels_prior(hass: Any) -> Non
     coordinator = _make_wlb_coordinator(MOCK_COORDINATOR_DATA)
     entry = _make_entry()
 
-    from custom_components.unifi_network_monitor.number import (
-        WanLoadBalanceNumber,
-    )
+    from custom_components.unifi_network_monitor.number import WanLoadBalanceNumber
 
     number = WanLoadBalanceNumber(coordinator, entry)
     number.hass = hass
@@ -351,9 +319,7 @@ async def test_wan_load_balance_apply_after_debounce(hass: Any) -> None:
     coordinator = _make_wlb_coordinator(MOCK_COORDINATOR_DATA)
     entry = _make_entry()
 
-    from custom_components.unifi_network_monitor.number import (
-        WanLoadBalanceNumber,
-    )
+    from custom_components.unifi_network_monitor.number import WanLoadBalanceNumber
 
     number = WanLoadBalanceNumber(coordinator, entry)
     number.hass = hass
@@ -366,9 +332,7 @@ async def test_wan_load_balance_apply_after_debounce_logs_error(
     hass: Any, caplog: Any
 ) -> None:
     """_apply_after_debounce logs and swallows expected errors (detached task)."""
-    from custom_components.unifi_network_monitor.number import (
-        WanLoadBalanceNumber,
-    )
+    from custom_components.unifi_network_monitor.number import WanLoadBalanceNumber
 
     coordinator = _make_wlb_coordinator(MOCK_COORDINATOR_DATA)
     entry = _make_entry()
@@ -390,11 +354,8 @@ async def test_wan_load_balance_set_value_raises_when_not_writable(
     hass: Any,
 ) -> None:
     """Setting the weight before WAN config is loaded raises HomeAssistantError."""
+    from custom_components.unifi_network_monitor.number import WanLoadBalanceNumber
     from homeassistant.exceptions import HomeAssistantError
-
-    from custom_components.unifi_network_monitor.number import (
-        WanLoadBalanceNumber,
-    )
 
     coordinator = _make_wlb_coordinator(MOCK_COORDINATOR_DATA)
     coordinator.wan_weights_writable = False
@@ -412,9 +373,7 @@ async def test_wan_load_balance_will_remove_cancels_debounce(hass: Any) -> None:
     coordinator = _make_wlb_coordinator(MOCK_COORDINATOR_DATA)
     entry = _make_entry()
 
-    from custom_components.unifi_network_monitor.number import (
-        WanLoadBalanceNumber,
-    )
+    from custom_components.unifi_network_monitor.number import WanLoadBalanceNumber
 
     number = WanLoadBalanceNumber(coordinator, entry)
     number.hass = hass

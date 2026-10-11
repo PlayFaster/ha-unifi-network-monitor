@@ -181,7 +181,7 @@ def test_alert_title_leaves_an_unmatched_placeholder_alone() -> None:
     """With no parameters the placeholder survives verbatim.
 
     Covers finding ASSERT.1 from recommendations_20260808.md. This is the
-    documented behaviour of ``format_message``, and it is what distinguishes a
+    documented behavior of ``format_message``, and it is what distinguishes a
     dropped parameters dict from a correctly substituted one.
     """
     event: dict[str, object] = {"title_raw": "Alert on {device}", "parameters": {}}

@@ -69,8 +69,8 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
 
 **🏠 Home Assistant and UniFi Versions:**
 
-- Minimum: Home Assistant **2024.11.0**
-- Minimum Python: **3.12+** (this is built into and handled by HA, but relevant for non-standard installs).
+- Minimum: Home Assistant **2025.2**
+- Minimum Python: **3.13+** (this is built into and handled by HA, but relevant for non-standard installs).
 - _Recommended_: UniFi OS: **3.2.7+** (full functionality, required for all API endpoints). _Minimum_: OS 3.0 (reduced functionality).
 - _Recommended_: UniFi Network Application: **8.1.113+** - Required for API Key authentication and full functionality. _Minimum_: Network **7.4.x+** will work with reduced functionality.
 
@@ -100,6 +100,14 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
 - **Projected Usage**: Where this month's usage is heading, per WAN, from usage so far. Shown from the first day of the month rather than withheld until it settles — judge it by its `confidence` attribute (`low` / `medium` / `high`), which strengthens as the month progresses. It deliberately carries no `state_class`, so it stays out of long-term statistics: it is a forecast that revises itself every poll, not a measurement.
 - **Dual-WAN Status**: WAN1/WAN2 active-uplink and link-up indicators, uptime, latency, local/public IP addresses, and configured WAN interface names. See the [WAN Failover / Restore](#-wan-failover--restore-dual-wan) and [High Internet / WAN Latency](#-high-internet--wan-latency) examples.
 - **Multi-WAN Load Balancing**: Read and adjust the WAN1/WAN2 load-balance weight (always summing to 100%). See the [Optimize WAN Weight on High Latency](#-optimize-wan-weight-on-high-latency) example.
+
+> [!NOTE] **Where these figures come from.**
+>
+> The monthly figures are read from the controller, not measured by this integration. They move when the controller's own counter moves, they cover the calendar month rather than your ISP's billing cycle, and they are not your ISP's billing figure.
+>
+> **There is no user-settable used-data field in UniFi**, so these figures are more robust than a router's own counter. They come from the controller's statistics, so they move only if those statistics are cleared or the controller loses history.
+>
+> If you want a total that is independent of the controller, create a Home Assistant [Utility Meter helper](https://www.home-assistant.io/integrations/utility_meter/) with the monthly total as its source. It counts only from the point you create it.
 
 ### ⚡ Speedtest
 
@@ -282,7 +290,7 @@ Below is a quick reference showing how entities are default-enabled depending on
 | Scenario / Entity Group                                   | Without Core UniFi (Standalone)                     | With Core UniFi Installed (Coexistence)           | Rationale / Detail                                                                                                                                                          |
 | :-------------------------------------------------------- | :-------------------------------------------------- | :------------------------------------------------ | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Base Install Entities**                                 | All created; infrastructure diagnostics **enabled** | All created; six gateway diagnostics **disabled** | Standalone mode enables all infrastructure diagnostics by default.                                                                                                          |
-| **Gateway Diagnostics** _(CPU, Memory etc.)_              | **Enabled** by default                              | **Disabled** by default                           | Avoids duplicate diagnostic telemetry since Core UniFi already monitors the gateway hardware.                                                                               |
+| **Gateway Diagnostics** _(CPU, Memory etc.)_              | **Enabled** by default                              | **Disabled** by default                           | Avoids duplicate diagnostic sensors since Core UniFi already monitors the gateway hardware.                                                                                |
 | **Per-Device Entities** _(AP & Switch Client/CPU/Uptime)_ | **Opt-in** _(Created as **Enabled** if added)_      | **Opt-in** _(Created as **Disabled** if added)_   | These entities are not created by default. If you choose to add them, they are created as Enabled in Standalone mode, but Disabled in Coexistence mode to avoid duplicates. |
 
 > [!TIP]
@@ -1755,7 +1763,7 @@ Details on how this custom component integration is structured, in terms of use 
 
 The integration blends two UniFi API generations for the best data:
 
-- **Rich telemetry** comes from the classic `/proxy/network/api/s/{site}/stat/*` endpoints (deep hardware metrics the lighter Official v3 `devices` payload omits).
+- **Detailed device metrics** come from the classic `/proxy/network/api/s/{site}/stat/*` endpoints (deep hardware metrics the lighter Official v3 `devices` payload omits).
 - **Structured configuration** (WAN interface names, VPN tunnels, firewall rules) comes from the Official v3 / integration endpoints, fetched concurrently via `asyncio.gather()`.
 - **Graceful degradation**: if the controller version doesn't support a v3 endpoint, that group degrades to `unavailable` rather than failing the whole update.
 
@@ -1779,7 +1787,7 @@ This integration registers its **own separate device cards** - a Gateway device 
 Some failures are **silent** - a fetch succeeds but the data is wrong (e.g. a UniFi controller update renames a field and a sensor group quietly reads zero). The **Integration Health** sensor (a `problem` binary sensor on the System sub-device) watches for these:
 
 - **`on` (moderate)** when a data source is **unavailable and you didn't disable it** - the attributes name the affected capability (e.g. _Security / Rogue APs_).
-- **`on` (serious) + a Repair** when **schema drift** is detected: a non-empty response that parsed to nothing for several cycles → a `schema_drift_detected` repair suggesting you check for an integration update.
+- **`on` (serious) + Repair Issue** when schema drift is detected (a non-empty response parsing to empty payloads across multiple cycles), raising a `schema_drift_detected` repair issue suggesting an integration update.
 
 It's deliberately cautious: it **ignores capabilities you turned off**, ignores v3/firewall/VPN under username-password auth (expected), and only flags drift after it persists (no single-cycle false alarms). Details - `issues`, `severity`, `degraded_capabilities`, `drift`, `auth_mode` - live in the sensor's attributes; put it on a dashboard or alert on it to catch breakage early instead of months later. See the [Integration Health Problem Alert](#-integration-health-problem-alert) example.
 

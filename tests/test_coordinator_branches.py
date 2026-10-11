@@ -29,7 +29,6 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from homeassistant.util import dt as dt_util
 
 from custom_components.unifi_network_monitor.api import UnifiAuthError
 from custom_components.unifi_network_monitor.coordinator import (
@@ -39,6 +38,7 @@ from custom_components.unifi_network_monitor.coordinator import (
     _parse_health,
     build_ap_name_map,
 )
+from homeassistant.util import dt as dt_util
 
 MOCK_MAC = "aa:bb:cc:dd:ee:ff"
 
@@ -617,10 +617,9 @@ async def test_setup_skips_gateway_registration_without_a_mac(
     """
     from unittest.mock import patch
 
-    from homeassistant.helpers import device_registry as dr
-
     from custom_components.unifi_network_monitor import async_setup_entry
     from custom_components.unifi_network_monitor.const import DOMAIN
+    from homeassistant.helpers import device_registry as dr
 
     mock_config_entry.add_to_hass(hass)
     data = dict(mock_config_entry.data)

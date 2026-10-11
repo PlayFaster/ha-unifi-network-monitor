@@ -42,177 +42,97 @@ if (
 
 Non-numeric values (strings, timestamps) pass through unchanged.
 
-**Rounding (complementary):** guard bands reject impossible values; a single `_safe_float` / `_safe_int` coercion helper additionally rounds all numeric telemetry to **3 dp at parse time**, curtailing the dozen-decimal noise the controller can emit (e.g. `99.930600002408 %`) so stored history / LTS stay clean. This is distinct from display: per-sensor `suggested_display_precision` controls how many decimals are _shown_.
+**Rounding (complementary):** guard bands reject impossible values; a single `_safe_float` / `_safe_int` coercion helper additionally rounds all numeric sensor values to **3 dp at parse time**, curtailing the dozen-decimal noise the controller can emit (e.g. `99.930600002408 %`) so stored history / LTS stay clean. This is distinct from display: per-sensor `suggested_display_precision` controls how many decimals are _shown_.
 
 ---
 
 ## Part I: Base Gateway & Network Entities
 
-### Gateway Sensors (`GATEWAY_SENSORS`)
+<!-- GENERATED:start -->
 
-Source: `/stat/device` — gateway hardware data.
+| Sub-device | Sensor key                |      Min |      Max | Unit   |
+| :--------- | :------------------------ | -------: | -------: | :----- |
+| Alerts     | `alerts_high_24h`         |    `0.0` |        — | —      |
+| Alerts     | `alerts_very_high_24h`    |    `0.0` |        — | —      |
+| Gateway    | `board_temp`              |    `0.0` |  `120.0` | °C     |
+| Gateway    | `clients`                 |    `0.0` |        — | —      |
+| Gateway    | `clients_wifi0`           |    `0.0` |        — | —      |
+| Gateway    | `clients_wifi1`           |    `0.0` |        — | —      |
+| Gateway    | `cpu`                     |    `0.0` |  `100.0` | %      |
+| Gateway    | `cpu`                     |    `0.0` |  `100.0` | %      |
+| Gateway    | `cpu`                     |    `0.0` |  `100.0` | %      |
+| Gateway    | `cpu_temp`                |    `0.0` |  `120.0` | °C     |
+| Gateway    | `guests`                  |    `0.0` |        — | —      |
+| Gateway    | `ports_used`              |    `0.0` |        — | —      |
+| Gateway    | `ram`                     |    `0.0` |  `100.0` | %      |
+| Gateway    | `ram`                     |    `0.0` |  `100.0` | %      |
+| Gateway    | `ram`                     |    `0.0` |  `100.0` | %      |
+| Gateway    | `score`                   |    `0.0` |  `100.0` | %      |
+| Gateway    | `score_wifi0`             |    `0.0` |  `100.0` | %      |
+| Gateway    | `score_wifi1`             |    `0.0` |  `100.0` | %      |
+| Gateway    | `storage_size`            |    `0.0` |        — | B      |
+| Gateway    | `storage_used`            |    `0.0` |        — | B      |
+| Gateway    | `storage_used_pct`        |    `0.0` |  `100.0` | %      |
+| Internet   | `month_total`             |    `0.0` |        — | B      |
+| Internet   | `wan1_availability`       |    `0.0` |  `100.0` | %      |
+| Internet   | `wan1_latency_avg`        |    `0.0` | `9999.0` | ms     |
+| Internet   | `wan1_month_projected`    |    `0.0` |        — | B      |
+| Internet   | `wan1_month_rx`           |    `0.0` |        — | B      |
+| Internet   | `wan1_month_total`        |    `0.0` |        — | B      |
+| Internet   | `wan1_month_tx`           |    `0.0` |        — | B      |
+| Internet   | `wan1_today_rx`           |    `0.0` |        — | B      |
+| Internet   | `wan1_today_total`        |    `0.0` |        — | B      |
+| Internet   | `wan1_today_tx`           |    `0.0` |        — | B      |
+| Internet   | `wan1_uptime`             |    `0.0` |        — | s      |
+| Internet   | `wan2_availability`       |    `0.0` |  `100.0` | %      |
+| Internet   | `wan2_latency_avg`        |    `0.0` | `9999.0` | ms     |
+| Internet   | `wan2_month_projected`    |    `0.0` |        — | B      |
+| Internet   | `wan2_month_rx`           |    `0.0` |        — | B      |
+| Internet   | `wan2_month_total`        |    `0.0` |        — | B      |
+| Internet   | `wan2_month_tx`           |    `0.0` |        — | B      |
+| Internet   | `wan2_today_rx`           |    `0.0` |        — | B      |
+| Internet   | `wan2_today_total`        |    `0.0` |        — | B      |
+| Internet   | `wan2_today_tx`           |    `0.0` |        — | B      |
+| Internet   | `wan2_uptime`             |    `0.0` |        — | s      |
+| Internet   | `www_drops`               |    `0.0` |        — | —      |
+| Internet   | `www_latency`             |    `0.0` | `9999.0` | ms     |
+| Internet   | `www_uptime`              |    `0.0` |        — | s      |
+| Security   | `rogue_ap_count`          |    `0.0` |        — | —      |
+| Security   | `rogue_new_24h`           |    `0.0` |        — | —      |
+| Security   | `rogue_raw_24h`           |    `0.0` |        — | —      |
+| Security   | `rules_active`            |    `0.0` |        — | —      |
+| Security   | `rules_configured`        |    `0.0` |        — | —      |
+| Security   | `rules_disabled`          |    `0.0` |        — | —      |
+| Security   | `strongest_rogue_rssi`    | `-100.0` |    `0.0` | dBm    |
+| Security   | `vpn_connections_active`  |    `0.0` |        — | —      |
+| Security   | `vpn_connections_total`   |    `0.0` |        — | —      |
+| Speedtest  | `wan1_speedtest_download` |    `0.0` |        — | Mbit/s |
+| Speedtest  | `wan1_speedtest_ping`     |    `0.0` | `9999.0` | ms     |
+| Speedtest  | `wan1_speedtest_upload`   |    `0.0` |        — | Mbit/s |
+| Speedtest  | `wan1_time_period`        |    `0.0` |        — | s      |
+| Speedtest  | `wan2_speedtest_download` |    `0.0` |        — | Mbit/s |
+| Speedtest  | `wan2_speedtest_ping`     |    `0.0` | `9999.0` | ms     |
+| Speedtest  | `wan2_speedtest_upload`   |    `0.0` |        — | Mbit/s |
+| Speedtest  | `wan2_time_period`        |    `0.0` |        — | s      |
+| Status     | `configured_vlans`        |    `0.0` |        — | —      |
+| Status     | `guest_user_count`        |    `0.0` |        — | —      |
+| Status     | `lan_num_adopted`         |    `0.0` |        — | —      |
+| Status     | `lan_num_iot`             |    `0.0` |        — | —      |
+| Status     | `lan_num_sw`              |    `0.0` |        — | —      |
+| Status     | `lan_num_user`            |    `0.0` |        — | —      |
+| Status     | `vlans_active`            |    `0.0` |        — | —      |
+| Status     | `vlans_total`             |    `0.0` |        — | —      |
+| Status     | `wan_num_sta`             |    `0.0` |        — | —      |
+| Status     | `wifi_networks_active`    |    `0.0` |        — | —      |
+| Status     | `wifi_networks_total`     |    `0.0` |        — | —      |
+| Status     | `wlan_num_ap`             |    `0.0` |        — | —      |
+| Status     | `wlan_num_guest`          |    `0.0` |        — | —      |
+| Status     | `wlan_num_iot`            |    `0.0` |        — | —      |
+| Status     | `wlan_num_user`           |    `0.0` |        — | —      |
+| System     | `wan1_weight`             |    `0.0` |  `100.0` | %      |
+| System     | `wan2_weight`             |    `0.0` |  `100.0` | %      |
 
-| Sensor Key         | Translation Key            | Min | Max | Rationale                                             |
-| :----------------- | :------------------------- | :-- | :-- | :---------------------------------------------------- |
-| `cpu`              | `gateway_cpu`              | 0   | 100 | Percentage                                            |
-| `ram`              | `gateway_ram`              | 0   | 100 | Percentage                                            |
-| `cpu_temp`         | `gateway_cpu_temp`         | 0   | 120 | °C — realistic range for embedded networking hardware |
-| `board_temp`       | `gateway_board_temp`       | 0   | 120 | °C — same as CPU temp                                 |
-| `uptime`           | `gateway_uptime`           | —   | —   | TIMESTAMP — no numeric guard                          |
-| `storage_used`     | `gateway_storage_used`     | 0   | —   | Bytes cannot be negative                              |
-| `storage_size`     | `gateway_storage_size`     | 0   | —   | Bytes cannot be negative                              |
-| `storage_used_pct` | `gateway_storage_used_pct` | 0   | 100 | Percentage                                            |
-
----
-
-### Internet & WAN Sensors
-
-Source: `/stat/device` (load balance, real-time interface telemetry), `report/daily.gw` and `report/monthly.gw` (usage). All live in the `GATEWAY_SENSORS` tuple with `device_key` `internet`.
-
-Every byte counter is bounded below at `0` and **deliberately has no upper bound**: a total has no credible ceiling, and inventing one would send the sensor to `unknown` for the remainder of the cycle the moment real usage crossed it. That is the single most important rule on this page — a guard band exists to reject impossible values, not large ones.
-
-| Sensor Key             | Translation Key                | Min | Max | Rationale                                                                                       |
-| :--------------------- | :----------------------------- | :-- | :-- | :---------------------------------------------------------------------------------------------- |
-| `wan1_weight`          | `gateway_wan1_weight`          | 0   | 100 | Load-balance share, percentage — the pair sums to 100                                           |
-| `wan2_weight`          | `gateway_wan2_weight`          | 0   | 100 | Percentage — as WAN1                                                                            |
-| `wan1_today_rx`        | `gateway_wan1_today_rx`        | 0   | —   | Bytes cannot be negative; no ceiling on a total                                                 |
-| `wan1_today_tx`        | `gateway_wan1_today_tx`        | 0   | —   | As above                                                                                        |
-| `wan1_today_total`     | `gateway_wan1_today_total`     | 0   | —   | As above                                                                                        |
-| `wan2_today_rx`        | `gateway_wan2_today_rx`        | 0   | —   | As above                                                                                        |
-| `wan2_today_tx`        | `gateway_wan2_today_tx`        | 0   | —   | As above                                                                                        |
-| `wan2_today_total`     | `gateway_wan2_today_total`     | 0   | —   | As above                                                                                        |
-| `wan1_month_rx`        | `gateway_wan1_month_rx`        | 0   | —   | As above                                                                                        |
-| `wan1_month_tx`        | `gateway_wan1_month_tx`        | 0   | —   | As above                                                                                        |
-| `wan1_month_total`     | `gateway_wan1_month_total`     | 0   | —   | As above                                                                                        |
-| `wan2_month_rx`        | `gateway_wan2_month_rx`        | 0   | —   | As above                                                                                        |
-| `wan2_month_tx`        | `gateway_wan2_month_tx`        | 0   | —   | As above                                                                                        |
-| `wan2_month_total`     | `gateway_wan2_month_total`     | 0   | —   | As above                                                                                        |
-| `month_total`          | `gateway_month_total`          | 0   | —   | As above                                                                                        |
-| `wan1_month_projected` | `gateway_wan1_month_projected` | 0   | —   | Projected end-of-month bytes. A **forecast**, so it carries no `state_class` — see Design Notes |
-| `wan2_month_projected` | `gateway_wan2_month_projected` | 0   | —   | As WAN1; created only when dual-WAN monitoring is enabled                                       |
-| `guest_user_count`     | `gateway_guest_user_count`     | 0   | —   | Client count cannot be negative                                                                 |
-
----
-
-### Speedtest Sensors
-
-Source: `archive.speedtest`. `device_key` `speedtest`.
-
-| Sensor Key                | Translation Key                   | Min | Max  | Rationale                                                                      |
-| :------------------------ | :-------------------------------- | :-- | :--- | :----------------------------------------------------------------------------- |
-| `wan1_speedtest_download` | `gateway_wan1_speedtest_download` | 0   | —    | Mbit/s — no ceiling, so the guard does not need revisiting as links get faster |
-| `wan1_speedtest_upload`   | `gateway_wan1_speedtest_upload`   | 0   | —    | As download                                                                    |
-| `wan1_speedtest_ping`     | `gateway_wan1_speedtest_ping`     | 0   | 9999 | ms — same transient-spike cap as the latency sensors                           |
-| `wan2_speedtest_download` | `gateway_wan2_speedtest_download` | 0   | —    | As WAN1                                                                        |
-| `wan2_speedtest_upload`   | `gateway_wan2_speedtest_upload`   | 0   | —    | As WAN1                                                                        |
-| `wan2_speedtest_ping`     | `gateway_wan2_speedtest_ping`     | 0   | 9999 | As WAN1                                                                        |
-
----
-
-### Configuration Count Sensors
-
-Source: `rest/wlanconf`, `rest/networkconf`, and the v3 integration endpoints for VPN and firewall. `device_key` `status` / `security`.
-
-All are counts, so all are bounded below at `0` with no ceiling. Note the v3-fed ones are legitimately `unknown` under username/password auth — those endpoints are API-key only, and that is expected rather than a fault (`AGENTS.md`, `DEVELOPMENT.md` §5).
-
-| Sensor Key               | Translation Key                  | Min | Max | Rationale                                   |
-| :----------------------- | :------------------------------- | :-- | :-- | :------------------------------------------ |
-| `wifi_networks_total`    | `gateway_wifi_networks_total`    | 0   | —   | Count cannot be negative                    |
-| `wifi_networks_active`   | `gateway_wifi_networks_active`   | 0   | —   | Count cannot be negative                    |
-| `configured_vlans`       | `gateway_configured_vlans`       | 0   | —   | Count cannot be negative                    |
-| `vlans_total`            | `gateway_vlans_total`            | 0   | —   | Count cannot be negative                    |
-| `vlans_active`           | `gateway_vlans_active`           | 0   | —   | Count cannot be negative                    |
-| `vpn_connections_total`  | `gateway_vpn_connections_total`  | 0   | —   | Count cannot be negative; v3 — API-key only |
-| `vpn_connections_active` | `gateway_vpn_connections_active` | 0   | —   | As above                                    |
-| `rules_configured`       | `gateway_rules_configured`       | 0   | —   | As above                                    |
-| `rules_active`           | `gateway_rules_active`           | 0   | —   | As above                                    |
-| `rules_disabled`         | `gateway_rules_disabled`         | 0   | —   | As above                                    |
-
----
-
-### Network Health Sensors (`HEALTH_SENSORS`)
-
-Source: `/stat/health` — network subsystem health data.
-
-#### WAN subsystem
-
-| Sensor Key              | Translation Key         | Min | Max | Rationale                       |
-| :---------------------- | :---------------------- | :-- | :-- | :------------------------------ |
-| `health_wan_isp_name`   | `health_wan_isp_name`   | —   | —   | String                          |
-| `health_wan_isp_org`    | `health_wan_isp_org`    | —   | —   | String                          |
-| `health_wan_gw_version` | `health_wan_gw_version` | —   | —   | String                          |
-| `health_wan_num_sta`    | `health_wan_num_sta`    | 0   | —   | Device count cannot be negative |
-
-#### WAN1 uptime monitoring
-
-| Sensor Key                 | Translation Key            | Min | Max  | Rationale                        |
-| :------------------------- | :------------------------- | :-- | :--- | :------------------------------- |
-| `health_wan1_availability` | `health_wan1_availability` | 0   | 100  | Percentage                       |
-| `health_wan1_latency_avg`  | `health_wan1_latency_avg`  | 0   | 9999 | ms — filters absurd spike values |
-| `health_wan1_boot_time`    | `health_wan1_boot_time`    | —   | —    | TIMESTAMP                        |
-| `health_wan1_uptime`       | `health_wan1_uptime`       | 0   | —    | Seconds cannot be negative       |
-| `health_wan1_time_period`  | `health_wan1_time_period`  | 0   | —    | Seconds cannot be negative       |
-
-#### WAN2 uptime monitoring
-
-| Sensor Key                 | Translation Key            | Min | Max  | Rationale                        |
-| :------------------------- | :------------------------- | :-- | :--- | :------------------------------- |
-| `health_wan2_availability` | `health_wan2_availability` | 0   | 100  | Percentage                       |
-| `health_wan2_latency_avg`  | `health_wan2_latency_avg`  | 0   | 9999 | ms — filters absurd spike values |
-| `health_wan2_boot_time`    | `health_wan2_boot_time`    | —   | —    | TIMESTAMP                        |
-| `health_wan2_uptime`       | `health_wan2_uptime`       | 0   | —    | Seconds cannot be negative       |
-| `health_wan2_time_period`  | `health_wan2_time_period`  | 0   | —    | Seconds cannot be negative       |
-
-#### WWW (internet) subsystem
-
-| Sensor Key                    | Translation Key               | Min | Max  | Rationale                        |
-| :---------------------------- | :---------------------------- | :-- | :--- | :------------------------------- |
-| `health_www_latency`          | `health_www_latency`          | 0   | 9999 | ms — filters absurd spike values |
-| `health_www_drops`            | `health_www_drops`            | 0   | —    | Drop count cannot be negative    |
-| `health_www_speedtest_status` | `health_www_speedtest_status` | —   | —    | String                           |
-| `health_speedtest_pass`       | `health_speedtest_pass`       | —   | —    | Binary status check              |
-| `health_www_uptime`           | `health_www_uptime`           | 0   | —    | Seconds cannot be negative       |
-
-#### WLAN subsystem
-
-| Sensor Key              | Translation Key         | Min | Max | Rationale                       |
-| :---------------------- | :---------------------- | :-- | :-- | :------------------------------ |
-| `health_wlan_num_user`  | `health_wlan_num_user`  | 0   | —   | Client count cannot be negative |
-| `health_wlan_num_guest` | `health_wlan_num_guest` | 0   | —   | Client count cannot be negative |
-| `health_wlan_num_iot`   | `health_wlan_num_iot`   | 0   | —   | Client count cannot be negative |
-| `health_wlan_num_ap`    | `health_wlan_num_ap`    | 0   | —   | AP count cannot be negative     |
-
-#### LAN subsystem
-
-| Sensor Key               | Translation Key          | Min | Max | Rationale                               |
-| :----------------------- | :----------------------- | :-- | :-- | :-------------------------------------- |
-| `health_lan_num_user`    | `health_lan_num_user`    | 0   | —   | Client count cannot be negative         |
-| `health_lan_num_iot`     | `health_lan_num_iot`     | 0   | —   | Client count cannot be negative         |
-| `health_lan_num_sw`      | `health_lan_num_sw`      | 0   | —   | Switch count cannot be negative         |
-| `health_lan_num_adopted` | `health_lan_num_adopted` | 0   | —   | Adopted device count cannot be negative |
-
-#### VPN subsystem
-
-| Sensor Key          | Translation Key     | Min | Max | Rationale |
-| :------------------ | :------------------ | :-- | :-- | :-------- |
-| `health_vpn_status` | `health_vpn_status` | —   | —   | String    |
-
----
-
-### Security & Alerts Sensors
-
-Source: `stat/rogueap` (rogue), `system-log/all` (alerts). These live in the `GATEWAY_SENSORS` tuple with `device_key` `security` / `alerts`.
-
-| Sensor Key                     | Translation Key                                | Min  | Max | Rationale                                                       |
-| :----------------------------- | :--------------------------------------------- | :--- | :-- | :-------------------------------------------------------------- |
-| `rogue_ap_count`               | `gateway_rogue_ap_count`                       | 0    | —   | Count cannot be negative                                        |
-| `rogue_raw_24h`                | `gateway_rogue_raw_24h`                        | 0    | —   | Raw 24h detection count cannot be negative                      |
-| `rogue_new_24h`                | `gateway_rogue_new_24h`                        | 0    | —   | Count of BSSIDs first seen in HA within 24h; cannot be negative |
-| `strongest_rogue_rssi`         | `gateway_strongest_rogue_rssi`                 | -100 | 0   | dBm — RSSI is negative; `None` (→ `unknown`) when no rogues     |
-| `strongest_rogue_ssid`         | `gateway_strongest_rogue_ssid`                 | —    | —   | String — sentinel `"None Detected"` when none                   |
-| `alerts_high_24h`              | `gateway_alerts_high_24h`                      | 0    | —   | Count cannot be negative                                        |
-| `alerts_very_high_24h`         | `gateway_alerts_very_high_24h`                 | 0    | —   | Count cannot be negative                                        |
-| `last_high` / `last_very_high` | `gateway_last_high` / `gateway_last_very_high` | —    | —   | Text (title) — sentinel `"None Detected"` when none             |
+<!-- GENERATED:end -->
 
 ---
 

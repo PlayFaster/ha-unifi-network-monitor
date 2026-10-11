@@ -6,7 +6,6 @@ from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
-from homeassistant.util import dt as dt_util
 
 from custom_components.unifi_network_monitor.const import (
     CONF_ENABLE_SECURITY_MONITORING,
@@ -25,6 +24,7 @@ from custom_components.unifi_network_monitor.sensor import (
     UnifiSensorEntityDescription,
     _device_descs,
 )
+from homeassistant.util import dt as dt_util
 
 from .conftest import MOCK_COORDINATOR_DATA, MOCK_MAC
 
@@ -518,7 +518,7 @@ def test_rogue_ap_attribute_is_capped_sorted_and_flagged() -> None:
 
     Covers finding RETVAL.1 from recommendations_20260808.md. ``rogue_aps_truncated``
     had zero occurrences in the whole test suite and ``ROGUE_ATTR_MAX`` zero test
-    references, leaving three behaviours unverified at once: the cap, the flag,
+    references, leaving three behaviors unverified at once: the cap, the flag,
     and the ordering.
 
     Ordering is the one that matters most. The list is 25 of a possibly much

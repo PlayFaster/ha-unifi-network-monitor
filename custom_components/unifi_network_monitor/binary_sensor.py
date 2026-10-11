@@ -33,15 +33,8 @@ from .const import (
     dual_wan_enabled,
     single_wan_excluded_keys,
 )
-from .coordinator import (
-    UnifiNetworkDataUpdateCoordinator,
-    disabled_endpoints,
-)
-from .helpers import (
-    UnifiAboutEntity,
-    build_sub_device_info,
-    build_unifi_device_info,
-)
+from .coordinator import UnifiNetworkDataUpdateCoordinator, disabled_endpoints
+from .helpers import UnifiAboutEntity, build_sub_device_info, build_unifi_device_info
 
 PARALLEL_UPDATES = 0
 

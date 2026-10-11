@@ -5,9 +5,8 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from homeassistant.config_entries import ConfigEntryState
-
 from custom_components.unifi_network_monitor.api import UnifiConnectionError
+from homeassistant.config_entries import ConfigEntryState
 
 
 async def test_setup_entry_succeeds(hass: Any, mock_config_entry: Any) -> None:
@@ -321,8 +320,7 @@ async def test_async_remove_config_entry_device_has_entities(
     """Return False when Monitor has entities on the device."""
     mock_config_entry.add_to_hass(hass)
 
-    from homeassistant.helpers import device_registry as dr
-    from homeassistant.helpers import entity_registry as er
+    from homeassistant.helpers import device_registry as dr, entity_registry as er
 
     dev_reg = dr.async_get(hass)
     ent_reg = er.async_get(hass)
@@ -341,9 +339,7 @@ async def test_async_remove_config_entry_device_has_entities(
         device_id=device_entry.id,
     )
 
-    from custom_components.unifi_network_monitor import (
-        async_remove_config_entry_device,
-    )
+    from custom_components.unifi_network_monitor import async_remove_config_entry_device
 
     result = await async_remove_config_entry_device(
         hass, mock_config_entry, device_entry
@@ -366,9 +362,7 @@ async def test_async_remove_config_entry_device_no_entities(
         identifiers={("unifi_network_monitor", "mac:test:device:2")},
     )
 
-    from custom_components.unifi_network_monitor import (
-        async_remove_config_entry_device,
-    )
+    from custom_components.unifi_network_monitor import async_remove_config_entry_device
 
     result = await async_remove_config_entry_device(
         hass, mock_config_entry, device_entry
@@ -383,8 +377,7 @@ async def test_async_remove_config_entry_device_other_entry(
     """Return True when entities on the device belong to another config entry."""
     mock_config_entry.add_to_hass(hass)
 
-    from homeassistant.helpers import device_registry as dr
-    from homeassistant.helpers import entity_registry as er
+    from homeassistant.helpers import device_registry as dr, entity_registry as er
 
     dev_reg = dr.async_get(hass)
     ent_reg = er.async_get(hass)
@@ -412,9 +405,7 @@ async def test_async_remove_config_entry_device_other_entry(
         device_id=device_entry.id,
     )
 
-    from custom_components.unifi_network_monitor import (
-        async_remove_config_entry_device,
-    )
+    from custom_components.unifi_network_monitor import async_remove_config_entry_device
 
     result = await async_remove_config_entry_device(
         hass, mock_config_entry, device_entry

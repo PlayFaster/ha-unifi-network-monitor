@@ -16,8 +16,6 @@ from typing import Any
 
 import pytest
 import voluptuous as vol
-from homeassistant.components.sensor import SensorStateClass
-from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME, PERCENTAGE
 
 from custom_components.unifi_network_monitor.config_flow import (
     _edit_schema,
@@ -32,6 +30,8 @@ from custom_components.unifi_network_monitor.sensor import (
     SWITCH_SENSORS,
     UnifiSensorEntityDescription,
 )
+from homeassistant.components.sensor import SensorStateClass
+from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME, PERCENTAGE
 
 _ALL_SENSORS: tuple[UnifiSensorEntityDescription, ...] = (
     GATEWAY_SENSORS + HEALTH_SENSORS + AP_SENSORS + SWITCH_SENSORS

@@ -7,7 +7,7 @@ invented here.
 switch that had never worked in any release and a status LED that failed on the
 first attempt. Both survived for weeks. Neither was a subtle bug — and neither
 was a testing failure in the usual sense, because **the owner did not personally
-use those entities, so nobody ever tried them.** No behavioural test catches
+use those entities, so nobody ever tried them.** No behavioral test catches
 that: what is missing is not an assertion but the decision to look. This register
 converts "someone should check" into a list with a test behind it.
 

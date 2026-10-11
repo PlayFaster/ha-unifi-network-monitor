@@ -19,7 +19,6 @@ from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
-from homeassistant.core import HomeAssistant
 
 from custom_components.unifi_network_monitor.const import (
     CONF_ENABLE_SECURITY_MONITORING,
@@ -28,6 +27,7 @@ from custom_components.unifi_network_monitor.const import (
     DEVICE_MODE_ALL,
     DEVICE_MODE_NONE,
 )
+from homeassistant.core import HomeAssistant
 
 from .conftest import MOCK_MAC
 

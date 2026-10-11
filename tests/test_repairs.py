@@ -17,8 +17,6 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from homeassistant.helpers import issue_registry as ir
-
 from custom_components.unifi_network_monitor.const import (
     DOMAIN,
     REPAIR_ISSUE_NAMES,
@@ -27,6 +25,7 @@ from custom_components.unifi_network_monitor.const import (
 from custom_components.unifi_network_monitor.coordinator import (
     UnifiNetworkDataUpdateCoordinator,
 )
+from homeassistant.helpers import issue_registry as ir
 
 
 def test_repair_issue_id_is_entry_scoped() -> None:

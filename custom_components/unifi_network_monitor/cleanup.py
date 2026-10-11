@@ -14,8 +14,7 @@ from dataclasses import dataclass, field
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 
 from ._compat import device_by_identifier, owning_entry_ids
 from .binary_sensor import DEVICE_BINARY_SENSORS

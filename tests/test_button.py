@@ -6,7 +6,6 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.unifi_network_monitor.api import UnifiConnectionError
 from custom_components.unifi_network_monitor.const import (
@@ -15,6 +14,7 @@ from custom_components.unifi_network_monitor.const import (
     CONF_ENABLE_WAN_USAGE,
     CONF_UNIFI_DEVICE_MODE,
 )
+from homeassistant.exceptions import HomeAssistantError
 
 from .conftest import MOCK_COORDINATOR_DATA, MOCK_MAC
 

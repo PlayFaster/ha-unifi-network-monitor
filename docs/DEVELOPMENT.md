@@ -63,19 +63,20 @@ The `total` sensors are `rx + tx` of two independently-clamped counters; the sum
 
 While UniFi OS v3.0.0 and its Official API (using API Keys) introduces a highly structured endpoint hierarchy (e.g., `get_wan_interfaces`, `get_vpn_tunnels`), the integration uses a **hybrid API model** to fetch the best of both worlds:
 
-- **Telemetries**: The integration continues to use the richer classic `/proxy/network/api/s/{site}/stat/device` endpoint for deep hardware metrics (CPU/RAM, gateway temperatures, storage partition sizes, port tables, etc.) since the official v3 `devices` payload is extremely sparse.
+- **Sensor Data**: The integration continues to use the richer classic `/proxy/network/api/s/{site}/stat/device` endpoint for deep hardware metrics (CPU/RAM, gateway temperatures, storage partition sizes, port data, etc.) since the official v3 `devices` payload is extremely sparse.
 - **Structured Configurations**: The integration queries the official v3 / integration endpoints (via `asyncio.gather()` for zero overhead) to retrieve:
   - Custom user-configured WAN names (e.g. `WAN1_ISP1` and `WAN1_ISP2`) to map interfaces.
   - Active/configured firewall rules.
   - VLAN/VPN tunnels configuration lists.
-- **Graceful Degradation**: If the user's controller version does not support these v3 endpoints (or returns 404/403/TypeError), the coordinator catches the error, fallbacks to returning empty configurations, and the corresponding telemetry sensors gracefully become `unavailable` instead of crashing the update cycle.
+- **Graceful Degradation**: If the user's controller version does not support these v3 endpoints (or returns 404/403/TypeError), the coordinator catches the error, fallbacks to returning empty configurations, and the corresponding count sensors gracefully become `unavailable` instead of crashing the update cycle.
+- **Port Metadata Endpoints**: `GET /proxy/network/api/s/{site}/stat/portforward` and `GET /proxy/network/api/s/{site}/rest/portconf` were explored but rejected because they only describe high-level routing/forwarding configurations (which can be static/empty). They did not represent physical port metrics or link states.
 
 ### Removal of Misleading Gateway-Level "Ports" Client Counts
 
 Previously, the integration exposed `Ports in Use`, `User Ports`, and `Guest Ports` under the Gateway's **Ports** sub-device. Investigation revealed a naming/source discrepancy:
 
 - These sensors retrieved the Gateway device's local station caches (`num_sta`, `user-num_sta`, `guest-num_sta` from `/stat/device`).
-- They did not represent physical port telemetry or link states.
+- They did not represent physical port metrics or link states.
 - Because the gateway's station cache behaves as a lagging subset of the global site state (leading to slight mismatches like 157 gateway clients vs. 161 site-wide clients), having duplicate, slightly different versions of client counts was confusing and contradictory.
 - These misleading/redundant sensors were removed. Site-wide client counts under the **System** sub-device (derived from `/stat/health` WAN/LAN/WLAN health objects) remain the authoritative source for active devices.
 
@@ -284,7 +285,7 @@ Every explicit user action fetches **even while Pause Polling is on**, via a one
 
 ### `about` Annotation + Recorder Hygiene
 
-The `UnifiAboutEntity` mixin (`helpers.py`) exposes an optional unrecorded `about:` attribute (a one-line explanation surfaced in More Info, listed in `_unrecorded_attributes` so it never hits history) on ~20 entities whose purpose/similarity could confuse. The gateway sensor also unrecords the bulky/high-churn attributes `rogue_aps`, `rogue_aps_truncated`, `parameters`, and `udm_version`; the `rogue_aps` list is capped at 25 strongest (`ROGUE_ATTR_MAX`) with a `rogue_aps_truncated` flag. `_safe_float` rounds all numeric telemetry to 3 dp at parse time (stored-precision hygiene, distinct from `suggested_display_precision`).
+The `UnifiAboutEntity` mixin (`helpers.py`) exposes an optional unrecorded `about:` attribute (a one-line explanation surfaced in More Info, listed in `_unrecorded_attributes` so it never hits history) on ~20 entities whose purpose/similarity could confuse. The gateway sensor also unrecords the bulky/high-churn attributes `rogue_aps`, `rogue_aps_truncated`, `parameters`, and `udm_version`; the `rogue_aps` list is capped at 25 strongest (`ROGUE_ATTR_MAX`) with a `rogue_aps_truncated` flag. `_safe_float` rounds all numeric sensor values to 3 dp at parse time (stored-precision hygiene, distinct from `suggested_display_precision`).
 
 ### Duplicate-Entity `_mon` entity_id
 

@@ -7,7 +7,6 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from homeassistant.util import dt as dt_util
 
 from custom_components.unifi_network_monitor.api import (
     UnifiAuthError,
@@ -24,6 +23,7 @@ from custom_components.unifi_network_monitor.coordinator import (
     _safe_float,
     _safe_int,
 )
+from homeassistant.util import dt as dt_util
 
 # ---------------------------------------------------------------------------
 # Helper / safety-coercion unit tests
@@ -794,7 +794,7 @@ async def test_coordinator_parses_wan_and_security_configs(
     assert gateway["wan1_active"] is True
     assert gateway["wan2_active"] is False
 
-    # New telemetry statistics assertions
+    # New sensor statistics assertions
     assert gateway["wan1_today_rx"] == pytest.approx(1000.0)
     assert gateway["wan1_today_tx"] == pytest.approx(200.0)
     assert gateway["wan2_today_rx"] == pytest.approx(50.0)
@@ -1018,7 +1018,7 @@ async def test_coordinator_device_parse_error_skipped(
 
 # The WAN load-balance write path moved to tests/test_wan_weights.py at
 # [1.0.1-dev12]. The three tests that lived here asserted the superseded
-# behaviour — a PUT composed from the *held* networkconf object — which is
+# behavior — a PUT composed from the *held* networkconf object — which is
 # exactly the defect that change removes. They are not deleted coverage: the new
 # file covers the fresh-read, the two refusal paths, cancellation mid-pair, and
 # all three read-back outcomes.
@@ -1043,9 +1043,8 @@ async def test_coordinator_site_issue_created_and_cleared(
     hass: Any, mock_config_entry: Any
 ) -> None:
     """_sync_site_issue raises a repair on 'failed' and clears it on resolution."""
-    from homeassistant.helpers import issue_registry as ir
-
     from custom_components.unifi_network_monitor.const import DOMAIN, repair_issue_id
+    from homeassistant.helpers import issue_registry as ir
 
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
@@ -1076,9 +1075,8 @@ async def test_coordinator_site_issue_suppressed_without_api_key(
     normal without a key and must not raise a repair issue. A stale issue from a
     previous API-key session must also be cleared.
     """
-    from homeassistant.helpers import issue_registry as ir
-
     from custom_components.unifi_network_monitor.const import DOMAIN, repair_issue_id
+    from homeassistant.helpers import issue_registry as ir
 
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
@@ -3409,9 +3407,8 @@ async def test_sync_health_issues_create_and_clear(
     hass: Any, mock_config_entry: Any
 ) -> None:
     """_sync_health_issues raises and clears the schema_drift repair."""
-    from homeassistant.helpers import issue_registry as ir
-
     from custom_components.unifi_network_monitor.const import DOMAIN, repair_issue_id
+    from homeassistant.helpers import issue_registry as ir
 
     coord = _health_coord(hass, mock_config_entry)
     reg = ir.async_get(hass)

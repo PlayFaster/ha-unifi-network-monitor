@@ -74,9 +74,7 @@ def test_build_network_device_info() -> None:
 
 def test_build_unifi_device_info_with_model() -> None:
     """Unifi device info includes model and links to the gateway — no connection."""
-    from custom_components.unifi_network_monitor.helpers import (
-        build_unifi_device_info,
-    )
+    from custom_components.unifi_network_monitor.helpers import build_unifi_device_info
 
     coordinator = _make_coordinator()
     device_mac = "bb:cc:dd:ee:ff:00"
@@ -93,9 +91,7 @@ def test_build_unifi_device_info_with_model() -> None:
 
 def test_build_unifi_device_info_none_model() -> None:
     """Unifi device info handles None model."""
-    from custom_components.unifi_network_monitor.helpers import (
-        build_unifi_device_info,
-    )
+    from custom_components.unifi_network_monitor.helpers import build_unifi_device_info
 
     coordinator = _make_coordinator()
     device_mac = "bb:cc:dd:ee:ff:00"

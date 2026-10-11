@@ -25,12 +25,7 @@ from custom_components.unifi_network_monitor.const import (
     EP_VPN_TUNNELS,
 )
 
-from .conftest import (
-    MOCK_COORDINATOR_DATA,
-    MOCK_MAC,
-    make_device,
-    make_device_registry,
-)
+from .conftest import MOCK_COORDINATOR_DATA, MOCK_MAC, make_device, make_device_registry
 
 # ---------------------------------------------------------------------------
 # single_wan_excluded_keys (const.py line 151)

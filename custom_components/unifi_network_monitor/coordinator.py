@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
-import logging
 from collections.abc import Callable, Mapping
+import contextlib
 from datetime import UTC, datetime, timedelta
 from fnmatch import fnmatchcase
+import logging
 from typing import Any, Literal
 
 from homeassistant.config_entries import ConfigEntry
@@ -153,7 +153,7 @@ _V3_ENDPOINTS: frozenset[str] = frozenset(
 
 # Friendly names for the schema-drift checks.
 _DRIFT_CAPABILITY: dict[str, str] = {
-    "gateway": "Gateway telemetry",
+    "gateway": "Gateway metrics",
     "rogue": "Rogue APs",
     "alerts": "Alerts",
 }
@@ -399,7 +399,7 @@ def build_rogue_event_payload(entry_id: str, ap: dict[str, Any]) -> dict[str, An
 def _safe_float(val: Any, default: float | None = None) -> float | None:
     """Safely coerce to float, curtailed to 3 decimals.
 
-    Controller telemetry (e.g. WAN availability) can arrive with a dozen
+    Controller readings (e.g. WAN availability) can arrive with a dozen
     decimals; capping to 3 keeps stored/history values clean. Per-sensor
     ``suggested_display_precision`` controls how many are *shown*.
     """
@@ -553,7 +553,7 @@ def _parse_gateway(
         if uplink.get("comment") == "WAN":
             uplink_ip = uplink.get("ip")
 
-    # WAN1 / WAN2 real-time interface telemetry
+    # WAN1 / WAN2 real-time interface data
     wan1_data = device.get("wan1") or {}
     wan2_data = device.get("wan2") or {}
 
@@ -1540,7 +1540,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._stale_endpoints.discard(label)
         return data
 
-    async def _async_update_data(self) -> dict[str, Any]:
+    async def _async_update_data(self) -> dict[str, Any]:  # noqa: C901
         """Fetch all data with 3-strike resilience."""
         is_paused = self.entry.options.get(CONF_STOP_POLLING, False)
         # An explicit user action (Refresh Now, speedtest, weight/interval

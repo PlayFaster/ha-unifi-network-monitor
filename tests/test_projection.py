@@ -19,7 +19,6 @@ from datetime import datetime
 from typing import Any
 
 import pytest
-from homeassistant.util import dt as dt_util
 
 from custom_components.unifi_network_monitor.const import (
     PROJECTION_CONFIDENCE_LOW,
@@ -31,6 +30,7 @@ from custom_components.unifi_network_monitor.helpers import (
     calendar_cycle_bounds,
     project_cycle_usage,
 )
+from homeassistant.util import dt as dt_util
 
 GB = 1024**3
 

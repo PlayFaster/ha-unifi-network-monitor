@@ -2,7 +2,7 @@
 
 All notable changes to the UniFi Network Monitor project will be documented in this file.
 
-## [1.1.0] - 2026-08-08 - Projected Usage; WAN Weight Write Hardened; Refresh Now Reports Failure
+## [1.1.0] - 2026-08-08 - Release: Projected Data Usage, WAN Weight Control Hardening, and Refresh Now Error Handling
 
 ### Summary
 
@@ -92,7 +92,7 @@ Entry structure — headers, titles, category headings and the split between thi
 ---
 
 - [Changelog](#changelog)
-  - [\[1.1.0\] - 2026-08-08 - Projected Usage; WAN Weight Write Hardened; Refresh Now Reports Failure](#110---2026-08-08---projected-usage-wan-weight-write-hardened-refresh-now-reports-failure)
+  - [\[1.1.0\] - 2026-08-08 - Release: Projected Data Usage, WAN Weight Control Hardening, and Refresh Now Error Handling](#110---2026-08-08---release-projected-data-usage-wan-weight-control-hardening-and-refresh-now-error-handling)
   - [\[1.0.0\] - 2026-07-22 - Initial Public Release](#100---2026-07-22---initial-public-release)
 
 ---

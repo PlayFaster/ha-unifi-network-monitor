@@ -21,8 +21,8 @@ unmet. This is that test.
 from __future__ import annotations
 
 import json
-import re
 from pathlib import Path
+import re
 from typing import Any
 
 _COMPONENT = (

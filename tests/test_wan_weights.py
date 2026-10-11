@@ -156,9 +156,8 @@ async def test_wan_load_balance_set_value_rejected_when_endpoint_stale(
     hass: Any,
 ) -> None:
     """A stale networkconf endpoint refuses the write instead of PUTting blind."""
-    from homeassistant.exceptions import HomeAssistantError
-
     from custom_components.unifi_network_monitor.number import WanLoadBalanceNumber
+    from homeassistant.exceptions import HomeAssistantError
 
     coordinator = MagicMock()
     coordinator.data = {"gateway": {"wan1_weight": 50}}

@@ -7,12 +7,12 @@ switch shipped broken in every release for weeks and a status LED was erratic fo
 just as long. Neither was subtle — both failed on the first attempt. They survived
 because **nobody used those entities**, so nobody tried.
 
-No behavioural test catches that, because the missing thing is not an assertion,
+No behavioral test catches that, because the missing thing is not an assertion,
 it is the decision to look. What this file enforces is that decision: adding a
 command to `api.py` without recording whether a script may exercise it fails the
 suite.
 
-Deliberately **not** a behavioural test. It never touches a gateway and proves
+Deliberately **not** a behavioral test. It never touches a gateway and proves
 nothing about whether any write works. It proves only that none was added in
 silence.
 """
