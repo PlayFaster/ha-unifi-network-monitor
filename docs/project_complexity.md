@@ -1,6 +1,6 @@
 # Project Complexity & Health: ha-unifi-network-monitor
 
-**Last Measured:** 2026-10-11T15:10:15.680895+00:00 · **Release:** `1.1.0` · **Dev Version:** `1.1.0-dev9`
+**Last Measured:** 2026-10-11T16:26:39.128810+00:00 · **Release:** `1.1.0` · **Dev Version:** `1.1.0-dev10`
 
 ## 1. Executive Summary
 
@@ -19,15 +19,15 @@
 | **Code Suppressions (`# noqa`)** | **4** | Zero preferred; review regularly |
 | **Type Suppressions (`# type: ignore`)** | **0** | Mypy strict compliance |
 | **Source Python SLOC** | **6,803** | Across 17 files in custom_components/ (code statements) |
-| **Docstring Volume** | **816 lines** | Interface and contract documentation |
+| **Docstring Volume** | **820 lines** | Interface and contract documentation |
 | **Comment Density** | **7.4%** | 501 inline comment lines (Healthy implementation rationale) |
 | **Platform Declarations SLOC** | **2,852 lines** | Across 6 platform files |
 | **Core Engine / Driver SLOC** | **3,951 lines** | Across 11 coordinator/API/helper files |
 | **Static Entities** | **141 entities** | Scale indicator (`all_sensors.md`) |
 | **Platform SLOC / Entity** | **20.2 lines/entity** | Target 20 – 45 lines/entity declarative efficiency |
-| **Test-to-Source Ratio** | **1.66×** | 11,311 test lines ($\ge 1.5×$ recommended) |
-| **Pytest Coverage** | **99%** | 840 tests executed |
-| **Pytest Duration** | **300.76s** | Full test suite wall-clock execution time |
+| **Test-to-Source Ratio** | **1.67×** | 11,339 test lines ($\ge 1.5×$ recommended) |
+| **Pytest Coverage** | **100%** | 846 tests executed |
+| **Pytest Duration** | **154.56s** | Full test suite wall-clock execution time |
 
 ## 2. High Complexity Routines ($\ge 10$)
 

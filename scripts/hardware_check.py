@@ -61,9 +61,14 @@ from custom_components.unifi_network_monitor.api import (  # noqa: E402
     UnifiError,
     UnifiNetworkAPI,
 )
-from custom_components.unifi_network_monitor.const import DOMAIN  # noqa: E402
+from custom_components.unifi_network_monitor.const import (  # noqa: E402
+    DOMAIN,
+    GATEWAY_MODELS,
+)
 
-_STORAGE = _PROJECT / "config" / ".storage" / "core.config_entries"
+# Home Assistant's config directory in the devcontainer, as in the ZTE and Huawei
+# scripts; the project root holds no `config/`.
+_STORAGE = Path("/config/.storage/core.config_entries")
 
 
 def _load_options() -> dict[str, Any]:
@@ -86,6 +91,24 @@ def _load_options() -> dict[str, Any]:
     raise SystemExit(f"No {DOMAIN} config entry found in {_STORAGE}.")
 
 
+# Same fallbacks as ``_parse_gateway`` in coordinator.py: a UDM Pro's WAN ports.
+_DEFAULT_IFNAME = {"wan1": "eth8", "wan2": "eth9"}
+
+
+def _resolve_ifname(devices: list[dict[str, Any]], interface: str) -> str:
+    """Map ``wan1`` / ``wan2`` to the gateway's port name, as the button does.
+
+    ``cmd/devmgr`` takes the physical port (``eth8``), and answers the logical
+    name (``wan1``) with a bare HTTP 400. Any other value is a port name already
+    and passes through unchanged.
+    """
+    if interface not in _DEFAULT_IFNAME:
+        return interface
+    gateway = next((d for d in devices if d.get("model") in GATEWAY_MODELS), {})
+    wan = gateway.get(interface) or {}
+    return str(wan.get("ifname") or _DEFAULT_IFNAME[interface])
+
+
 def _latest_run(results: list[dict[str, Any]]) -> tuple[int, dict[str, Any] | None]:
     """Return the newest speedtest record's timestamp and the record itself."""
     if not results:
@@ -98,15 +121,18 @@ async def _check_speedtest(api: UnifiNetworkAPI, interface: str, timeout: int) -
     """Run the SAFE write and confirm a *new* result actually appears."""
     print("[A] trigger_speedtest  (SAFE)")
 
+    ifname = _resolve_ifname(await api.get_devices(), interface)
+    print(f"    interface: {interface} -> {ifname}")
+
     before_ts, _ = _latest_run(await api.get_speedtest_results())
     print(f"    newest result before: {before_ts or 'none'}")
 
     try:
-        await api.trigger_speedtest(interface)
+        await api.trigger_speedtest(ifname)
     except UnifiError as err:
         print(f"    FAIL  command refused: {err}")
         return False
-    print(f"    command accepted for {interface}")
+    print(f"    command accepted for {ifname}")
 
     # Accepted is not done. Poll until a strictly newer record appears — a
     # gateway that accepts the command and never runs it is the exact failure
@@ -157,6 +183,11 @@ async def _main(interface: str, timeout: int) -> int:
         "update_networkconf is ATTENDED and is deliberately not offered here — "
         "changing the WAN weights is a person's decision to make and undo."
     )
+    # Verdict banner in the family format; `Show: Results Summary` reads it.
+    if ok:
+        print("\n\u2714  Hardware check: PASSED  (1/1)")
+    else:
+        print("\n\u2716  Hardware check: FAILED  (0/1 passed)")
     return 0 if ok else 1
 
 
@@ -166,7 +197,10 @@ def main() -> int:
     parser.add_argument(
         "--interface",
         default="wan1",
-        help="WAN interface to test (default: wan1).",
+        help=(
+            "WAN to test: wan1 or wan2, resolved to the gateway's port name, "
+            "or a port name such as eth8 (default: wan1)."
+        ),
     )
     parser.add_argument(
         "--timeout",

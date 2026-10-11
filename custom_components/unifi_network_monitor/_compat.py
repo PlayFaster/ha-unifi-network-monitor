@@ -46,8 +46,12 @@ def device_by_identifier(
     return dev_reg.async_get_device(identifiers={(domain, ident)})
 
 
-def owning_entry_ids(device: dr.DeviceEntry) -> list[str]:
+def owning_entry_ids(device: Any) -> list[str]:
     """Return the config-entry id(s) owning ``device``.
+
+    Typed ``Any``: ``DeviceRegistry.async_get`` returns ``DeviceEntry`` before
+    2026.9 and ``DeviceEntry | ChildDeviceEntry`` from it, and no single
+    annotation is valid against both sets of stubs.
 
     2026.8+ exposes a single ``config_entry_id``; older HA a ``config_entries``
     set. Returned as a list so membership and iteration call sites stay uniform.

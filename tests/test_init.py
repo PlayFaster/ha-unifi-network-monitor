@@ -5,8 +5,10 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from custom_components.unifi_network_monitor._compat import device_by_identifier
 from custom_components.unifi_network_monitor.api import UnifiConnectionError
 from homeassistant.config_entries import ConfigEntryState
+from homeassistant.helpers import device_registry as dr
 
 
 async def test_setup_entry_succeeds(hass: Any, mock_config_entry: Any) -> None:
@@ -74,10 +76,12 @@ async def test_setup_entry_registers_gateway_device(
         await hass.config_entries.async_setup(mock_config_entry.entry_id)
         await hass.async_block_till_done()
 
-    dev_reg = hass.data["device_registry"]
-    device = dev_reg.async_get_device(
-        connections=set(),
-        identifiers={("unifi_network_monitor", "aa:bb:cc:dd:ee:ff")},
+    # Through the shim: a direct ``async_get_device`` raises on 2026.10+.
+    device = device_by_identifier(
+        dr.async_get(hass),
+        "unifi_network_monitor",
+        "aa:bb:cc:dd:ee:ff",
+        mock_config_entry.entry_id,
     )
     assert device is not None
     assert "Gateway" in device.name

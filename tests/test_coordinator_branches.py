@@ -626,7 +626,8 @@ async def test_setup_skips_gateway_registration_without_a_mac(
     data.pop("mac", None)
     hass.config_entries.async_update_entry(mock_config_entry, data=data)
 
-    before = len(dr.async_get(hass).devices)
+    # Iterated, not used as a mapping: mapping access raises on 2026.10+.
+    before = len(list(dr.async_get(hass).devices))
 
     with (
         patch(
@@ -637,9 +638,9 @@ async def test_setup_skips_gateway_registration_without_a_mac(
     ):
         assert await async_setup_entry(hass, mock_config_entry) is True
 
-    devices = dr.async_get(hass).devices
+    devices = list(dr.async_get(hass).devices)
     assert len(devices) == before
-    assert not any((DOMAIN, None) in device.identifiers for device in devices.values())
+    assert not any((DOMAIN, None) in device.identifiers for device in devices)
 
 
 # ---------------------------------------------------------------------------

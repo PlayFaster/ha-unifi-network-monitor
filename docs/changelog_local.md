@@ -17,6 +17,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: UniFi Network Monitor](#internal-detailed-changelog-unifi-network-monitor)
+  - [\[1.1.0-dev11\] - 2026-10-11 - Hardware Check Sends the WAN Port Name; Device-Registry Test Deprecations Fixed; Validation Clean](#110-dev11---2026-10-11---hardware-check-sends-the-wan-port-name-device-registry-test-deprecations-fixed-validation-clean)
   - [\[1.1.0-dev10\] - 2026-10-11 - Shared Tooling Sync: HA Core isort Adopted; Probatio Script Import and Mypy Overrides; Doc Wording Changed](#110-dev10---2026-10-11---shared-tooling-sync-ha-core-isort-adopted-probatio-script-import-and-mypy-overrides-doc-wording-changed)
   - [\[1.1.0-dev9\] - 2026-09-23 - AGENTS.md: Guard Test Table Trimmed; Rationale Moved to docs/test\_guards.md](#110-dev9---2026-09-23---agentsmd-guard-test-table-trimmed-rationale-moved-to-docstest_guardsmd)
   - [\[1.1.0-dev8\] - 2026-09-23 - Breaking: Minimum Home Assistant Raised to 2025.2.0 for Python 3.13](#110-dev8---2026-09-23---breaking-minimum-home-assistant-raised-to-202520-for-python-313)
@@ -49,6 +50,42 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.1-dev1\] - 2026-07-26 - Documentation and Tooling: Health Automation Example, AGENTS Structure, and CI Bumps](#101-dev1---2026-07-26---documentation-and-tooling-health-automation-example-agents-structure-and-ci-bumps)
   - [\[1.0.0\] - 2026-07-22 - Initial Public Release](#100---2026-07-22---initial-public-release)
   - [Document Audit Status](#document-audit-status)
+
+## [1.1.0-dev11] - 2026-10-11 - Hardware Check Sends the WAN Port Name; Device-Registry Test Deprecations Fixed; Validation Clean
+
+### Summary
+
+Clears the `Fix and Validate All` failures recorded under `[1.1.0-dev10]` Known, except the two accepted for now: McCabe complexity and Test Depth. The hardware check had never passed; it read the config-entry store from the wrong path and then sent the logical WAN name, which the controller refuses. One component change, a type annotation in `_compat.py`; no entity, option or service changes.
+
+### Fixed
+
+- **Hardware check reads Home Assistant's config-entry store**: `scripts/hardware_check.py` built `_STORAGE` from the project root (`<project>/config/.storage/core.config_entries`), which does not exist in the devcontainer. Now `/config/.storage/core.config_entries`, the path the ZTE and Huawei scripts use.
+- **Hardware check sends the gateway's port name**: `--interface wan1` was passed to `cmd/devmgr` as `interface_name: "wan1"`, which the controller refuses with HTTP 400 and an empty message. New `_resolve_ifname()` maps `wan1` / `wan2` to the gateway's `wan1.ifname` / `wan2.ifname` from `stat/device`, falling back to `eth8` / `eth9` as `_parse_gateway` does; any other value passes through as a port name. The output now prints the resolved port. `UnifiSpeedtestButton` already resolved the port, so the integration was not affected.
+- **Hardware check prints a verdict banner**: `Hardware check: PASSED  (1/1)` or `Hardware check: FAILED  (0/1 passed)`, the format of the ZTE and Huawei scripts. `Show: Results Summary` reads this line and reported "incomplete report — no verdict banner" without it.
+- **Device-registry deprecations in tests**: PHACC 0.13.372 (HA 2026.10.1) raises on two patterns. `test_init.py::test_setup_entry_registers_gateway_device` called `async_get_device(identifiers=…)` directly and now uses `_compat.device_by_identifier()`. `test_coordinator_branches.py::test_setup_skips_gateway_registration_without_a_mac` used `DeviceRegistry.devices` as a mapping (`len()`, `.values()`) and now iterates it.
+- **Mypy Strict error at `services.py:375`**: `DeviceRegistry.async_get` returns `DeviceEntry | ChildDeviceEntry` from HA 2026.9; `_compat.owning_entry_ids()` now takes `Any`, since no single annotation is valid against both the pre-2026.9 and current stubs. Runtime behavior unchanged.
+
+### Tests
+
+- **`test_projection_confidence_is_medium_mid_cycle`**: projection at day 6, 12:00 (5.5 days elapsed, weight 5.5 / 8.5 = 0.647) asserts `confidence == "medium"`. Covers `coordinator.py:494` and its branch, the last uncovered line; coverage returns to 100% line and branch.
+- **`tests/test_hardware_check.py`**: three tests for `_resolve_ifname()`: logical names resolve to the gateway port past a non-gateway device listed first; missing `ifname` falls back to `eth8` / `eth9`; a port name passes through unchanged.
+
+### Verified
+
+- **Diagnosis, before the script change**: `hardware_check.py --interface eth8` PASSED (new result 2026-10-11 16:19:59 UTC, 176/73 Mbps), and the WAN1 Speedtest Run button returned HTTP 200 through the HA REST API. The payload was the only difference from the failing run.
+- **Hardware check, after the change**: default `wan1` resolved to `eth8`; PASSED with a new result at 16:21:05 UTC (146/70 Mbps); `SAFE writes exercised: 1 of 1`; no `install_as_voluptuous` warning (C-036).
+- **Validation Suite**: `Fix and Validate All` of 2026-10-11: every step passes except the two accepted below (Test Depth, McCabe complexity); 846 tests, coverage 100.00% line and branch, Mypy Strict no issues in 17 source files, Markdown Lint and Repo Links clean, Hardware Check `PASSED  (1/1)`. Diag Check reports not run, since this project has no `scripts/diag_check.py`.
+
+### Documentation
+
+- **`docs/api_endpoints.md`**: `cmd/devmgr` payload documented; `interface_name` takes the physical port name, and a logical name is refused with HTTP 400.
+- **`docs/project_complexity.md`**: re-measured by the validation run (846 tests, 100% coverage).
+- **`docs/ha_compatibility.md`**: tested against 2026.10.1 (PHACC 0.13.372); ledger rows for `DeviceRegistry.devices` mapping access and the `DeviceEntry | ChildDeviceEntry` return type.
+
+### Deferred
+
+- **Test Depth (C-022)**: 2 outcomes not driven by a poll (`schema_drift_detected`, `site_resolution_failed`), 3 publish stubs not captured, 3 seams. Report-only; findings recorded against C-022 in the cross-project queue, and no allow-list written because both outcomes are reachable.
+- **McCabe complexity**: `_async_update_data` 83 and `async_get_config_entry_diagnostics` 31, suppressed since `[1.1.0-dev6]` and tracked by `mccabe_complexity_reduction.md`.
 
 ## [1.1.0-dev10] - 2026-10-11 - Shared Tooling Sync: HA Core isort Adopted; Probatio Script Import and Mypy Overrides; Doc Wording Changed
 

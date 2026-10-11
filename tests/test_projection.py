@@ -272,6 +272,20 @@ async def test_projection_confidence_is_high_late_in_the_cycle(
     assert attrs["confidence"] == "high"
 
 
+async def test_projection_confidence_is_medium_mid_cycle(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """Five and a half days observed sits between the low and high bands."""
+    from custom_components.unifi_network_monitor.coordinator import (
+        build_usage_projection,
+    )
+
+    now = dt_util.now().replace(year=2026, month=8, day=6, hour=12)
+    _value, attrs = build_usage_projection(10 * GB, now)
+
+    assert attrs["confidence"] == "medium"
+
+
 # ---------------------------------------------------------------------------
 # Entity wiring
 # ---------------------------------------------------------------------------

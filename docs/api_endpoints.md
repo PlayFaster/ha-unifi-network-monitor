@@ -107,6 +107,7 @@ These endpoints are called during regular polling cycles or user actions.
 - **Used**: Yes
 - **Purpose**: Sends command payloads to the device manager.
 - **Use Case**: Triggers a manual, on-demand speedtest on the gateway.
+- **Payload**: `{"cmd": "speedtest", "interface_name": "<port>"}`. `interface_name` takes the gateway's physical port name (`wan1.ifname` from `stat/device`, for example `eth8`), not the logical `wan1`. A logical name is refused with HTTP 400 and an empty message (verified 2026-10-11 on a UDM Pro).
 
 ### `GET /proxy/network/api/s/{site}/rest/wlanconf`
 

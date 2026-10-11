@@ -15,7 +15,7 @@ What Home Assistant versions this integration supports and the status of any cha
 | Type | Version / Status | Note |
 | :-- | :-- | :-- |
 | **Minimum** | **2025.2.0** | Declared in `README.md` |
-| **Tested against** | **2026.9.4** | `pytest-homeassistant-custom-component` 0.13.367 (development container) |
+| **Tested against** | **2026.10.1** | `pytest-homeassistant-custom-component` 0.13.372 (development container) |
 | **Enforced by** | `hacs.json` | `"homeassistant": "2025.2.0"` |
 | **Functional floor** | `data_entry_flow.section` | Introduced in HA 2024.11 |
 | **Python** | 3.13 or later | Required by Home Assistant 2025.2.0. Tests run on Python 3.14 |
@@ -28,6 +28,8 @@ What Home Assistant versions this integration supports and the status of any cha
 | :-- | :-- | :-- | :-- | :-- |
 | `DeviceInfo.via_device` identifier tuple | 2026.8 | **2027.8** | Sub-device parent links | **Shimmed** — `_compat.via_device_link()` |
 | `async_get_device(identifiers=…)` | 2026.8 | **2027.8** | Device lookups | **Shimmed** — `_compat.device_by_identifier()` |
+| `DeviceRegistry.devices` used as a mapping | 2026.10 | Not announced | Tests only | **Clear** — component code does not use it; two tests iterate the registry instead (`[1.1.0-dev11]`) |
+| `DeviceRegistry.async_get` returns `DeviceEntry \| ChildDeviceEntry` | 2026.9 (typing) | — | `services.py` device lookup | **Clear** — `_compat.owning_entry_ids()` accepts either (`[1.1.0-dev11]`) |
 | `DeviceEntry.config_entries` | 2026.8 | **2027.10** | Device ownership checks | **Shimmed** — `_compat.owning_entry_ids()` |
 | Implicit coordinator `config_entry` detection | 2024.8 | **2026.8** | `DataUpdateCoordinator` | **Done** — passed explicitly |
 | `BaseTrackerEntity.battery_level` | 2026.6 | **2027.7** | None — no tracker platform | **N/A** |
