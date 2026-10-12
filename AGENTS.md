@@ -2,57 +2,40 @@
 
 This file provides guidance to AI coding agents when working with code in this repository.
 
+> **Read the shared conventions first:** `.shared/dev_std/agent_conventions.md` — commands (tests, lint, mypy, validation), the Windows-host `docker exec` workflow, devcontainer access, HAB/MCP for interrogating the running HA instance, the post-modification SCOPE table, code conventions, and the markdown/Python rules. That file is the single source of truth for everything shared across the integration projects; this file covers only what is specific to **ha-unifi-network-monitor**.
+>
+> **[!] Note:** If you edit files inside directory junctions (`.notes/` or `.shared/`), do not run container validation on them. Validate them on the Windows host from the `shared/` folder.
+
+---
+
+> [!CAUTION]
+>
+> **Never run `git checkout`, `git restore`, `git reset`, `git stash` or `git clean`. Ask first, every time — no exceptions, whoever's changes you think they are.** Reading git (`status`, `diff`, `log`, `show`) is always fine. Full rule and the incident behind it: `agent_conventions.md` (`.shared/dev_std/agent_conventions.md`).
+
 ## What This Integration Does
 
-A Home Assistant custom integration (`unifi_network_monitor`) for Ubiquiti UniFi networks anchored by a UDM Pro (or similar gateway). It is a `local_polling` `hub` integration distributed via HACS. It replaces a previous shell-command + 20+ template sensor setup, exposing **128 base entities** (sensors, binary sensors, buttons, numbers, switches, and a select) across **seven** sub-devices — Gateway, Internet, Speedtest, **Security**, **Alerts**, Status, System — plus optional per-AP/switch sensors. Auth supports both API key (`X-API-Key` header — preferred) and username/password (TOKEN cookie + X-CSRF-Token). There are no external `requirements` beyond `aiohttp` and HA core.
+A Home Assistant custom integration (`unifi_network_monitor`) for Ubiquiti UniFi networks anchored by a UDM Pro (or similar gateway). It is a `local_polling` `hub` integration distributed via HACS. It replaces a previous shell-command + template sensor setup, exposing sensors, binary sensors, buttons, numbers, switches, and a select across **seven** sub-devices — Gateway, Internet, Speedtest, **Security**, **Alerts**, Status, System — plus optional per-AP/switch sensors. Auth supports both API key (`X-API-Key` header — preferred) and username/password (TOKEN cookie + X-CSRF-Token). There are no external `requirements` beyond `aiohttp` and HA core.
+
+> **Entity and service inventory lives in [`docs/all_sensors.md`](docs/all_sensors.md)** — it is authoritative and synchronized from code descriptions via `python .workbench/check_sensor_manifest.py --sync-docs` (and validated against live HA via `--verify-ha`). This file deliberately carries no entity counts or service descriptions; the sections below describe architecture and behavior.
+
+---
+
+> **Home Assistant version compatibility lives in [`docs/ha_compatibility.md`](docs/ha_compatibility.md)** — supported version floors and active core API deprecation statuses for this integration are tracked there per `agent_conventions.md` §4 (`.shared/dev_std/agent_conventions.md`).
 
 Setup/reconfigure options let users scope which per-device sensors and gateway sensor groups are created (a disabled group also skips its API calls), with per-endpoint hold-then-`unavailable` resilience, an explicit cleanup button/service, and the UI device-delete hook. See **Setup Options, Sensor-Group Scoping & Cleanup** below.
 
-Beyond passive entities it also exposes: **on-demand response actions** (`get_alerts`, `get_rogue_aps` — both with `keyword`/`exclude` comma-list filters + `total_matched`; `get_alerts` also has opt-in `count_total`); **list-management actions** (`clear_rogue_history`, and `add_rogue_ignore` / `remove_rogue_ignore` / `set_rogue_ignore` with a `target: ssids|aps`); two **bus events** (`unifi_network_monitor_new_alert`, `unifi_network_monitor_new_rogue_ap`); a **persistent rogue-AP appearance history** (BSSID-keyed `Store` → `first_seen`/`appearances` + the **Rogue APs New 24h** sensor); and an **Integration Health** self-diagnosis binary sensor (`problem`) backed by the `site_resolution_failed` + `schema_drift_detected` repair issues. See **Architecture** and the sections below.
+Beyond passive entities there are four capability classes, each with architectural consequences (names, parameters and filters: `docs/all_sensors.md`):
+
+- **On-demand response actions** — self-contained fetches, deliberately **decoupled from the feature toggles**, so they work even when the matching sensor group is disabled.
+- **List-management actions** — mutate `entry.options`; the reload listener applies the change.
+- **Bus events** — fire from the coordinator parse with a first-poll/re-enable baseline plus bounded dedup, gated on the owning feature flag.
+- **Self-diagnosis** — an Integration Health `problem` binary sensor backed by the `site_resolution_failed` + `schema_drift_detected` repair issues; `gateway_not_recognized` and `gateway_identity_blocked` are raised by the coordinator and `identity.py`, plus a **persistent** BSSID-keyed rogue-AP appearance history in a `Store` that survives restarts.
+
+See **Architecture** and the sections below.
 
 ## Commands
 
-### Tests
-
-```bash
-# Run the full test suite
-pytest
-
-# Run a single test file / test
-pytest tests/test_coordinator.py
-pytest tests/test_api.py::test_login -q
-```
-
-### Linting & Formatting
-
-```bash
-# Lint + autofix and format (config in pyproject.toml)
-ruff check --fix .
-ruff format .
-
-# Type check (only custom_components; needs /ha_core mounted)
-mypy custom_components/
-
-# Run all configured checks at once
-pre-commit run --all-files
-```
-
-### Running tools from a Windows host
-
-These commands only work **inside** the devcontainer — HA imports `fcntl`, so `pytest` (and other tools) cannot run on a Windows host directly. From Windows, run everything through `docker exec` against the running container. See [`.shared/prompts/devcon_run_gen.md`](.shared/prompts/devcon_run_gen.md) for the full mini-skill. Quick reference:
-
-```bash
-# Confirm the container is up first
-docker ps --filter "name=<CONTAINER_NAME>" --format "{{.Names}}"
-
-# Run a tool inside the container (-w sets the in-container working dir)
-docker exec -w /workspaces/<PROJECT_DIR> <CONTAINER_NAME> bash -c "PYTHONPATH=. pytest tests/"
-docker exec -w /workspaces/<PROJECT_DIR> <CONTAINER_NAME> bash -c "ruff check ."
-```
-
-Container identity values (`CONTAINER_NAME`, `PROJECT_DIR`) are in `.devcontainer/.env`.
-
-Do not install or run these tools on the host as a workaround.
+Standard for all integration projects — see shared conventions §2 (`.shared/dev_std/agent_conventions.md`). Nothing about this project's commands differs.
 
 ## Architecture
 
@@ -60,11 +43,17 @@ Data flows in one direction: **`api.py` → `coordinator.py` → platform entiti
 
 - **`api.py` (`UnifiNetworkAPI`)** — async HTTP client for the UniFi Network API. Key behaviors:
   - Two auth modes: API key (`X-API-Key: <key>` header) or username/password (POST `/api/auth/login`, store TOKEN cookie + X-CSRF-Token header). API key is preferred.
-  - **Auth mode gates the v3 endpoints — not a bug:** the Integration (v1) endpoints (`get_sites`/`get_wan_interfaces`/`get_vpn_*`/`get_firewall_policies`) are **API-key only**. Under username/password, `site_uuid` latches `"failed"` and 7 sensors (Rules Active/Configured/Disabled, VPN Connections Active/Total, WAN1/WAN2 Name) are legitimately `unknown` — expected, don't "fix" it. `coordinator._sync_site_issue` only raises the repair issue in API-key mode. See `DEVELOPMENT.md` §5 Gotcha.
-  - `_get(path)` handles auto re-auth on 401 for username/password mode.
+  - **Auth mode gates the v3 endpoints — not a bug:** the Integration (v1) endpoints (`get_sites`/`get_wan_interfaces`/`get_vpn_*`/`get_firewall_policies`) are **API-key only**. Under username/password, `site_uuid` latches `"failed"` and the sensors fed by them (Rules Active/Configured/Disabled, VPN Connections Active/Total, WAN1/WAN2 Name) are legitimately `unknown` — expected, don't "fix" it. `coordinator._sync_site_issue` only raises the repair issue in API-key mode. See `DEVELOPMENT.md` §5 Gotcha.
+  - `_get`, `_post` and `_put` share `_request(method, path, payload)`, which handles auto re-auth on 401 for username/password mode and records each response for the diagnostics download: `api.routes` (each route's status, `meta.rc` and record counts), `api.last_rejection` (the latest refused or unparsable response, read before it is raised; key names of its records only) and `api.login_metadata` (header and cookie names and flags, never a value). Routes carry `<site>` and `<site_uuid>` placeholders (`route_of`).
   - Three data endpoints: `/proxy/network/api/s/{site}/stat/device`, `/stat/health`, `/stat/sysinfo`.
   - `validate_connection()` — fetches devices + sysinfo, finds gateway device, returns `{mac, model, sw_version}`. Used only at config flow time.
   - Two exception types: `UnifiConnectionError` (network/transient) and `UnifiAuthError` (credentials). Raise the right one.
+
+- **`gateway.py`**: `select_gateway()`, signature-first gateway selection with no Home Assistant imports; used by `api.py`, the coordinator and `scripts/hardware_check.py`.
+
+- **`scripts/diag_check.py`**: the hardware diagnostics check, run by `Hardware: Check Diagnostics Download`. It takes two downloads from Home Assistant through `GET /api/diagnostics/config_entry/<entry_id>` with `.notes/ha_restart/token.txt`, compares their structure, checks that the `endpoints`, `gateway`, `last_rejection` and `login` blocks hold what a healthy run holds, and fails on any value from the controller's client, device, WLAN, network, WAN, ISP and rogue lists found as a whole word in either file. It prints counts and paths, never a value, and never the word `Skipped`, which the results summary reads as a skip. `--sabotage` (`Hardware: Check Diagnostics Recovery`) prints a not-applicable line.
+
+- **`identity.py`**: detects and applies the automatic gateway identity correction; called from `async_setup_entry` before the coordinator is constructed, and once from the first selecting poll.
 
 - **`coordinator.py` (`UnifiNetworkDataUpdateCoordinator`)** — polling + parsing + resilience layer.
   - **Flat Identity**: gateway MAC, model, and sw_version are loaded from `entry.data` at init time — no network call needed to identify the gateway device on boot.
@@ -93,7 +82,6 @@ Data flows in one direction: **`api.py` → `coordinator.py` → platform entiti
 
 - **Platforms** (`sensor`, `binary_sensor`, `button`, `number`, `switch`, `select`) — read `coordinator.data` only.
   - All platforms set `PARALLEL_UPDATES = 0`.
-  - All entity descriptions use `translation_key=` (never `name=`); `_attr_has_entity_name = True`.
   - **Guard bands** — `UnifiSensorEntityDescription` carries `min_limit`/`max_limit`; `native_value` returns `None` for out-of-range numeric values.
   - **Dynamic entities** — entities for APs and switches are created from coordinator data at setup time, plus a coordinator listener adds entities for newly-discovered devices.
   - **Option-gated creation** — each platform's static loop **and** dynamic listener honour `unifi_device_mode` (per-device sensors) and the feature toggles (gateway sensor groups). A disabled group is _not created_ (not created-disabled). See below.
@@ -112,9 +100,9 @@ Read credentials from `entry.options`, not `entry.data`. Config flow is `VERSION
 
 ### Device Co-existence — separate but aware (2026-07 rework)
 
-Monitor **does not merge** its devices with the core `unifi` integration. Devices are **identity-only** (`identifiers={(DOMAIN, …)}`, deliberately **no** `connections={(CONNECTION_NETWORK_MAC, …)}`), so they never collide with core UniFi's devices and Monitor owns its own device tree. This is uniform on every HA version: HA 2026.8 removed cross-integration device merging outright, and not carrying the shared connection makes older HA behave the same way — one behaviour, no version branch.
+Monitor **does not merge** its devices with the core `unifi` integration. Devices are **identity-only** (`identifiers={(DOMAIN, …)}`, deliberately **no** `connections={(CONNECTION_NETWORK_MAC, …)}`), so they never collide with core UniFi's devices and Monitor owns its own device tree. This is uniform on every HA version: HA 2026.8 removed cross-integration device merging outright, and not carrying the shared connection makes older HA behave the same way — one behavior, no version branch.
 
-Why the change: merging depended on the shared MAC connection, which 2026.8 no longer honours. Keeping it would have produced two behaviours across the 2026.8 line (merged on ≤2026.7, split on 2026.8+); dropping it gives one no-merge model everywhere, with **no minimum-version floor**. Full rationale and the deprecated-API migration: `.notes/device_registry/device_model_2026_08.md`.
+Why the change: merging depended on the shared MAC connection, which 2026.8 no longer honours. Keeping it would have produced two behaviors across the 2026.8 line (merged on ≤2026.7, split on 2026.8+); dropping it gives one no-merge model everywhere, with **no minimum-version floor**. Family-wide analysis, the three deprecated APIs and the 2026.8.0 re-verification checklist: `.shared/issues/x_project/device_registry_2026_08.md`. This project's Phase 1 mechanics, implementation and validation records: `.notes/device_registry/device_model_2026_08.md`.
 
 **Still core-aware** (entity-level, independent of device grouping): when core `unifi` is installed (`"unifi" in hass.config_entries.async_domains()`), sensors that duplicate what it already provides are **created but disabled by default** (`entity_registry_enabled_default=False` + `enable_in_standalone=True`, flipped on only when standalone). So Monitor avoids redundant entities/polling without ever sharing a device card.
 
@@ -122,7 +110,7 @@ Why the change: merging depended on the shared MAC connection, which 2026.8 no l
 
 ## Setup Options, Sensor-Group Scoping & Cleanup (2026-07 rework)
 
-Full design: `.notes/design_monitor_setup_options.md`. Cross-project porting guide: `shared/SharedNotes/issues/setup_cleanup_options.md`.
+Full design: `.notes/design_monitor_setup_options.md`. Cross-project porting guide: `.shared/issues/x_project/setup_cleanup_options.md`.
 
 - **Per-UniFi-device sensors** (`unifi_device_mode`): `none` (default — create nothing per-device), `satisfaction_only` (AP Satisfaction Score keys only), `all` (everything). Core-detected setup offers all three; core-absent offers `none`/`all`. `sensor.py`'s `_device_descs(dev_type, mode)` returns the descriptions to create; both the static loop and the dynamic listener use it. Superseded the old "always create disabled" behavior (the `standalone` flag now only affects `entity_registry_enabled_default`).
 - **Feature toggles** each map to a _sensor group_ **and** its endpoint(s): `enable_speedtest`→`get_speedtest_results`; `enable_wan_usage`→daily/monthly gateway; `enable_security_monitoring`→rogue APs + VPN + firewall + settings; `enable_logs_alerts`→`system-log/all` (Alerts). Off = sensors not created **and** the fetch skipped. `enable_dual_wan` is the exception — WAN2 rides the _shared_ endpoints, so it's a creation/cleanup **key-set** filter (removes WAN2 + load-balance entities), never routed through `disabled_endpoints`.
@@ -133,93 +121,71 @@ Full design: `.notes/design_monitor_setup_options.md`. Cross-project porting gui
 
 ## Key Patterns & Conventions
 
-- Ruff is strict: `D`, `N`, `ASYNC`, `T20`, `SIM`, `UP` enabled. Target `py314`, line length 88.
-- mypy runs in strict mode over `custom_components/` only.
-- `_LOGGER` messages are prefixed with `self.entry.title` (`"%s: ..."`) — match that style.
-- The `.notes` and `.shared` symlinks point outside the repo (project notes / shared validation configs) and are not part of the shipped integration.
+Shared conventions (ruff/mypy strictness, `_LOGGER` prefixing, `PARALLEL_UPDATES`, `translation_key`, icons, exception tuple syntax, markdown emoji rules) are in shared conventions §4–5 (`.shared/dev_std/agent_conventions.md`). Nothing in this project deviates.
 
-### Emoji in Headings — Single Codepoint Only
+Note: this project's README was cleaned of all ten VS16-emoji occurrences on 2026-07-22.
 
-**Two-codepoint ("complex") emoji are banned from Markdown headings.** `⚙️` is a glyph plus an invisible `U+FE0F` variation selector; `📘` is a single codepoint.
+## Tests that will stop you
 
-Heading anchors are generated by stripping the emoji, and the two validators strip **different amounts** — GitHub / `markdown-link-check` remove both codepoints, `markdownlint` **MD051** keeps the `U+FE0F` (Unicode category _Mark_). No link fragment satisfies both, so a linked heading is **unfixable in the link**: only changing the emoji resolves it. Never rewrite the fragment; never suppress MD051. A `%EF%B8%8F` in a link-checker error is the signature.
+Several tests here are **sweeps**: they assert that every member of a _set_ is covered, so they fail when the set **grows**, not when a known member breaks. The failure therefore looks unrelated to whatever you just changed, and the reflex is to suppress it.
 
-The ban is absolute, not only for linked headings — adding a link later is a normal edit that would silently break. This README was cleaned of all ten occurrences on 2026-07-22.
+**If one of these fails, it has found something. An allow-list entry is the last resort, not the first move** — every allow-list below is deliberately empty, so adding to one is a visible, reviewable act.
 
-Detect mechanically; `U+FE0F` is invisible in every editor, so never review for it by eye:
+**Add a row when you add a sweep.** The equivalent table on ZTE went stale within one session of being written, which is the same drift the sweeps themselves exist to catch.
 
-```bash
-grep -n "^#" README.md | cat -A | grep "M-oM-8M-^O"
-```
+| Add or change this | This fails | Do this |
+| :-- | :-- | :-- |
+| A sensor with a unit or `state_class` | `test_every_numeric_sensor_has_a_lower_guard_band` | Declare `min_limit`, or add the key to `ALLOWED_NO_MIN_LIMIT` **with a reason**. Then add a row to `docs/value_min_max.md`. |
+| A sensor measured in `%` | `test_every_percentage_sensor_has_an_upper_guard_band` | Declare `max_limit`. |
+| Any sensor at all | `test_no_sensor_uses_the_total_state_class` | Use `TOTAL_INCREASING`. |
+| A sensor whose value is a forecast | `test_a_forecast_never_carries_a_state_class` | Leave `state_class` unset and publish the caveat as an attribute. |
+| Any entity | `test_every_declared_translation_key_has_a_name`, `test_every_declared_key_has_an_icon` | Add entries under **that entity's own platform** in `strings.json`, `translations/en.json` and `icons.json`. |
+| Removing an entity | `test_no_dead_translation_entries`, `test_no_dead_icon_entries` | Remove its entries too. |
+| A raised `HomeAssistantError` | `test_every_raised_exception_key_has_a_message`, `test_no_dead_exception_messages` | Add the key to the `exceptions` block in **both** translation files. |
+| An entity attribute | `test_no_entity_publishes_a_recorded_attribute`, `test_health_detail_is_unrecorded`, `test_rogue_proximity_rssi_is_unrecorded`, `test_gateway_sensor_records_nothing` | Add the key to that class's `_unrecorded_attributes`. **Repeat `"about"` if the class declares its own set**. |
+| A credential field in any config-flow schema | `test_stored_secrets_are_never_pre_filled`, `test_no_field_leaks_a_stored_secret` | Never seed it from stored options — not as `default` and not as `suggested_value`. |
+| A new write command in `api.py` | `test_every_write_is_classified`, `test_every_entry_carries_a_written_reason` | Add it to `scripts/write_classification.py` as `SAFE`, `ATTENDED` or `NEVER_AUTOMATED`, **with a written reason**. |
+| A new repair issue | `test_repair_issue_names_cover_all_four_repairs` | Add the name to `REPAIR_ISSUE_NAMES` in `const.py` and raise it through `repair_issue_id(entry_id, name)`. |
+| A test with no assertion | the assertion audit (`python .workbench/check_test_assertions.py`) | Assert the observable outcome — nothing cancelled, nothing written, the error logged. |
+| **Any new partial branch** | branch coverage (`pytest --cov --cov-branch`) | Treat it as a missing test; the bar is zero partial branches. |
+| Any branch in a `for` loop guard | branch coverage (`pytest --cov --cov-branch`) | Use **at least two** items with the unwanted one **first**, and assert the later item was still processed. |
 
-Body text, tables and link labels are unaffected — headings only.
-
-Full background and the sense-preserving replacement table: `shared/SharedNotes/info/markdown_anchor_emoji/anchor_emoji_conflict.md`. Enforced by `readme_review.md` Step 1e.
-
-### Exception Tuple Syntax — Settled Decision
-
-Always use `except (A, B):` with explicit parentheses for multi-exception catches. Never use the bare-tuple form `except A, B:`.
-
-- **Do not flag or change this** — it has been researched and decided.
-- `except A, B:` silently catches only `A` on Python 3.12–3.13 (what HA runs on in production), making it a correctness issue, not just style.
-- `except (A, B):` is correct and unambiguous across Python 2.6 through 3.14+.
-- Full background: `shared/SharedNotes/info/py_exception_tuple_syntax/issue_summary.md`
-
-## Development Environment
-
-The project uses a VS Code devcontainer (`.devcontainer/`, image `ha-dev-base:latest`; see `.devcontainer/docker-compose.yml`) running a Home Assistant instance for live testing. HA core source is mounted read-only at `/ha_core`; mypy resolves HA types against it via `mypy_path = "/ha_core"` and will not typecheck correctly outside an environment where that path exists.
-
-### MCP Access (ha-mcp-dev)
-
-When the devcontainer is running, the `ha-mcp-dev` MCP server automatically connects to the HA instance inside it (`http://localhost:8123`). Use it to verify integration changes without leaving the editor.
-
-**After any modification, follow the post-modification process** — see [`.shared/prompts/post_mod_process.md`](.shared/prompts/post_mod_process.md). Specify a `SCOPE` when invoking it:
-
-| SCOPE      | What runs                                                 |
-| :--------- | :-------------------------------------------------------- |
-| `None`     | Changes only — no validation                              |
-| `Basic`    | HA restart + error check + lint/format fixes              |
-| `Full`     | Basic + mypy (standard) + pytest (fix failing tests only) |
-| `Complete` | Full + pre-commit --all-files + mypy --strict             |
-
-Additional tools useful during development:
-
-- `ha_get_state` / `ha_search_entities` — verify entity states and attributes after a reload
-- `ha_call_service` — trigger service calls to exercise platform callbacks directly
-
-Live HA for manual testing runs at `http://localhost:8123`; the integration is mounted into `/config/custom_components/`. Tests use `pytest-homeassistant-custom-component` with `asyncio_mode = "auto"` (no `@pytest.mark.asyncio` needed).
-
-Validation reports are written to the `.reports/` directory (gitignored outputs from lint/test runs).
-
-### Skill Prompts
-
-Three reusable prompts are available via `.shared/prompts/` for working within this devcontainer:
-
-| Prompt | Purpose |
-| :-- | :-- |
-| `devcon_run_gen.md` | Run any single command inside the container |
-| `devcon_run_and_fix.md` | Full test + lint cycle: pytest, ruff, prettier, validate — with auto-fix |
-| `devcon_coverage.md` | Coverage report, target file selection, and new test writing |
+When you add a guard test, add its row here and its rationale to [`docs/test_guards.md`](docs/test_guards.md).
 
 ## API Endpoints Reference
 
-| Endpoint | Purpose |
-| :-- | :-- |
-| `GET /proxy/network/api/s/{site}/stat/device` | All adopted devices (UDM, APs, switches) with live stats |
-| `GET /proxy/network/api/s/{site}/stat/health` | Network health subsystems (wan, www, wlan, lan, vpn) |
-| `GET /proxy/network/api/s/{site}/stat/sysinfo` | System info including firmware version |
-| `POST /proxy/network/api/s/{site}/stat/rogueap` | Rogue APs within `{within}` hours (Security; queried at the live period + a fixed 24h for the raw sensor) |
+| Endpoint                                                | Purpose                                                                                                      |
+| :------------------------------------------------------ | :----------------------------------------------------------------------------------------------------------- |
+| `GET /proxy/network/api/s/{site}/stat/device`           | All adopted devices (UDM, APs, switches) with live stats                                                     |
+| `GET /proxy/network/api/s/{site}/stat/health`           | Network health subsystems (wan, www, wlan, lan, vpn)                                                         |
+| `GET /proxy/network/api/s/{site}/stat/sysinfo`          | System info including firmware version                                                                       |
+| `POST /proxy/network/api/s/{site}/stat/rogueap`         | Rogue APs within `{within}` hours (Security; queried at the live period + a fixed 24h for the raw sensor)    |
 | `POST /proxy/network/v2/api/site/{site}/system-log/all` | System-log alerts (Alerts group; `EP_SYSLOG` polls HIGH/VERY_HIGH; `get_alerts` queries all four severities) |
-| `POST /api/auth/login` | Obtain TOKEN cookie + X-CSRF-Token (username/password auth only) |
-| `POST /api/auth/logout` | Invalidate session |
+| `POST /api/auth/login`                                  | Obtain TOKEN cookie + X-CSRF-Token (username/password auth only)                                             |
+| `POST /api/auth/logout`                                 | Invalidate session                                                                                           |
 
 Full endpoint reference (incl. speedtest, reports, config, v3): `docs/api_endpoints.md`.
 
 ## Remaining Work (Future — Separate Session)
 
-Most of the original Phase B has shipped — ISP data-usage sensors, load-balance read (active WAN, mode/weights) and write (WAN1 weight number). Still outstanding:
+**Forward work lives in [docs/ROADMAP.md](docs/ROADMAP.md)** — refer there for planned items, revisit parameters, and declined design decisions. Keep it there rather than here, so there is one place to look.
 
-- GitHub CI wiring (`.github/workflows/` — `validate.yaml` still has a placeholder `CHANGEME` gist_id).
+Still outstanding and not yet written up as a roadmap entry:
+
 - **Rogue-AP action/event fast-follow refinements** and any further alerts polish.
 
-Note: the test suite is at **100% coverage** (verified 2026-07-17), including the 2026-07 work — options gating, per-endpoint resilience, `cleanup.py`, service/hook, config-flow sections, the Security/Alerts sub-devices, the `get_alerts`/`get_rogue_aps` actions + `new_alert`/`new_rogue_ap` events, `select.py`, the `about`/unrecorded-attribute layer, and the later rogue expansion — hidden-SSID naming + `ssid_anomaly` + new rogue fields, action `keyword`/`exclude`/`total_matched`/`count_total`, the persistent rogue history + `rogue_new_24h` sensor + `clear_rogue_history`, the ignore-list management actions, and the **Integration Health** self-diagnosis (`_compute_integration_health`/`_sync_health_issues` + the `schema_drift_detected` repair). Source is ruff/mypy-clean.
+Note: the test suite is at **100% line and 100% branch coverage** — 842 tests, 2944 statements, 0 missing, **0 partial branches** across all 17 modules (re-verified 2026-08-08). The assertion audit reports **0 of 802** tests asserting nothing. Coverage is necessary and not sufficient: mutation testing at `[1.0.1-dev19]` found the diagnostics scrubber fully covered and asserted only for the **absence** of secrets, which a skipped scrub satisfies — see `docs/changelog_local.md`. Coverage includes the 2026-07 work — options gating, per-endpoint resilience, `cleanup.py`, service/hook, config-flow sections, the Security/Alerts sub-devices, the `get_alerts`/`get_rogue_aps` actions + `new_alert`/`new_rogue_ap` events, `select.py`, the `about`/unrecorded-attribute layer, and the later rogue expansion — hidden-SSID naming + `ssid_anomaly` + new rogue fields, action `keyword`/`exclude`/`total_matched`/`count_total`, the persistent rogue history + `rogue_new_24h` sensor + `clear_rogue_history`, the ignore-list management actions, and the **Integration Health** self-diagnosis (`_compute_integration_health`/`_sync_health_issues` + the `schema_drift_detected` repair). Source is ruff/mypy-clean.
+
+## Development Environment
+
+Standard for all integration projects — see shared conventions §3 (`.shared/dev_std/agent_conventions.md`). Nothing about this project's environment differs.
+
+## Known Open Issues
+
+**Nothing is recorded here, and nothing should be.** This project's open work lives in `.notes/todo.md`, `.notes/tasks/`, the cross-project chore register, the cross-project queue and [`docs/ROADMAP.md`](docs/ROADMAP.md). One command reads all of them, from `dev-workbench/`:
+
+```bash
+uv run python scripts/check_queue_format.py --open ha-unifi-network-monitor
+```
+
+**Which one a new item belongs in, and how to add, check and close it, is `issue_tracking_workflow.md` (`.shared/issues/issue_tracking_workflow.md`)** — authoritative, with the summary at shared conventions §8 (`.shared/dev_std/agent_conventions.md`).

@@ -3,7 +3,7 @@
 HA 2026.8 makes a device belong to a single config entry and deprecates several
 registry surfaces (removed in 2027.8): the ambiguous ``async_get_device``,
 ``DeviceEntry.config_entries``, and the ``DeviceInfo.via_device`` identifier
-tuple. UniFi Network Monitor stays **floor-free** — one behaviour on <=2026.7 and
+tuple. UniFi Network Monitor stays **floor-free** — one behavior on <=2026.7 and
 on post-2027.8 alike — by feature-detecting each surface and using the new API
 where present, the old one otherwise.
 
@@ -46,8 +46,12 @@ def device_by_identifier(
     return dev_reg.async_get_device(identifiers={(domain, ident)})
 
 
-def owning_entry_ids(device: dr.DeviceEntry) -> list[str]:
+def owning_entry_ids(device: Any) -> list[str]:
     """Return the config-entry id(s) owning ``device``.
+
+    Typed ``Any``: ``DeviceRegistry.async_get`` returns ``DeviceEntry`` before
+    2026.9 and ``DeviceEntry | ChildDeviceEntry`` from it, and no single
+    annotation is valid against both sets of stubs.
 
     2026.8+ exposes a single ``config_entry_id``; older HA a ``config_entries``
     set. Returned as a list so membership and iteration call sites stay uniform.

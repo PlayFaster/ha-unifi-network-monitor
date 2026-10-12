@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-import logging
 from collections.abc import Callable
 from dataclasses import dataclass
+import logging
 from typing import Any, Final
 
 from homeassistant.components.sensor import (
@@ -55,15 +55,8 @@ from .const import (
     dual_wan_enabled,
     single_wan_excluded_keys,
 )
-from .coordinator import (
-    UnifiNetworkDataUpdateCoordinator,
-    disabled_endpoints,
-)
-from .helpers import (
-    UnifiAboutEntity,
-    build_sub_device_info,
-    build_unifi_device_info,
-)
+from .coordinator import UnifiNetworkDataUpdateCoordinator, disabled_endpoints
+from .helpers import UnifiAboutEntity, build_sub_device_info, build_unifi_device_info
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -91,6 +84,8 @@ _ENDPOINT_BY_KEY: dict[str, str] = {
     "wan2_today_tx": EP_DAILY,
     "wan2_today_total": EP_DAILY,
     "wan1_month_rx": EP_MONTHLY,
+    "wan1_month_projected": EP_MONTHLY,
+    "wan2_month_projected": EP_MONTHLY,
     "wan1_month_tx": EP_MONTHLY,
     "wan1_month_total": EP_MONTHLY,
     "wan2_month_rx": EP_MONTHLY,
@@ -213,6 +208,12 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         translation_key="gateway_wan1_local_ip",
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda d: d.get("wan1_local_ip"),
+        about=(
+            "The address the gateway's own WAN interface holds. On a CGNAT "
+            "connection this is a carrier-private address and is not reachable "
+            "from the internet — WAN1 Public IP Address is the one the world "
+            "sees."
+        ),
         device_key="internet",
     ),
     UnifiSensorEntityDescription(
@@ -220,6 +221,11 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         translation_key="gateway_wan1_public_ip",
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda d: d.get("wan1_public_ip"),
+        about=(
+            "The address the internet sees, as reported by the controller. On "
+            "CGNAT it differs from WAN1 Local IP Address and is shared with "
+            "other subscribers."
+        ),
         device_key="internet",
     ),
     UnifiSensorEntityDescription(
@@ -265,6 +271,11 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         device_class=SensorDeviceClass.TIMESTAMP,
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda d: None,
+        about=(
+            "When this integration last completed a poll — not when the gateway "
+            "last changed. If it stops advancing, the integration has stopped "
+            "polling even while entities still show their last values."
+        ),
         device_key="system",
     ),
     UnifiSensorEntityDescription(
@@ -282,6 +293,11 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         translation_key="gateway_wan_mode",
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda d: d.get("wan_mode"),
+        about=(
+            "Fill level of the gateway's /persistent partition, which holds "
+            "logs and settings rather than recordings. Sustained high values "
+            "usually mean log growth."
+        ),
         device_key="system",
     ),
     UnifiSensorEntityDescription(
@@ -396,6 +412,11 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
             if d.get("wan1_today_rx") is not None or d.get("wan1_today_tx") is not None
             else None
         ),
+        about=(
+            "Today's WAN1 usage so far. UniFi recomputes the open bucket each "
+            "poll, so the raw figure can dip slightly; it is clamped to its "
+            "running maximum here so it only ever rises within the day."
+        ),
         device_key="internet",
     ),
     UnifiSensorEntityDescription(
@@ -476,7 +497,46 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
             if d.get("wan1_month_rx") is not None or d.get("wan1_month_tx") is not None
             else None
         ),
+        about=(
+            "This calendar month's WAN1 usage so far, clamped so it only rises "
+            "within the month. Resets on the 1st. WAN1 Projected Usage "
+            "estimates where it is heading."
+        ),
         device_key="internet",
+    ),
+    UnifiSensorEntityDescription(
+        key="wan1_month_projected",
+        translation_key="gateway_wan1_month_projected",
+        device_class=SensorDeviceClass.DATA_SIZE,
+        native_unit_of_measurement=UnitOfInformation.BYTES,
+        suggested_unit_of_measurement=UnitOfInformation.GIGABYTES,
+        suggested_display_precision=1,
+        # Deliberately no state_class: this is a forecast, not a measurement,
+        # and must never be fed to statistics or long-term storage.
+        min_limit=0.0,
+        value_fn=lambda d: d.get("wan1_month_projected"),
+        device_key="internet",
+        about=(
+            "Projected WAN1 usage by the end of the calendar month, from usage "
+            "so far. Check the confidence attribute — it is weak early in the "
+            "month."
+        ),
+    ),
+    UnifiSensorEntityDescription(
+        key="wan2_month_projected",
+        translation_key="gateway_wan2_month_projected",
+        device_class=SensorDeviceClass.DATA_SIZE,
+        native_unit_of_measurement=UnitOfInformation.BYTES,
+        suggested_unit_of_measurement=UnitOfInformation.GIGABYTES,
+        suggested_display_precision=1,
+        min_limit=0.0,
+        value_fn=lambda d: d.get("wan2_month_projected"),
+        device_key="internet",
+        about=(
+            "Projected WAN2 usage by the end of the calendar month, from usage "
+            "so far. Check the confidence attribute — it is weak early in the "
+            "month."
+        ),
     ),
     UnifiSensorEntityDescription(
         key="wan2_month_rx",
@@ -666,6 +726,11 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         state_class=SensorStateClass.MEASUREMENT,
         min_limit=0.0,
         value_fn=lambda d: d.get("wan1_speedtest_download"),
+        about=(
+            "Download speed from the last speedtest UniFi ran — not a live "
+            "measurement. Check WAN1 Speedtest Last Run before acting on it; a "
+            "figure hours old says nothing about now."
+        ),
         device_key="speedtest",
     ),
     UnifiSensorEntityDescription(
@@ -677,6 +742,10 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         state_class=SensorStateClass.MEASUREMENT,
         min_limit=0.0,
         value_fn=lambda d: d.get("wan1_speedtest_upload"),
+        about=(
+            "Upload speed from the same run as WAN1 Speedtest Download. Both "
+            "are as old as WAN1 Speedtest Last Run."
+        ),
         device_key="speedtest",
     ),
     UnifiSensorEntityDescription(
@@ -689,6 +758,10 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         min_limit=0.0,
         max_limit=9999.0,
         value_fn=lambda d: d.get("wan1_speedtest_ping"),
+        about=(
+            "Latency recorded during the speedtest, under load. Usually higher "
+            "than Internet Latency, which is measured on an idle link."
+        ),
         device_key="speedtest",
     ),
     UnifiSensorEntityDescription(
@@ -697,6 +770,11 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         device_class=SensorDeviceClass.TIMESTAMP,
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda d: d.get("wan1_speedtest_lastrun"),
+        about=(
+            "When the last WAN1 speedtest completed. This is what makes the "
+            "other speedtest sensors interpretable — a stale run is the usual "
+            "explanation for a figure that looks wrong."
+        ),
         device_key="speedtest",
     ),
     UnifiSensorEntityDescription(
@@ -756,6 +834,11 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         state_class=SensorStateClass.MEASUREMENT,
         min_limit=0.0,
         value_fn=lambda d: d.get("wifi_networks_active"),
+        about=(
+            "How many configured WiFi networks are currently enabled. WiFi "
+            "Networks Total counts every configured SSID including disabled "
+            "ones."
+        ),
         device_key="status",
     ),
     # VLANs
@@ -773,6 +856,11 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         state_class=SensorStateClass.MEASUREMENT,
         min_limit=0.0,
         value_fn=lambda d: d.get("vlans_active"),
+        about=(
+            "How many configured VLANs are enabled. VLANs Total includes "
+            "disabled ones, so a gap between the two is a deliberate "
+            "configuration rather than a fault."
+        ),
         device_key="status",
     ),
     # VPN Connections
@@ -823,6 +911,11 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         translation_key="gateway_wan1_interface_name",
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda d: d.get("wan1_interface_name"),
+        about=(
+            "The WAN's configured name from the controller. Needs an API key: "
+            "under username/password this endpoint is unavailable and the "
+            "sensor is legitimately unknown."
+        ),
         device_key="internet",
     ),
     UnifiSensorEntityDescription(
@@ -892,6 +985,12 @@ HEALTH_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         translation_key="health_wan_isp_name",
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda d: d.get("wan_isp_name"),
+        about=(
+            "The ISP as UniFi identifies it from the WAN address. ISP "
+            "Organisation is the registered owner of the address block, which "
+            "is often a parent company or a wholesale carrier rather than the "
+            "company billing you."
+        ),
         device_key="internet",
     ),
     UnifiSensorEntityDescription(
@@ -900,6 +999,10 @@ HEALTH_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
         value_fn=lambda d: d.get("wan_isp_org"),
+        about=(
+            "Registered owner of the WAN address block. Frequently differs from "
+            "ISP Name — a reseller's customers show the wholesaler here."
+        ),
         device_key="internet",
     ),
     UnifiSensorEntityDescription(
@@ -927,6 +1030,11 @@ HEALTH_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         min_limit=0.0,
         max_limit=100.0,
         value_fn=lambda d: d.get("wan1_availability"),
+        about=(
+            "Percentage of UniFi's own monitoring window in which WAN1 was up — "
+            "not an all-time figure. The window is the controller's, so it "
+            "resets when the gateway restarts."
+        ),
         device_key="internet",
     ),
     UnifiSensorEntityDescription(
@@ -939,6 +1047,11 @@ HEALTH_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         min_limit=0.0,
         max_limit=9999.0,
         value_fn=lambda d: d.get("wan1_latency_avg"),
+        about=(
+            "Average latency to UniFi's monitoring target over its window, not "
+            "a live ping. For the current figure use Internet Latency, which is "
+            "measured per poll."
+        ),
         device_key="internet",
     ),
     UnifiSensorEntityDescription(
@@ -947,6 +1060,11 @@ HEALTH_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         device_class=SensorDeviceClass.TIMESTAMP,
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda d: d.get("wan1_boot_time"),
+        about=(
+            "When WAN1 last came up, derived from the interface's uptime. It "
+            "moves on every reconnection, so a recent value after an outage is "
+            "expected rather than a fault."
+        ),
         device_key="internet",
     ),
     UnifiSensorEntityDescription(
@@ -958,6 +1076,10 @@ HEALTH_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         entity_registry_enabled_default=False,
         min_limit=0.0,
         value_fn=lambda d: d.get("wan1_uptime"),
+        about=(
+            "How long WAN1 has been up, as a duration. WAN1 Last Restart is the "
+            "same fact as a timestamp — use whichever suits the automation."
+        ),
         device_key="internet",
     ),
     UnifiSensorEntityDescription(
@@ -981,6 +1103,10 @@ HEALTH_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         min_limit=0.0,
         max_limit=100.0,
         value_fn=lambda d: d.get("wan2_availability"),
+        about=(
+            "As WAN1 Availability, for the second WAN. Only meaningful when a "
+            "second WAN is actually connected."
+        ),
         device_key="internet",
     ),
     UnifiSensorEntityDescription(
@@ -993,6 +1119,7 @@ HEALTH_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         min_limit=0.0,
         max_limit=9999.0,
         value_fn=lambda d: d.get("wan2_latency_avg"),
+        about=("As WAN1 Latency, for the second WAN. "),
         device_key="internet",
     ),
     UnifiSensorEntityDescription(
@@ -1036,6 +1163,11 @@ HEALTH_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         min_limit=0.0,
         max_limit=9999.0,
         value_fn=lambda d: d.get("www_latency"),
+        about=(
+            "Current internet latency as the controller last measured it. "
+            "Differs from WAN1/WAN2 Latency, which are averages over UniFi's "
+            "longer window."
+        ),
         device_key="internet",
     ),
     UnifiSensorEntityDescription(
@@ -1045,6 +1177,11 @@ HEALTH_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         min_limit=0.0,
         value_fn=lambda d: d.get("www_drops"),
+        about=(
+            "Count of dropped connectivity checks in UniFi's monitoring window. "
+            "A handful is normal; a rising count during good latency usually "
+            "means packet loss rather than a slow link."
+        ),
         device_key="internet",
     ),
     UnifiSensorEntityDescription(
@@ -1385,12 +1522,24 @@ class UnifiSensorBase(
 class UnifiGatewaySensor(UnifiSensorBase):
     """Sensor entity bound to the UDM Pro gateway sub-dict."""
 
-    # Keep bulky / per-poll-changing attributes out of the recorder: the rogue
-    # list churns every poll, and parameters/udm_version add nothing to history
-    # (the get_alerts action and About note cover the intent). "about" is always
-    # excluded via the mixin; repeated here for clarity.
+    # Section 14: every attribute this entity can publish, with no exceptions.
+    # `application_version`, `application_build` and `device_type` were
+    # previously recorded — not by decision, they were simply never added when
+    # the attribute set grew past the original bulky/churning ones. Attributes
+    # carry detail that does not merit its own entity; a value whose history is
+    # genuinely wanted belongs in an entity or a user template sensor.
+    # "about" is contributed by the mixin; repeated here for clarity.
     _unrecorded_attributes = frozenset(
-        {"about", "rogue_aps", "rogue_aps_truncated", "parameters", "udm_version"}
+        {
+            "about",
+            "rogue_aps",
+            "rogue_aps_truncated",
+            "parameters",
+            "udm_version",
+            "application_version",
+            "application_build",
+            "device_type",
+        }
     )
 
     def __init__(
@@ -1457,6 +1606,12 @@ class UnifiGatewaySensor(UnifiSensorBase):
                     "rogue_aps_truncated": len(rogues) > ROGUE_ATTR_MAX,
                 }
             )
+        if self.entity_description.key.endswith("_month_projected"):
+            # The confidence context travels with the number rather than being
+            # expressed as an unknown state — see build_usage_projection.
+            return self._with_about(
+                gw.get(f"{self.entity_description.key}_attrs") or None
+            )
         if self.entity_description.key == "last_high":
             return self._with_about(gw.get("last_high_attrs"))
         if self.entity_description.key == "last_very_high":
@@ -1481,7 +1636,7 @@ class UnifiHealthSensor(UnifiSensorBase):
         val = self.entity_description.value_fn(health_data)
         if val is not None:
             return val
-        # Fallback to gateway sub-dict for telemetry configured rules/VLANs/VPNs/WiFi
+        # Fallback to gateway sub-dict for configured rules/VLANs/VPNs/WiFi
         gw_data = self.coordinator.data.get("gateway") or {}
         return self.entity_description.value_fn(gw_data)
 

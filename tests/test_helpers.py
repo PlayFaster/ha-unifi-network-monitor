@@ -5,10 +5,14 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import MagicMock
 
-from custom_components.unifi_network_monitor import _compat
 from custom_components.unifi_network_monitor.const import DOMAIN
 
-from .conftest import MOCK_COORDINATOR_DATA, MOCK_MAC
+from .conftest import (
+    MOCK_COORDINATOR_DATA,
+    MOCK_MAC,
+    assert_is_root,
+    assert_links_to_parent,
+)
 
 
 def _make_coordinator(data: dict[str, Any] | None = None) -> MagicMock:
@@ -29,15 +33,8 @@ def _make_entry() -> MagicMock:
 
 
 def _assert_links_to(info: dict[str, Any], parent_ident: str) -> None:
-    """Assert the DeviceInfo links to its parent, whichever HA form is in use.
-
-    ≤2026.7 uses the ``via_device`` identifier tuple; 2026.8+ uses ``via_device_id``
-    (a resolved id — a MagicMock here, since these are mock-registry unit tests).
-    """
-    if _compat._HAS_BY_IDENTIFIER:
-        assert "via_device_id" in info
-    else:
-        assert info["via_device"] == (DOMAIN, parent_ident)
+    """Assert the DeviceInfo links to its parent, whichever HA form is in use."""
+    assert_links_to_parent(info, parent_ident)
 
 
 def test_build_gateway_device_info() -> None:
@@ -54,8 +51,11 @@ def test_build_gateway_device_info() -> None:
     assert "connections" not in info
     assert info["identifiers"] == {(DOMAIN, MOCK_MAC)}
     assert "Gateway" in info["name"]
-    assert info["model"] == "UDMPRO"
+    # The card shows the display name; the stored model stays the raw code (I2).
+    assert info["model"] == "UDM-Pro"
     assert info["sw_version"] == "5.1.19.33549"
+    # The gateway is the tree root — it must link to no parent on any HA version.
+    assert_is_root(info)
 
 
 def test_build_network_device_info() -> None:
@@ -75,9 +75,7 @@ def test_build_network_device_info() -> None:
 
 def test_build_unifi_device_info_with_model() -> None:
     """Unifi device info includes model and links to the gateway — no connection."""
-    from custom_components.unifi_network_monitor.helpers import (
-        build_unifi_device_info,
-    )
+    from custom_components.unifi_network_monitor.helpers import build_unifi_device_info
 
     coordinator = _make_coordinator()
     device_mac = "bb:cc:dd:ee:ff:00"
@@ -94,9 +92,7 @@ def test_build_unifi_device_info_with_model() -> None:
 
 def test_build_unifi_device_info_none_model() -> None:
     """Unifi device info handles None model."""
-    from custom_components.unifi_network_monitor.helpers import (
-        build_unifi_device_info,
-    )
+    from custom_components.unifi_network_monitor.helpers import build_unifi_device_info
 
     coordinator = _make_coordinator()
     device_mac = "bb:cc:dd:ee:ff:00"

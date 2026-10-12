@@ -176,8 +176,12 @@ async def test_validate_connection_raises_when_no_devices() -> None:
         await api.validate_connection()
 
 
-async def test_validate_connection_fallback_to_first_device() -> None:
-    """validate_connection falls back to first device when no gateway model found."""
+async def test_validate_connection_returns_no_identity_without_a_gateway() -> None:
+    """With no gateway, validate_connection adopts no device (I3).
+
+    The first-device fallback is removed: it stored an access point or switch
+    MAC as the entry's identity (issue #23). The entry falls back to the host.
+    """
     api = _make_api(api_key="k")
     devices = [
         {"mac": "bb:cc:dd:ee:ff:00", "model": "UAP-AC-M", "state": 1},
@@ -190,8 +194,8 @@ async def test_validate_connection_fallback_to_first_device() -> None:
     ):
         info = await api.validate_connection()
 
-    assert info["mac"] == "bb:cc:dd:ee:ff:00"
-    assert info["model"] == "UAP-AC-M"
+    assert info["mac"] == ""
+    assert "model" not in info
     assert info["sw_version"] == "5.1.19"
 
 

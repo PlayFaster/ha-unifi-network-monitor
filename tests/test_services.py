@@ -7,7 +7,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import voluptuous as vol
-from homeassistant.exceptions import ServiceValidationError
 
 from custom_components.unifi_network_monitor.const import (
     ALERT_MAX_PAGES,
@@ -27,6 +26,7 @@ from custom_components.unifi_network_monitor.services import (
     _rogue_response_item,
     async_register_services,
 )
+from homeassistant.exceptions import ServiceValidationError
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -1043,9 +1043,7 @@ async def test_service_wrappers_called_through_hass(
         SERVICE_REMOVE_ROGUE_IGNORE,
         SERVICE_SET_ROGUE_IGNORE,
     )
-    from custom_components.unifi_network_monitor.services import (
-        async_register_services,
-    )
+    from custom_components.unifi_network_monitor.services import async_register_services
 
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()

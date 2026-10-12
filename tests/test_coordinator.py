@@ -7,12 +7,12 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from homeassistant.util import dt as dt_util
 
 from custom_components.unifi_network_monitor.api import (
     UnifiAuthError,
     UnifiConnectionError,
 )
+from custom_components.unifi_network_monitor.const import EVENT_NEW_ROGUE_AP
 from custom_components.unifi_network_monitor.coordinator import (
     UnifiNetworkDataUpdateCoordinator,
     _derive_boot_time,
@@ -23,6 +23,7 @@ from custom_components.unifi_network_monitor.coordinator import (
     _safe_float,
     _safe_int,
 )
+from homeassistant.util import dt as dt_util
 
 # ---------------------------------------------------------------------------
 # Helper / safety-coercion unit tests
@@ -793,7 +794,7 @@ async def test_coordinator_parses_wan_and_security_configs(
     assert gateway["wan1_active"] is True
     assert gateway["wan2_active"] is False
 
-    # New telemetry statistics assertions
+    # New sensor statistics assertions
     assert gateway["wan1_today_rx"] == pytest.approx(1000.0)
     assert gateway["wan1_today_tx"] == pytest.approx(200.0)
     assert gateway["wan2_today_rx"] == pytest.approx(50.0)
@@ -1015,41 +1016,12 @@ async def test_coordinator_device_parse_error_skipped(
     assert "ee:ff:00:11:22:33" not in result["devices"]
 
 
-async def test_coordinator_set_wan_weights_success(
-    hass: Any, mock_config_entry: Any
-) -> None:
-    """async_set_wan_weights writes both WAN1 and WAN2 weights via API."""
-    mock_config_entry.add_to_hass(hass)
-    api = MagicMock()
-    api.update_networkconf = AsyncMock()
-
-    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
-    coordinator._networkconf_wan = {"_id": "wan1_id", "wan_load_balance_weight": 55}
-    coordinator._networkconf_wan2 = {"_id": "wan2_id", "wan_load_balance_weight": 45}
-    coordinator.async_request_refresh = AsyncMock()
-
-    await coordinator.async_set_wan_weights(70)
-
-    assert api.update_networkconf.call_count == 2
-    api.update_networkconf.assert_any_call(
-        "wan1_id", {"_id": "wan1_id", "wan_load_balance_weight": 70}
-    )
-    api.update_networkconf.assert_any_call(
-        "wan2_id", {"_id": "wan2_id", "wan_load_balance_weight": 30}
-    )
-    coordinator.async_request_refresh.assert_awaited_once()
-
-
-async def test_coordinator_set_wan_weights_no_config(
-    hass: Any, mock_config_entry: Any
-) -> None:
-    """async_set_wan_weights raises ValueError when networkconf not loaded."""
-    mock_config_entry.add_to_hass(hass)
-    api = MagicMock()
-    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
-
-    with pytest.raises(ValueError, match="not yet loaded"):
-        await coordinator.async_set_wan_weights(50)
+# The WAN load-balance write path moved to tests/test_wan_weights.py at
+# [1.0.1-dev12]. The three tests that lived here asserted the superseded
+# behavior — a PUT composed from the *held* networkconf object — which is
+# exactly the defect that change removes. They are not deleted coverage: the new
+# file covers the fresh-read, the two refusal paths, cancellation mid-pair, and
+# all three read-back outcomes.
 
 
 async def test_coordinator_wan_weights_writable(
@@ -1071,27 +1043,27 @@ async def test_coordinator_site_issue_created_and_cleared(
     hass: Any, mock_config_entry: Any
 ) -> None:
     """_sync_site_issue raises a repair on 'failed' and clears it on resolution."""
+    from custom_components.unifi_network_monitor.const import DOMAIN, repair_issue_id
     from homeassistant.helpers import issue_registry as ir
-
-    from custom_components.unifi_network_monitor.const import DOMAIN
 
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
     coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
     reg = ir.async_get(hass)
+    issue_id = repair_issue_id(mock_config_entry.entry_id, "site_resolution_failed")
 
     coordinator.site_uuid = "failed"
     coordinator._sync_site_issue()
-    assert reg.async_get_issue(DOMAIN, "site_resolution_failed") is not None
+    assert reg.async_get_issue(DOMAIN, issue_id) is not None
 
     coordinator.site_uuid = "real-site-uuid"
     coordinator._sync_site_issue()
-    assert reg.async_get_issue(DOMAIN, "site_resolution_failed") is None
+    assert reg.async_get_issue(DOMAIN, issue_id) is None
 
     # Still resolving (None) is a no-op and must not raise or create an issue.
     coordinator.site_uuid = None
     coordinator._sync_site_issue()
-    assert reg.async_get_issue(DOMAIN, "site_resolution_failed") is None
+    assert reg.async_get_issue(DOMAIN, issue_id) is None
 
 
 async def test_coordinator_site_issue_suppressed_without_api_key(
@@ -1103,46 +1075,32 @@ async def test_coordinator_site_issue_suppressed_without_api_key(
     normal without a key and must not raise a repair issue. A stale issue from a
     previous API-key session must also be cleared.
     """
+    from custom_components.unifi_network_monitor.const import DOMAIN, repair_issue_id
     from homeassistant.helpers import issue_registry as ir
-
-    from custom_components.unifi_network_monitor.const import DOMAIN
 
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
     api.api_key = None  # username/password mode
     coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
     reg = ir.async_get(hass)
+    issue_id = repair_issue_id(mock_config_entry.entry_id, "site_resolution_failed")
 
     # Failed resolution under u/p must NOT create an issue.
     coordinator.site_uuid = "failed"
     coordinator._sync_site_issue()
-    assert reg.async_get_issue(DOMAIN, "site_resolution_failed") is None
+    assert reg.async_get_issue(DOMAIN, issue_id) is None
 
     # A stale issue left over from a prior API-key session is cleared.
     ir.async_create_issue(
         hass,
         DOMAIN,
-        "site_resolution_failed",
+        issue_id,
         is_fixable=False,
         severity=ir.IssueSeverity.WARNING,
         translation_key="site_resolution_failed",
     )
     coordinator._sync_site_issue()
-    assert reg.async_get_issue(DOMAIN, "site_resolution_failed") is None
-
-
-async def test_coordinator_set_wan_weights_no_id(
-    hass: Any, mock_config_entry: Any
-) -> None:
-    """async_set_wan_weights raises ValueError when _id missing."""
-    mock_config_entry.add_to_hass(hass)
-    api = MagicMock()
-    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
-    coordinator._networkconf_wan = {"wan_load_balance_weight": 50}
-    coordinator._networkconf_wan2 = {"wan_load_balance_weight": 50}
-
-    with pytest.raises(ValueError, match="missing _id"):
-        await coordinator.async_set_wan_weights(60)
+    assert reg.async_get_issue(DOMAIN, issue_id) is None
 
 
 async def test_coordinator_trigger_speedtest(hass: Any, mock_config_entry: Any) -> None:
@@ -2848,7 +2806,7 @@ async def test_schedule_refresh_in_cancels_previous(
 
 
 async def test_cancel_scheduled_refresh(hass: Any, mock_config_entry: Any) -> None:
-    """_cancel_scheduled_refresh cancels and clears the pending subscription."""
+    """cancel_scheduled_refresh cancels and clears the pending subscription."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
     coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
@@ -2856,7 +2814,7 @@ async def test_cancel_scheduled_refresh(hass: Any, mock_config_entry: Any) -> No
     mock_unsub = MagicMock()
     coordinator._pending_refresh_unsub = mock_unsub
 
-    coordinator._cancel_scheduled_refresh()
+    coordinator.cancel_scheduled_refresh()
     mock_unsub.assert_called_once()
     assert coordinator._pending_refresh_unsub is None
 
@@ -2864,12 +2822,12 @@ async def test_cancel_scheduled_refresh(hass: Any, mock_config_entry: Any) -> No
 async def test_cancel_scheduled_refresh_noop_when_none(
     hass: Any, mock_config_entry: Any
 ) -> None:
-    """_cancel_scheduled_refresh is a no-op when no pending subscription."""
+    """cancel_scheduled_refresh is a no-op when no pending subscription."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
     coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
     assert coordinator._pending_refresh_unsub is None
-    coordinator._cancel_scheduled_refresh()  # should not raise
+    coordinator.cancel_scheduled_refresh()  # should not raise
 
 
 async def test_schedule_refresh_fire_callback(
@@ -2981,18 +2939,22 @@ async def test_fire_new_rogue_events_baseline(
 async def test_fire_new_rogue_events_new_bssid(
     hass: Any, mock_config_entry: Any
 ) -> None:
-    """New BSSID (in new_bssids set) fires a bus event."""
+    """New BSSID (in new_bssids set) fires a bus event carrying that BSSID."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
     coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
     coordinator._rogue_baseline_done = True
 
+    fired: list[Any] = []
+    hass.bus.async_listen(EVENT_NEW_ROGUE_AP, lambda event: fired.append(event.data))
+
     coordinator._fire_new_rogue_events(
         [{"bssid": "66:77:88:99:aa:bb", "essid": "NewRogue"}], {"66:77:88:99:aa:bb"}
     )
-    # The event fires but the BSSID is recorded by _update_rogue_history
-    # not _fire_new_rogue_events. Just verify no exception —
-    #  the event assertion is in test_fire_new_rogue_events_only_new
+    await hass.async_block_till_done()
+
+    assert len(fired) == 1
+    assert fired[0]["bssid"] == "66:77:88:99:aa:bb"
 
 
 async def test_fire_new_rogue_events_skips_seen(
@@ -3004,11 +2966,16 @@ async def test_fire_new_rogue_events_skips_seen(
     coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
     coordinator._rogue_baseline_done = True
 
+    fired: list[Any] = []
+    hass.bus.async_listen(EVENT_NEW_ROGUE_AP, lambda event: fired.append(event.data))
+
     coordinator._fire_new_rogue_events(
         [{"bssid": "00:11:22:33:44:55", "essid": "Seen"}], set()
     )
-    # No assertion needed on _seen_rogue_bssids — it no longer exists.
-    # With empty new_bssids, no event fires.
+    await hass.async_block_till_done()
+
+    # An empty new_bssids set means every rogue present is already known.
+    assert fired == []
 
 
 async def test_fire_new_rogue_events_skips_missing_bssid(
@@ -3020,8 +2987,15 @@ async def test_fire_new_rogue_events_skips_missing_bssid(
     coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
     coordinator._rogue_baseline_done = True
 
-    coordinator._fire_new_rogue_events([{"essid": "NoBSSID"}], set())
-    # No exception means the missing BSSID was skipped.
+    fired: list[Any] = []
+    hass.bus.async_listen(EVENT_NEW_ROGUE_AP, lambda event: fired.append(event.data))
+
+    # The BSSID is the event's dedup key, so a rogue without one cannot be
+    # tracked and must be dropped rather than fired with a null key.
+    coordinator._fire_new_rogue_events([{"essid": "NoBSSID"}], {"00:11:22:33:44:55"})
+    await hass.async_block_till_done()
+
+    assert fired == []
 
 
 # ---------------------------------------------------------------------------
@@ -3243,6 +3217,48 @@ async def test_rogue_new_24h_counts_recent(hass: Any, mock_config_entry: Any) ->
     assert coord.rogue_new_24h(now) == 1
 
 
+async def test_rogue_new_24h_at_the_exact_cutoff(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """The 24-hour window is exclusive at its edge, to the microsecond.
+
+    Covers finding BVA.2 from recommendations_20260808.md. The comparison is
+    ``first > cutoff``, and the existing test used 2 hours and 3 days — one
+    comfortably inside the window and one comfortably outside — so nothing
+    distinguished ``>`` from ``>=``, and nothing would have noticed
+    ``hours=24`` becoming 23 or 25.
+
+    ``coordinator.py`` is excluded from the mutation module list because its
+    tests mock the API, so no mutation run can surface this; it has to come
+    from a review pass.
+
+    ``now`` is fixed rather than re-read so the window cannot shift between
+    building the records and asserting on them.
+    """
+    coord = _history_coordinator(hass, mock_config_entry)
+    now = dt_util.now()
+    cutoff = now - timedelta(hours=24)
+    coord.rogue_history = {
+        "just_inside": {
+            "first_seen": (cutoff + timedelta(microseconds=1)).isoformat(),
+            "last_seen": now.isoformat(),
+            "appearances": 1,
+        },
+        "exactly_on_it": {
+            "first_seen": cutoff.isoformat(),
+            "last_seen": now.isoformat(),
+            "appearances": 1,
+        },
+        "just_outside": {
+            "first_seen": (cutoff - timedelta(microseconds=1)).isoformat(),
+            "last_seen": now.isoformat(),
+            "appearances": 1,
+        },
+    }
+
+    assert coord.rogue_new_24h(now) == 1
+
+
 async def test_rogue_history_annotate(hass: Any, mock_config_entry: Any) -> None:
     """_annotate_rogue_history merges first_seen/appearances onto items."""
     coord = _history_coordinator(hass, mock_config_entry)
@@ -3391,18 +3407,18 @@ async def test_sync_health_issues_create_and_clear(
     hass: Any, mock_config_entry: Any
 ) -> None:
     """_sync_health_issues raises and clears the schema_drift repair."""
+    from custom_components.unifi_network_monitor.const import DOMAIN, repair_issue_id
     from homeassistant.helpers import issue_registry as ir
-
-    from custom_components.unifi_network_monitor.const import DOMAIN
 
     coord = _health_coord(hass, mock_config_entry)
     reg = ir.async_get(hass)
+    issue_id = repair_issue_id(mock_config_entry.entry_id, "schema_drift_detected")
 
     coord._sync_health_issues({"drift": ["Rogue APs"]})
-    assert reg.async_get_issue(DOMAIN, "schema_drift_detected") is not None
+    assert reg.async_get_issue(DOMAIN, issue_id) is not None
 
     coord._sync_health_issues({"drift": []})
-    assert reg.async_get_issue(DOMAIN, "schema_drift_detected") is None
+    assert reg.async_get_issue(DOMAIN, issue_id) is None
 
 
 async def test_integration_health_computation_error_caught(

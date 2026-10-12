@@ -144,10 +144,7 @@ async def test_diagnostics_includes_coordinator_state(hass: Any) -> None:
 
 def test_device_token_empty_returns_redacted() -> None:
     """device_token returns REDACTED for empty/falsy value (line 95)."""
-    from custom_components.unifi_network_monitor.diagnostics import (
-        REDACTED,
-        _Scrubber,
-    )
+    from custom_components.unifi_network_monitor.diagnostics import REDACTED, _Scrubber
 
     scrub = _Scrubber()
     assert scrub.device_token("") == REDACTED
@@ -157,10 +154,7 @@ def test_device_token_empty_returns_redacted() -> None:
 
 def test_rogue_token_empty_returns_redacted() -> None:
     """rogue_token returns REDACTED for empty value (line 111)."""
-    from custom_components.unifi_network_monitor.diagnostics import (
-        REDACTED,
-        _Scrubber,
-    )
+    from custom_components.unifi_network_monitor.diagnostics import REDACTED, _Scrubber
 
     scrub = _Scrubber()
     assert scrub.rogue_token("") == REDACTED
@@ -209,3 +203,42 @@ def test_scrub_rogue_entry_non_dict_returns_input() -> None:
     assert _scrub_rogue_entry(scrub, None) is None
     assert _scrub_rogue_entry(scrub, "string") == "string"
     assert _scrub_rogue_entry(scrub, 42) == 42
+
+
+async def test_diagnostics_scrub_identity_correction_keys(hass: Any) -> None:
+    """Every identity-correction key is scrubbed: no raw MAC, no host (I5)."""
+    import json
+
+    from custom_components.unifi_network_monitor.diagnostics import (
+        async_get_config_entry_diagnostics,
+    )
+
+    switch_mac = "aa:00:00:00:00:01"
+    host = "192.168.1.1"
+    entry = _make_entry()
+    entry.data = {
+        **entry.data,
+        "previous_unique_id": switch_mac,
+        "previous_mac": switch_mac,
+        "identity_blocked_mac": "aa:00:00:00:00:10",
+        "identity_pending": {
+            "mac": "aa:00:00:00:00:10",
+            "model": "UDRULT",
+            "previous_unique_id": host,
+            "previous_mac": "",
+        },
+    }
+    entry.runtime_data = _make_coordinator(MOCK_COORDINATOR_DATA)
+    entry.runtime_data.rogue_history = {}
+
+    result = await async_get_config_entry_diagnostics(hass, entry)
+    text = json.dumps(result, default=str).lower()
+
+    for raw in (switch_mac, "aa:00:00:00:00:10", MOCK_MAC, host):
+        assert raw not in text
+    data = result["entry"]["data"]
+    assert data["previous_unique_id"].startswith("device-")
+    assert data["identity_pending"]["previous_unique_id"] == "**REDACTED**"
+    assert data["identity_pending"]["model"] == "UDRULT"
+    # An empty value is kept as is; nothing to scrub.
+    assert data["identity_pending"]["previous_mac"] == ""

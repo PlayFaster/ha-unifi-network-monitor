@@ -6,7 +6,6 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from homeassistant.data_entry_flow import FlowResultType
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.unifi_network_monitor.api import (
@@ -34,6 +33,7 @@ from custom_components.unifi_network_monitor.const import (
     DEFAULT_ROGUE_IGNORE_SSIDS,
     DOMAIN,
 )
+from homeassistant.data_entry_flow import FlowResultType
 
 
 @pytest.fixture(autouse=True)
@@ -105,6 +105,37 @@ async def test_config_flow_api_key_success(hass: Any) -> None:
 
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert result["data"]["mac"] == "aa:bb:cc:dd:ee:ff"
+
+
+@pytest.mark.usefixtures("socket_enabled")
+async def test_config_flow_without_a_gateway_uses_the_host(hass: Any) -> None:
+    """No gateway selected: no device is adopted and the host is the identity.
+
+    Issue #23: the removed first-device fallback stored a switch MAC as the
+    entry's identity. The entry now stores ``mac: ""`` and no model, and the
+    coordinator raises ``gateway_not_recognized`` (I3, I4).
+    """
+    switch = {"mac": "aa:00:00:00:00:01", "model": "USM8P210", "type": "usw"}
+    api = "custom_components.unifi_network_monitor.api.UnifiNetworkAPI"
+    with (
+        patch(f"{api}.get_devices", AsyncMock(return_value=[switch])),
+        patch(f"{api}.get_sysinfo", AsyncMock(return_value=[])),
+        patch(
+            "custom_components.unifi_network_monitor.async_setup_entry",
+            AsyncMock(return_value=True),
+        ),
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": "user"}
+        )
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], user_input=VALID_INPUT
+        )
+
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert result["data"]["mac"] == ""
+    assert result["data"].get("model") is None
+    assert result["result"].unique_id == VALID_INPUT["host"]
 
 
 @pytest.mark.usefixtures("socket_enabled")
@@ -970,25 +1001,30 @@ async def test_config_flow_reauth_confirm_auth_required(hass: Any) -> None:
 
 
 async def test_config_flow_reauth_confirm_entry_gone(hass: Any) -> None:
-    """Reauth_confirm aborts as successful when the entry no longer exists (line 241).
+    """Reauth_confirm raises UnknownEntry when the entry no longer exists.
 
-    Drives the handler directly with a context pointing at a non-existent entry so
-    ``async_get_entry`` returns ``None`` after credentials validate successfully.
+    ``_get_reauth_entry()`` resolves the entry through the framework, which raises
+    rather than returning ``None`` — the same contract ``_get_reconfigure_entry()``
+    gives the reconfigure step. Driven directly, since the flow manager rejects an
+    unknown ``entry_id`` before a handler is ever reached (see
+    ``test_config_flow_reauth_no_entry``).
     """
+    from homeassistant.config_entries import UnknownEntry
+
     flow = UnifiNetworkConfigFlow()
     flow.hass = hass
     flow.handler = DOMAIN
     flow.flow_id = "test-reauth-entry-gone"
     flow.context = {"source": "reauth", "entry_id": "nonexistent"}
 
-    with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
-        AsyncMock(return_value=MOCK_IDENTITY),
+    with (
+        patch(
+            "custom_components.unifi_network_monitor.config_flow._validate_connection",
+            AsyncMock(return_value=MOCK_IDENTITY),
+        ),
+        pytest.raises(UnknownEntry),
     ):
-        result = await flow.async_step_reauth_confirm(user_input=dict(VALID_INPUT))
-
-    assert result["type"] == FlowResultType.ABORT
-    assert result["reason"] == "reauth_successful"
+        await flow.async_step_reauth_confirm(user_input=dict(VALID_INPUT))
 
 
 @pytest.mark.usefixtures("socket_enabled")

@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
-import logging
 from collections.abc import Callable, Mapping
+import contextlib
 from datetime import UTC, datetime, timedelta
 from fnmatch import fnmatchcase
-from typing import Any
+import logging
+from typing import Any, Literal
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
@@ -20,6 +20,7 @@ from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
+from . import identity
 from .alerts import alert_title, build_alert_attrs, build_event_payload
 from .api import UnifiAuthError, UnifiConnectionError, UnifiNetworkAPI
 from .const import (
@@ -70,8 +71,10 @@ from .const import (
     EVENT_NEW_ALERT,
     EVENT_NEW_ROGUE_AP,
     FETCH_STRIKE_LIMIT,
-    GATEWAY_MODELS,
     HEALTH_DRIFT_STRIKE_LIMIT,
+    PROJECTION_CONFIDENCE_LOW,
+    PROJECTION_CONFIDENCE_MEDIUM,
+    PROJECTION_CREDIBILITY_DAYS,
     ROGUE_ESSID_PLACEHOLDER,
     ROGUE_HIDDEN_PREFIX,
     ROGUE_HIDDEN_SSID,
@@ -82,11 +85,19 @@ from .const import (
     ROGUE_RAW_WINDOW_HOURS,
     USAGE_WATERMARK_SAVE_DELAY,
     USAGE_WATERMARK_STORAGE_VERSION,
+    repair_issue_id,
     rogue_history_storage_key,
     usage_watermark_storage_key,
 )
+from .gateway import GatewaySelection, select_gateway
+from .helpers import calendar_cycle_bounds, project_cycle_usage
 
 _LOGGER = logging.getLogger(__name__)
+
+#: How a device write ended. ``"unverified"`` is deliberately **not**
+#: ``"failed"`` — it means the read-back could not be taken, so the write may
+#: well have landed (dev_standards.md §22).
+WriteOutcome = Literal["confirmed", "unverified", "failed"]
 
 
 def disabled_endpoints(options: Mapping[str, Any]) -> frozenset[str]:
@@ -143,7 +154,7 @@ _V3_ENDPOINTS: frozenset[str] = frozenset(
 
 # Friendly names for the schema-drift checks.
 _DRIFT_CAPABILITY: dict[str, str] = {
-    "gateway": "Gateway telemetry",
+    "gateway": "Gateway metrics",
     "rogue": "Rogue APs",
     "alerts": "Alerts",
 }
@@ -389,7 +400,7 @@ def build_rogue_event_payload(entry_id: str, ap: dict[str, Any]) -> dict[str, An
 def _safe_float(val: Any, default: float | None = None) -> float | None:
     """Safely coerce to float, curtailed to 3 decimals.
 
-    Controller telemetry (e.g. WAN availability) can arrive with a dozen
+    Controller readings (e.g. WAN availability) can arrive with a dozen
     decimals; capping to 3 keeps stored/history values clean. Per-sensor
     ``suggested_display_precision`` controls how many are *shown*.
     """
@@ -401,6 +412,15 @@ def _safe_float(val: Any, default: float | None = None) -> float | None:
         return default
 
 
+def _err_text(err: BaseException) -> str:
+    """Return an exception's message, or its class name when the message is empty.
+
+    ``TimeoutError()`` carries no message, so a log line interpolating it ends
+    blank and says nothing about what failed.
+    """
+    return str(err) or type(err).__name__
+
+
 def _safe_int(val: Any, default: int | None = None) -> int | None:
     """Safely coerce to int."""
     if val in (None, ""):
@@ -409,6 +429,88 @@ def _safe_int(val: Any, default: int | None = None) -> int | None:
         return int(float(val))
     except (TypeError, ValueError):
         return default
+
+
+def _extract_wan_networkconf(
+    raw: list[dict[str, Any]] | None,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """Pick the WAN1 and WAN2 network-configuration objects out of ``networkconf``.
+
+    One place rather than two: the poll parses these for the weight/mode sensors
+    and the write path re-reads them immediately before composing its PUT, and
+    the two must agree on what counts as a WAN object.
+    """
+    wan1: dict[str, Any] | None = None
+    wan2: dict[str, Any] | None = None
+    for net in raw or []:
+        if net.get("purpose") != "wan":
+            continue
+        group = net.get("wan_networkgroup")
+        if group == "WAN":
+            wan1 = net
+        elif group == "WAN2":
+            wan2 = net
+    return wan1, wan2
+
+
+def _sum_optional(rx: float | None, tx: float | None) -> float | None:
+    """Total two byte counters, or None when neither side reported.
+
+    A missing direction counts as zero rather than voiding the total — the same
+    rule the wan*_month_total sensors already use, so the projection cannot
+    disagree with the figure it projects from.
+    """
+    if rx is None and tx is None:
+        return None
+    return (rx or 0) + (tx or 0)
+
+
+def build_usage_projection(
+    used: float | None, now: datetime
+) -> tuple[int | None, dict[str, Any]]:
+    """Project this calendar month's WAN usage to its end, with its context.
+
+    Returns ``(projected_bytes, attributes)``. ``used`` of ``None`` — no monthly
+    counter yet — yields ``(None, {})`` rather than an invented zero; that is the
+    one case where there is genuinely nothing to forecast from.
+
+    Everything else produces a figure, **including the first hour of a new
+    month**. A projection on day one is weak, but an ``unknown`` that clears
+    itself a day later reads as a broken sensor, and users treat it as one. The
+    caveat is published as ``confidence`` alongside the number instead, which is
+    the same call ZTE made and for the same reason.
+    """
+    if used is None:
+        return None, {}
+
+    start, _end, length = calendar_cycle_bounds(now)
+    elapsed = (now - start).total_seconds() / 86400.0
+    # No stored previous-cycle total yet, so the blend has no prior to work
+    # from; the one-day denominator floor inside project_cycle_usage carries the
+    # early-cycle bound on its own.
+    prior_rate: float | None = None
+
+    projected = project_cycle_usage(
+        used=used,
+        elapsed_days=elapsed,
+        cycle_length_days=length,
+        prior_rate=prior_rate,
+        credibility_days=PROJECTION_CREDIBILITY_DAYS,
+    )
+    weight = elapsed / (elapsed + PROJECTION_CREDIBILITY_DAYS)
+    if weight < PROJECTION_CONFIDENCE_LOW:
+        confidence = "low"
+    elif weight < PROJECTION_CONFIDENCE_MEDIUM:
+        confidence = "medium"
+    else:
+        confidence = "high"
+
+    return int(projected), {
+        "confidence": confidence,
+        "basis": "run_rate_only" if prior_rate is None else "blended",
+        "cycle_day": f"{int(elapsed) + 1} of {length}",
+        "cycle_start": start.date().isoformat(),
+    }
 
 
 def _derive_boot_time(uptime_secs: int | None, reference: datetime) -> datetime | None:
@@ -461,7 +563,7 @@ def _parse_gateway(
         if uplink.get("comment") == "WAN":
             uplink_ip = uplink.get("ip")
 
-    # WAN1 / WAN2 real-time interface telemetry
+    # WAN1 / WAN2 real-time interface data
     wan1_data = device.get("wan1") or {}
     wan2_data = device.get("wan2") or {}
 
@@ -501,9 +603,9 @@ def _parse_gateway(
         "wan2_public_ip": wan2_public_ip,
         "update_available": bool(device.get("upgradable")),
         # WAN1
-        "wan1_ifname": wan1_data.get("ifname") or "eth8",
-        "wan1_active": bool(wan1_data.get("is_uplink")),
-        "wan1_up": bool(wan1_data.get("up")),
+        "wan1_ifname": wan1_data.get("ifname") or None,
+        "wan1_active": bool(wan1_data.get("is_uplink")) if wan1_data else None,
+        "wan1_up": bool(wan1_data.get("up")) if wan1_data else None,
         "wan1_latency": _safe_int(wan1_data.get("latency")),
         "wan1_availability": _safe_float(wan1_data.get("availability")),
         "wan1_sfp_found": (
@@ -513,9 +615,9 @@ def _parse_gateway(
         "wan1_sfp_part": wan1_data.get("sfp_part"),
         "wan1_sfp_serial": wan1_data.get("sfp_serial"),
         # WAN2
-        "wan2_ifname": wan2_data.get("ifname") or "eth9",
-        "wan2_active": bool(wan2_data.get("is_uplink")),
-        "wan2_up": bool(wan2_data.get("up")),
+        "wan2_ifname": wan2_data.get("ifname") or None,
+        "wan2_active": bool(wan2_data.get("is_uplink")) if wan2_data else None,
+        "wan2_up": bool(wan2_data.get("up")) if wan2_data else None,
         "wan2_latency": _safe_int(wan2_data.get("latency")),
         "wan2_availability": _safe_float(wan2_data.get("availability")),
         "wan2_sfp_found": (
@@ -726,10 +828,19 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # the update continues. See endpoint_available().
         self._endpoint_state: dict[str, dict[str, Any]] = {}
         self._stale_endpoints: set[str] = set()
+        # Diagnostics: each endpoint's outcome on its latest poll (answered,
+        # failed or not_asked, bad payload §5.7), and the number of optional
+        # fetches that failed this poll; the retained rejection is cleared only
+        # by a poll on which nothing failed.
+        self.endpoint_outcomes: dict[str, dict[str, Any]] = {}
+        self._poll_fetch_failures = 0
 
         # Self-diagnosis: per-source consecutive schema-drift counters. A drift
         # signal must persist HEALTH_DRIFT_STRIKE_LIMIT cycles before it flags.
         self._drift_strikes: dict[str, int] = {}
+        # Consecutive polls on which no single gateway could be selected; the
+        # gateway_not_recognized repair is raised at HEALTH_DRIFT_STRIKE_LIMIT.
+        self._gateway_miss_strikes = 0
 
         # Explicit user actions (Refresh Now, speedtest run, weight change,
         # scan-interval change) set this so the next update fetches even when
@@ -776,6 +887,17 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.gateway_model: str = entry.data.get("model", "UDM Pro")
         self.sw_version: str | None = entry.data.get("sw_version")
         self.site_uuid: str | None = None
+        # The latest gateway selection, kept for the repair, the identity
+        # correction and the diagnostics download.
+        self.gateway_selection: GatewaySelection | None = None
+        # Identity check runs on the first poll of this load that selects a
+        # gateway, and on no later poll (identity.py).
+        self._identity_check_armed = True
+        self.stored_mac_absent: bool | None = None
+        # The gateway's own boot instant and the controller's timezone, kept for
+        # the diagnostics download beside the published boot time.
+        self.gateway_startup_timestamp: int | None = None
+        self.controller_timezone: str | None = None
 
         # Full networkconf objects for WAN/WAN2 — needed for PUT writes
         self._networkconf_wan: dict[str, Any] | None = None
@@ -859,31 +981,131 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """True once both WAN networkconf objects are loaded (weights writable)."""
         return self._networkconf_wan is not None and self._networkconf_wan2 is not None
 
-    async def async_set_wan_weights(self, wan1_weight: int) -> None:
-        """Write WAN1/WAN2 load balance weights — always sums to 100."""
+    async def async_set_wan_weights(self, wan1_weight: int) -> WriteOutcome:
+        """Write the WAN1/WAN2 load-balance weights as a pair; always sums to 100.
+
+        Three properties this deliberately holds, each one a defect it replaces:
+
+        - **Composed from a fresh read, never from held state.** ``networkconf``
+          is a *degradable* endpoint, so the held object can be minutes old; a
+          PUT of the whole object built from it would silently revert every
+          other controller-side change made since. The GET happens immediately
+          before the PUT and also refreshes the held copies.
+        - **The pair is non-interruptible once the first PUT has gone out.** The
+          caller is a debounce task that cancels itself on the next slider move,
+          and the cancellation lands wherever the task is suspended — which,
+          after the debounce sleep, is *between* the two writes. Cancelling
+          there used to write WAN1 and not WAN2, leaving a pair that no longer
+          summed to 100 with nothing reporting it. ``asyncio.shield`` lets the
+          caller be cancelled while the pair still completes.
+        - **The write is read back, and the three outcomes stay distinct.**
+          Returns ``"confirmed"``, ``"unverified"`` or ``"failed"``.
+          **Unverified is not failed** — a read-back that could not be taken
+          says nothing about whether the write landed, and reporting it as a
+          failure sends the user chasing a change that already applied.
+        """
         wan2_weight = 100 - wan1_weight
-        if self._networkconf_wan is None or self._networkconf_wan2 is None:
+        wan1_net, wan2_net = _extract_wan_networkconf(await self.api.get_networkconf())
+        if wan1_net is None or wan2_net is None:
             raise ValueError("WAN network configuration not yet loaded")
-        wan1_id = self._networkconf_wan.get("_id")
-        wan2_id = self._networkconf_wan2.get("_id")
+        self._networkconf_wan = wan1_net
+        self._networkconf_wan2 = wan2_net
+        wan1_id = wan1_net.get("_id")
+        wan2_id = wan2_net.get("_id")
         if not wan1_id or not wan2_id:
             raise ValueError("WAN network configuration missing _id")
-        await self.api.update_networkconf(
-            wan1_id,
-            {**self._networkconf_wan, "wan_load_balance_weight": wan1_weight},
+
+        await asyncio.shield(
+            self._write_wan_pair(
+                (wan1_id, wan1_net, wan1_weight), (wan2_id, wan2_net, wan2_weight)
+            )
         )
-        await self.api.update_networkconf(
-            wan2_id,
-            {**self._networkconf_wan2, "wan_load_balance_weight": wan2_weight},
-        )
-        # Brief pause to let the UDM Pro commit the change before re-polling
+
+        # Brief pause to let the UDM Pro commit the change before reading back.
         await asyncio.sleep(1.5)
+        outcome = await self._confirm_wan_weights(wan1_weight, wan2_weight)
         await self.async_force_refresh()
+        return outcome
+
+    async def _write_wan_pair(
+        self,
+        wan1: tuple[str, dict[str, Any], int],
+        wan2: tuple[str, dict[str, Any], int],
+    ) -> None:
+        """PUT both weights. Shielded by the caller — must not be split."""
+        for net_id, net, weight in (wan1, wan2):
+            await self.api.update_networkconf(
+                net_id, {**net, "wan_load_balance_weight": weight}
+            )
+
+    async def _confirm_wan_weights(
+        self, wan1_weight: int, wan2_weight: int
+    ) -> WriteOutcome:
+        """Read the weights back and classify the write.
+
+        ``"unverified"`` covers both a read-back that could not be taken and one
+        that came back without the WAN objects — in neither case is there any
+        evidence about the write, which is exactly what distinguishes it from
+        ``"failed"``.
+        """
+        try:
+            fresh = await self.api.get_networkconf()
+        except (UnifiConnectionError, UnifiAuthError) as err:
+            _LOGGER.info(
+                "%s: WAN weights were sent but could not be read back: %s",
+                self.entry.title,
+                err,
+            )
+            return "unverified"
+        wan1_net, wan2_net = _extract_wan_networkconf(fresh)
+        if wan1_net is None or wan2_net is None:
+            _LOGGER.info(
+                "%s: WAN weights were sent but the read-back carried no WAN config",
+                self.entry.title,
+            )
+            return "unverified"
+        got1 = _safe_int(wan1_net.get("wan_load_balance_weight"))
+        got2 = _safe_int(wan2_net.get("wan_load_balance_weight"))
+        if got1 == wan1_weight and got2 == wan2_weight:
+            return "confirmed"
+        _LOGGER.warning(
+            "%s: WAN weights did not take — sent %s/%s, controller reports %s/%s",
+            self.entry.title,
+            wan1_weight,
+            wan2_weight,
+            got1,
+            got2,
+        )
+        return "failed"
 
     async def async_force_refresh(self) -> None:
-        """Refresh now, bypassing the pause guard (explicit user action)."""
+        """Refresh now, bypassing the pause guard (explicit user action).
+
+        Debounced: the fetch may not have run by the time this returns, so the
+        outcome is not knowable here. Callers that must report failure want
+        ``async_force_refresh_now`` instead.
+        """
         self._force_refresh_once = True
         await self.async_request_refresh()
+
+    async def async_force_refresh_now(self) -> None:
+        """Refresh immediately, bypassing both the pause guard and the debouncer.
+
+        For a control that has to tell the caller whether it worked. ``async_refresh``
+        runs the update inline and records the outcome on ``last_update_success``
+        rather than raising, so the caller checks that flag afterwards - which it
+        can only do if the fetch has actually happened, hence not the debounced
+        path.
+
+        ``_force_refresh_once`` is still consumed on **attempt**, inside
+        ``_async_update_data``, not on success. A failed forced refresh therefore
+        does not bypass the pause again on the next scheduled poll. That is
+        deliberate: the alternative re-arms the bypass until a fetch succeeds,
+        which turns a paused integration into a polling one for as long as the
+        gateway stays unreachable.
+        """
+        self._force_refresh_once = True
+        await self.async_refresh()
 
     @callback
     def async_schedule_refresh_in(self, seconds: float) -> None:
@@ -897,7 +1119,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         interval_s = self.update_interval.total_seconds() if self.update_interval else 0
         if not paused and interval_s <= seconds:
             return  # the regular poll will pick it up soon enough
-        self._cancel_scheduled_refresh()
+        self.cancel_scheduled_refresh()
 
         async def _fire(_now: datetime) -> None:
             self._pending_refresh_unsub = None
@@ -906,7 +1128,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._pending_refresh_unsub = async_call_later(self.hass, seconds, _fire)
 
     @callback
-    def _cancel_scheduled_refresh(self) -> None:
+    def cancel_scheduled_refresh(self) -> None:
         """Cancel any pending scheduled refresh (on reschedule or unload)."""
         if self._pending_refresh_unsub is not None:
             self._pending_refresh_unsub()
@@ -1117,17 +1339,18 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         under username/password auth this failure is *expected* and not
         actionable — suppress the repair issue entirely in that mode.
         """
+        issue_id = repair_issue_id(self.entry.entry_id, "site_resolution_failed")
         if self.site_uuid == "failed" and self.api.api_key:
             ir.async_create_issue(
                 self.hass,
                 DOMAIN,
-                "site_resolution_failed",
+                issue_id,
                 is_fixable=False,
                 severity=ir.IssueSeverity.WARNING,
                 translation_key="site_resolution_failed",
             )
         elif self.site_uuid is not None:
-            ir.async_delete_issue(self.hass, DOMAIN, "site_resolution_failed")
+            ir.async_delete_issue(self.hass, DOMAIN, issue_id)
 
     def _record_fetch_failure_health(self, err: Exception) -> None:
         """Flag Integration Health when the whole fetch fails.
@@ -1197,11 +1420,11 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         site_failed = self.site_uuid == "failed" and bool(self.api.api_key)
         drift_caps = [_DRIFT_CAPABILITY[k] for k in persistent]
 
-        issues: list[str] = []
-        for cap in drift_caps:
-            issues.append(f"{cap} data looks malformed (possible controller update)")
-        for cap in degraded_caps:
-            issues.append(f"{cap} data unavailable")
+        issues: list[str] = [
+            f"{cap} data looks malformed (possible controller update)"
+            for cap in drift_caps
+        ]
+        issues.extend(f"{cap} data unavailable" for cap in degraded_caps)
         if site_failed:
             issues.append(
                 "UniFi v3 site could not be resolved "
@@ -1232,18 +1455,51 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         (The v3 ``site_resolution_failed`` repair is owned by ``_sync_site_issue``;
         it is reflected in the health sensor's attributes, not double-raised here.)
         """
+        issue_id = repair_issue_id(self.entry.entry_id, "schema_drift_detected")
         if health.get("drift"):
             ir.async_create_issue(
                 self.hass,
                 DOMAIN,
-                "schema_drift_detected",
+                issue_id,
                 is_fixable=False,
                 severity=ir.IssueSeverity.WARNING,
                 translation_key="schema_drift_detected",
                 translation_placeholders={"capabilities": ", ".join(health["drift"])},
             )
         else:
-            ir.async_delete_issue(self.hass, DOMAIN, "schema_drift_detected")
+            ir.async_delete_issue(self.hass, DOMAIN, issue_id)
+
+    def _sync_gateway_issue(
+        self, selection: GatewaySelection, devices: list[dict[str, Any]]
+    ) -> None:
+        """Raise/clear the gateway_not_recognized repair from the selection.
+
+        Raised only when no single gateway is selected (``ambiguous`` or
+        ``none``) on HEALTH_DRIFT_STRIKE_LIMIT consecutive polls. A selected
+        gateway, listed or not, raises nothing and clears the repair.
+        """
+        issue_id = repair_issue_id(self.entry.entry_id, "gateway_not_recognized")
+        if selection.device is not None:
+            self._gateway_miss_strikes = 0
+            ir.async_delete_issue(self.hass, DOMAIN, issue_id)
+            return
+        self._gateway_miss_strikes += 1
+        if self._gateway_miss_strikes < HEALTH_DRIFT_STRIKE_LIMIT:
+            return
+        if selection.reason == "ambiguous":
+            pool = list(selection.candidates)
+        else:
+            pool = [d for d in devices if d.get("type") not in ("usw", "uap")]
+        models = sorted({str(d.get("model")) for d in pool if d.get("model")})
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            issue_id,
+            is_fixable=False,
+            severity=ir.IssueSeverity.ERROR,
+            translation_key="gateway_not_recognized",
+            translation_placeholders={"models": ", ".join(models) or "none"},
+        )
 
     def endpoint_available(self, source: str | None) -> bool:
         """Return False when an optional endpoint has exhausted its retry strikes.
@@ -1278,7 +1534,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 label,
                 state["failures"],
                 FETCH_STRIKE_LIMIT,
-                err,
+                _err_text(err),
             )
         else:
             if label not in self._stale_endpoints:
@@ -1287,7 +1543,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     self.entry.title,
                     label,
                     state["failures"],
-                    err,
+                    _err_text(err),
                 )
             self._stale_endpoints.add(label)
         last_good: list[dict[str, Any]] = state["last_good"]
@@ -1301,6 +1557,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """
         self._endpoint_state.pop(label, None)
         self._stale_endpoints.discard(label)
+        self.endpoint_outcomes[label] = {"outcome": "not_asked", "reason": "disabled"}
         if label == EP_SYSLOG:
             # Alerts is off — force the next fetch (on re-enable) to re-baseline
             # so the backlog doesn't flood the bus with events.
@@ -1338,15 +1595,53 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         try:
             data = list(await method())
         except (UnifiConnectionError, UnifiAuthError, TimeoutError) as err:
+            self._record_fetch_failed(label, state, err)
             return self._hold_or_stale(label, state, err, logging.DEBUG)
         except Exception as err:  # noqa: BLE001 - tolerate API drift per-endpoint
+            self._record_fetch_failed(label, state, err)
             return self._hold_or_stale(label, state, err, logging.WARNING)
+        self._record_fetch_answered(label, data)
         state["last_good"] = data
         state["failures"] = 0
         self._stale_endpoints.discard(label)
         return data
 
-    async def _async_update_data(self) -> dict[str, Any]:
+    async def _fetch_required(self, method: Any, label: str) -> Any:
+        """Fetch a required endpoint, recording a failure before it propagates.
+
+        The global strike rule still handles the exception; this only keeps the
+        endpoint record from showing the previous poll's answer.
+        """
+        try:
+            return await method()
+        except Exception as err:
+            self.endpoint_outcomes[label] = {
+                "outcome": "failed",
+                "error": type(err).__name__,
+                "strikes": self.consecutive_failures + 1,
+            }
+            raise
+
+    def _record_fetch_answered(self, label: str, data: list[Any]) -> None:
+        """Record an endpoint that answered, with its record counts."""
+        self.endpoint_outcomes[label] = {
+            "outcome": "answered",
+            "records": len(data),
+            "populated": sum(1 for item in data if isinstance(item, dict) and item),
+        }
+
+    def _record_fetch_failed(
+        self, label: str, state: dict[str, Any], err: Exception
+    ) -> None:
+        """Record an endpoint that failed this poll, with its strike count."""
+        self._poll_fetch_failures += 1
+        self.endpoint_outcomes[label] = {
+            "outcome": "failed",
+            "error": type(err).__name__,
+            "strikes": state["failures"] + 1,
+        }
+
+    async def _async_update_data(self) -> dict[str, Any]:  # noqa: C901
         """Fetch all data with 3-strike resilience."""
         is_paused = self.entry.options.get(CONF_STOP_POLLING, False)
         # An explicit user action (Refresh Now, speedtest, weight/interval
@@ -1359,6 +1654,8 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return self.data
         # Consume the one-shot flag now that we're committing to a fetch.
         self._force_refresh_once = False
+        self._poll_fetch_failures = 0
+        rejections_at_start = getattr(self.api, "rejection_serial", 0)
 
         try:
             # Resolve Site UUID if using API Key and not resolved yet
@@ -1420,8 +1717,8 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
                 # Define concurrent tasks
                 tasks = [
-                    self.api.get_devices(),
-                    self.api.get_health(),
+                    self._fetch_required(self.api.get_devices, "devices"),
+                    self._fetch_required(self.api.get_health, "health"),
                     self._fetch_optional(self.api.get_sysinfo, EP_SYSINFO),
                     self._fetch_optional(self.api.get_networkconf, EP_NETWORKCONF),
                     self._optional(want_security, self.api.get_settings, EP_SETTINGS),
@@ -1484,6 +1781,16 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         ]
                     )
                 else:
+                    for label in (
+                        EP_WAN_IF,
+                        EP_VPN_SERVERS,
+                        EP_VPN_TUNNELS,
+                        EP_FIREWALL,
+                    ):
+                        self.endpoint_outcomes[label] = {
+                            "outcome": "not_asked",
+                            "reason": "v3_unavailable",
+                        }
 
                     async def dummy_fetch() -> list[Any]:
                         return []
@@ -1515,20 +1822,47 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     firewall_policies_raw,
                 ) = results
 
+                for label, raw in (("devices", devices_raw), ("health", health_raw)):
+                    self._record_fetch_answered(label, list(raw or []))
+
                 sw_version: str | None = None
                 if sysinfo_raw:
                     sw_version = sysinfo_raw[0].get("version")
+                    timezone = sysinfo_raw[0].get("timezone")
+                    self.controller_timezone = (
+                        timezone if isinstance(timezone, str) else None
+                    )
 
                 # Separate gateway from APs/switches
                 gateway_device: dict[str, Any] | None = None
                 gateway_data: dict[str, Any] | None = None
                 devices: dict[str, dict[str, Any]] = {}
 
+                # Selection considers every device, online or not; the offline
+                # skip below applies to parsing only.
+                self.gateway_selection = select_gateway(devices_raw, self.gateway_mac)
+                selected_gateway = self.gateway_selection.device
+                self.gateway_startup_timestamp = (
+                    _safe_int(selected_gateway.get("startup_timestamp"))
+                    if selected_gateway is not None
+                    else None
+                )
+                self._sync_gateway_issue(self.gateway_selection, devices_raw)
+                self.stored_mac_absent = identity.stored_mac_absent(
+                    self.entry, devices_raw
+                )
+                if self._identity_check_armed and selected_gateway is not None:
+                    self._identity_check_armed = False
+                    if identity.detect_on_first_poll(
+                        self.hass, self.entry, self.gateway_selection, devices_raw
+                    ):
+                        return self.data  # reload scheduled; setup corrects
+
                 for device in devices_raw:
                     if device.get("state", 0) == 0:
                         continue  # Offline — skip
                     try:
-                        if device.get("model") in GATEWAY_MODELS:
+                        if selected_gateway is not None and device is selected_gateway:
                             gateway_device = device
                             gateway_data = _parse_gateway(device, update_time, self)
                         elif device.get("is_access_point"):
@@ -1547,8 +1881,8 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         _LOGGER.warning(
                             "%s: Failed to parse device %s, skipping: %s",
                             self.entry.title,
-                            device.get("mac", "unknown"),
-                            err,
+                            identity.mask_identity(device.get("mac")),
+                            _err_text(err),
                         )
 
                 health = _parse_health(health_raw, update_time, self)
@@ -1557,18 +1891,16 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 wan_mode: str | None = None
                 wan1_weight: int | None = None
                 wan2_weight: int | None = None
-                for net in networkconf_raw or []:
-                    if net.get("purpose") == "wan":
-                        net_group = net.get("wan_networkgroup")
-                        if net_group == "WAN":
-                            wan1_weight = _safe_int(net.get("wan_load_balance_weight"))
-                            wan_mode = net.get("wan_load_balance_type")
-                            self._networkconf_wan = net
-                        elif net_group == "WAN2":
-                            wan2_weight = _safe_int(net.get("wan_load_balance_weight"))
-                            if not wan_mode:
-                                wan_mode = net.get("wan_load_balance_type")
-                            self._networkconf_wan2 = net
+                wan1_net, wan2_net = _extract_wan_networkconf(networkconf_raw)
+                if wan1_net is not None:
+                    wan1_weight = _safe_int(wan1_net.get("wan_load_balance_weight"))
+                    wan_mode = wan1_net.get("wan_load_balance_type")
+                    self._networkconf_wan = wan1_net
+                if wan2_net is not None:
+                    wan2_weight = _safe_int(wan2_net.get("wan_load_balance_weight"))
+                    if not wan_mode:
+                        wan_mode = wan2_net.get("wan_load_balance_type")
+                    self._networkconf_wan2 = wan2_net
 
                 # Parse threat management settings
                 ips_mode: str | None = None
@@ -1675,6 +2007,20 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         self.entry.title,
                         err,
                     )
+
+                # End-of-month usage projections. Derived from the monthly
+                # counters above rather than fetched, so they cost nothing and
+                # degrade with EP_MONTHLY exactly as their inputs do.
+                wan1_month_projected, wan1_month_projected_attrs = (
+                    build_usage_projection(
+                        _sum_optional(wan1_month_rx, wan1_month_tx), update_time
+                    )
+                )
+                wan2_month_projected, wan2_month_projected_attrs = (
+                    build_usage_projection(
+                        _sum_optional(wan2_month_rx, wan2_month_tx), update_time
+                    )
+                )
 
                 # Persist the watermarks the two blocks above just updated, so a
                 # restart does not re-emit a downward step against stored history.
@@ -1836,16 +2182,17 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             reverse=True,
                         )
 
-                        # Get configured physical interfaces for WAN1/WAN2
-                        wan1_ifname = "eth8"
-                        wan2_ifname = "eth9"
+                        # The gateway's own WAN port names; None when absent,
+                        # with no default from another gateway model.
+                        wan1_ifname: str | None = None
+                        wan2_ifname: str | None = None
                         if gateway_device:
-                            wan1_ifname = (
-                                gateway_device.get("wan1", {}).get("ifname") or "eth8"
-                            )
-                            wan2_ifname = (
-                                gateway_device.get("wan2", {}).get("ifname") or "eth9"
-                            )
+                            wan1_ifname = (gateway_device.get("wan1") or {}).get(
+                                "ifname"
+                            ) or None
+                            wan2_ifname = (gateway_device.get("wan2") or {}).get(
+                                "ifname"
+                            ) or None
 
                         # Check if results have interface metadata
                         has_interface = any(
@@ -1859,12 +2206,18 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             # 1. Map by interface name or network group (preferred)
                             for item in sorted_speedtest:
                                 if w1 is None and (
-                                    item.get("interface_name") == wan1_ifname
+                                    (
+                                        wan1_ifname is not None
+                                        and item.get("interface_name") == wan1_ifname
+                                    )
                                     or item.get("wan_networkgroup") == "WAN"
                                 ):
                                     w1 = item
                                 if w2 is None and (
-                                    item.get("interface_name") == wan2_ifname
+                                    (
+                                        wan2_ifname is not None
+                                        and item.get("interface_name") == wan2_ifname
+                                    )
                                     or item.get("wan_networkgroup") == "WAN2"
                                 ):
                                     w2 = item
@@ -1880,7 +2233,10 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             else:
                                 w1 = sorted_speedtest[0]
                                 w2 = None
-                        elif len(sorted_speedtest) == 1:
+                        else:
+                            # Exactly one result: the enclosing `if
+                            # speedtest_raw:` guarantees at least one and the
+                            # branch above took >= 2.
                             w1 = sorted_speedtest[0]
                             w2 = None
 
@@ -1929,59 +2285,53 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 wifi_networks_total = None
                 wifi_networks_active = None
                 wifi_states = {}
-                if isinstance(wlanconf_raw, list):
-                    wifi_networks_total = len(wlanconf_raw)
-                    wifi_networks_active = sum(
-                        1 for w in wlanconf_raw if w.get("enabled")
-                    )
-                    wifi_states = {
-                        w.get("name"): bool(w.get("enabled"))
-                        for w in wlanconf_raw
-                        if w.get("name")
-                    }
+                wifi_networks_total = len(wlanconf_raw)
+                wifi_networks_active = sum(1 for w in wlanconf_raw if w.get("enabled"))
+                wifi_states = {
+                    w.get("name"): bool(w.get("enabled"))
+                    for w in wlanconf_raw
+                    if w.get("name")
+                }
 
                 # Parse VLANs configurations
                 vlans_total = None
                 vlans_active = None
-                if isinstance(networkconf_raw, list):
-                    vlans_total = sum(
-                        1 for net in networkconf_raw if net.get("vlan") is not None
-                    )
-                    vlans_active = sum(
-                        1
-                        for net in networkconf_raw
-                        if net.get("vlan") is not None and net.get("enabled", True)
-                    )
+                vlans_total = sum(
+                    1 for net in networkconf_raw if net.get("vlan") is not None
+                )
+                vlans_active = sum(
+                    1
+                    for net in networkconf_raw
+                    if net.get("vlan") is not None and net.get("enabled", True)
+                )
 
                 # Parse VPN site-to-site tunnels and servers
                 vpn_connections_total = None
                 vpn_connections_active = None
                 vpn_states = {}
                 if self.site_uuid and self.site_uuid != "failed":
-                    if isinstance(vpn_tunnels_raw, list):
-                        vpn_connections_total = len(vpn_tunnels_raw)
-                        vpn_connections_active = sum(
-                            1 for t in vpn_tunnels_raw if t.get("state") == "CONNECTED"
-                        )
-                        vpn_states = {
-                            t.get("name"): (t.get("state") == "CONNECTED")
-                            for t in vpn_tunnels_raw
-                            if t.get("name")
-                        }
+                    vpn_connections_total = len(vpn_tunnels_raw)
+                    vpn_connections_active = sum(
+                        1 for t in vpn_tunnels_raw if t.get("state") == "CONNECTED"
+                    )
+                    vpn_states = {
+                        t.get("name"): (t.get("state") == "CONNECTED")
+                        for t in vpn_tunnels_raw
+                        if t.get("name")
+                    }
 
                 # Parse Firewall Policies
                 rules_configured = None
                 rules_active = None
                 rules_disabled = None
                 if self.site_uuid and self.site_uuid != "failed":
-                    if isinstance(firewall_policies_raw, list):
-                        rules_configured = len(firewall_policies_raw)
-                        rules_active = sum(
-                            1 for p in firewall_policies_raw if p.get("enabled")
-                        )
-                        rules_disabled = sum(
-                            1 for p in firewall_policies_raw if not p.get("enabled")
-                        )
+                    rules_configured = len(firewall_policies_raw)
+                    rules_active = sum(
+                        1 for p in firewall_policies_raw if p.get("enabled")
+                    )
+                    rules_disabled = sum(
+                        1 for p in firewall_policies_raw if not p.get("enabled")
+                    )
 
                 # Parse WAN interface custom names (aliases)
                 wan1_interface_name = None
@@ -2073,6 +2423,10 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             "wan2_today_tx": wan2_today_tx,
                             "wan1_month_rx": wan1_month_rx,
                             "wan1_month_tx": wan1_month_tx,
+                            "wan1_month_projected": wan1_month_projected,
+                            "wan1_month_projected_attrs": wan1_month_projected_attrs,
+                            "wan2_month_projected": wan2_month_projected,
+                            "wan2_month_projected_attrs": wan2_month_projected_attrs,
                             "wan2_month_rx": wan2_month_rx,
                             "wan2_month_tx": wan2_month_tx,
                             "rogue_ap_count": rogue_ap_count,
@@ -2118,6 +2472,15 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
                 self.consecutive_failures = 0
                 self.last_update_success_time = update_time
+                if (
+                    self._poll_fetch_failures == 0
+                    and getattr(self.api, "rejection_serial", 0) == rejections_at_start
+                ):
+                    # A stale rejection must not outlive the fault (bad payload
+                    # §3): only a poll on which nothing failed and nothing was
+                    # refused, by any request including the site lookup,
+                    # clears it.
+                    self.api.last_rejection = None
                 if not self._was_available:
                     self._was_available = True
                     _LOGGER.info("%s: Reconnected successfully.", self.entry.title)
@@ -2180,37 +2543,50 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except UnifiAuthError as err:
             self.consecutive_failures += 1
             self._record_fetch_failure_health(err)
-            if self.data is not None and self.consecutive_failures <= 3:
+            if (
+                self.data is not None
+                and self.consecutive_failures <= FETCH_STRIKE_LIMIT
+            ):
                 log = (
                     _LOGGER.warning if self.consecutive_failures == 1 else _LOGGER.debug
                 )
                 log(
-                    "%s: Authentication error fetching UniFi data (failure %d/3), holding last values: %s",  # noqa: E501
+                    "%s: Authentication error fetching UniFi data (failure %d/%d), holding last values: %s",
                     self.entry.title,
                     self.consecutive_failures,
-                    err,
+                    FETCH_STRIKE_LIMIT,
+                    _err_text(err),
                 )
                 return self.data
-            _LOGGER.error("%s: Authentication failed: %s", self.entry.title, err)
+            _LOGGER.error(
+                "%s: Authentication failed: %s", self.entry.title, _err_text(err)
+            )
             raise ConfigEntryAuthFailed(f"Authentication failed: {err}") from err
 
         except (UnifiConnectionError, TimeoutError) as err:
             self.consecutive_failures += 1
             self._record_fetch_failure_health(err)
-            if self.data is not None and self.consecutive_failures <= 3:
+            if (
+                self.data is not None
+                and self.consecutive_failures <= FETCH_STRIKE_LIMIT
+            ):
                 log = (
                     _LOGGER.warning if self.consecutive_failures == 1 else _LOGGER.debug
                 )
                 log(
-                    "%s: Error fetching UniFi data (failure %d/3), holding last values: %s",  # noqa: E501
+                    "%s: Error fetching UniFi data (failure %d/%d), holding last values: %s",
                     self.entry.title,
                     self.consecutive_failures,
-                    err,
+                    FETCH_STRIKE_LIMIT,
+                    _err_text(err),
                 )
                 return self.data
             self._was_available = False
             _LOGGER.error(
-                "%s: Communication lost after 3 failures: %s", self.entry.title, err
+                "%s: Communication lost after %d failures: %s",
+                self.entry.title,
+                FETCH_STRIKE_LIMIT,
+                _err_text(err),
             )
             if not self.data:
                 raise ConfigEntryNotReady(f"Communication error: {err}") from err
@@ -2219,19 +2595,23 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         except Exception as err:
             self.consecutive_failures += 1
             self._record_fetch_failure_health(err)
-            if self.data is not None and self.consecutive_failures <= 3:
+            if (
+                self.data is not None
+                and self.consecutive_failures <= FETCH_STRIKE_LIMIT
+            ):
                 log = (
                     _LOGGER.warning if self.consecutive_failures == 1 else _LOGGER.debug
                 )
                 log(
-                    "%s: Unexpected error (failure %d/3), holding last values: %s",
+                    "%s: Unexpected error (failure %d/%d), holding last values: %s",
                     self.entry.title,
                     self.consecutive_failures,
-                    err,
+                    FETCH_STRIKE_LIMIT,
+                    _err_text(err),
                 )
                 return self.data
             self._was_available = False
-            _LOGGER.error("%s: Unexpected error: %s", self.entry.title, err)
+            _LOGGER.error("%s: Unexpected error: %s", self.entry.title, _err_text(err))
             if not self.data:
                 raise ConfigEntryNotReady(f"Unexpected error: {err}") from err
             raise UpdateFailed(f"Unexpected error: {err}") from err

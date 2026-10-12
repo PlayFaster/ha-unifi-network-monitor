@@ -324,9 +324,7 @@ async def test_async_setup_entry_creates_entities(hass: Any) -> None:
     entry.runtime_data = coordinator
     async_add_entities = MagicMock()
 
-    from custom_components.unifi_network_monitor.binary_sensor import (
-        async_setup_entry,
-    )
+    from custom_components.unifi_network_monitor.binary_sensor import async_setup_entry
 
     await async_setup_entry(hass, entry, async_add_entities)
     async_add_entities.assert_called_once()
@@ -356,9 +354,7 @@ async def test_async_setup_entry_handles_no_data(hass: Any) -> None:
     entry.runtime_data = coordinator
     async_add_entities = MagicMock()
 
-    from custom_components.unifi_network_monitor.binary_sensor import (
-        async_setup_entry,
-    )
+    from custom_components.unifi_network_monitor.binary_sensor import async_setup_entry
 
     await async_setup_entry(hass, entry, async_add_entities)
     entities = async_add_entities.call_args[0][0]
@@ -402,9 +398,7 @@ async def test_async_setup_entry_dynamic_entity_added_on_update(
     entry.runtime_data = coordinator
     async_add_entities = MagicMock()
 
-    from custom_components.unifi_network_monitor.binary_sensor import (
-        async_setup_entry,
-    )
+    from custom_components.unifi_network_monitor.binary_sensor import async_setup_entry
 
     await async_setup_entry(hass, entry, async_add_entities)
     async_add_entities.reset_mock()
@@ -663,9 +657,7 @@ async def test_async_setup_entry_dynamic_wifi_vpn_added_on_update(
     entry.runtime_data = coordinator
     async_add_entities = MagicMock()
 
-    from custom_components.unifi_network_monitor.binary_sensor import (
-        async_setup_entry,
-    )
+    from custom_components.unifi_network_monitor.binary_sensor import async_setup_entry
 
     await async_setup_entry(hass, entry, async_add_entities)
     async_add_entities.reset_mock()
@@ -698,9 +690,7 @@ async def test_async_setup_entry_update_with_no_data_skips(
     entry.runtime_data = coordinator
     async_add_entities = MagicMock()
 
-    from custom_components.unifi_network_monitor.binary_sensor import (
-        async_setup_entry,
-    )
+    from custom_components.unifi_network_monitor.binary_sensor import async_setup_entry
 
     await async_setup_entry(hass, entry, async_add_entities)
     async_add_entities.reset_mock()

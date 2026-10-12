@@ -155,6 +155,51 @@ def usage_watermark_storage_key(entry_id: str) -> str:
     return f"{DOMAIN}.{entry_id}.usage_watermark"
 
 
+# WAN data-usage projection tuning.
+#
+# PROJECTION_CREDIBILITY_DAYS is the point at which this cycle's own usage rate
+# and a previous cycle's would be weighted equally. Three days is deliberate:
+# usage is bursty, and a heavy weekend is not a new baseline, but waiting a
+# fortnight would leave the projection lagging exactly when a user most wants
+# warning that they are on course to exceed their allowance.
+#
+# It matters less than it looks. The blend applies only to the *unobserved*
+# remainder of the cycle (see ``helpers.project_cycle_usage``), so the prior's
+# influence decays with the days left rather than with this constant.
+PROJECTION_CREDIBILITY_DAYS = 3.0
+
+# Confidence bands published as an attribute on the projection, expressed as
+# thresholds on the credibility weight. The projection is always shown — an
+# `unknown` on day one reads as a broken sensor, whereas a number carrying
+# "confidence: low" is understood. The caveat belongs in the attributes, not in
+# the state.
+PROJECTION_CONFIDENCE_LOW = 0.4
+PROJECTION_CONFIDENCE_MEDIUM = 0.75
+
+
+# Repair issues. The names double as ``translation_key``s (shared text — every
+# entry says the same thing) while the ``issue_id`` is entry-scoped, because
+# multi-entry is reachable here: config_flow sets unique_id from the gateway
+# MAC, so two UDMs are two entries, and a bare id would let one entry's repair
+# overwrite the other's and either one clear both.
+REPAIR_ISSUE_NAMES = (
+    "site_resolution_failed",
+    "schema_drift_detected",
+    "gateway_not_recognized",
+    "gateway_identity_blocked",
+)
+
+
+def repair_issue_id(entry_id: str, name: str) -> str:
+    """Build an entry-scoped ``issue_id`` for a repair.
+
+    The single helper used by both the raise sites and the teardown sweep, for
+    the same reason the storage-key helpers are shared — raise-side and
+    clear-side ids cannot drift if there is only one way to spell them.
+    """
+    return f"{entry_id}_{name}"
+
+
 # Self-diagnosis: how many consecutive cycles a schema-drift signal must persist
 # before the Integration Health sensor / repair issue flags it (avoids single-
 # cycle false alarms; also gives startup grace).
@@ -199,7 +244,7 @@ def clamp_device_mode(value: str | None, core_present: bool) -> str:
 
     ``satisfaction_only`` is only meaningful when the HA-native UniFi (core)
     integration is present. Lives here (not config_flow) so both the flow and
-    the runtime load-time normaliser can share it without an import cycle.
+    the runtime load-time normalizer can share it without an import cycle.
     """
     valid = (
         {DEVICE_MODE_NONE, DEVICE_MODE_SATISFACTION, DEVICE_MODE_ALL}
@@ -254,6 +299,7 @@ WAN2_KEYS: frozenset[str] = frozenset(
         "wan2_month_rx",
         "wan2_month_tx",
         "wan2_month_total",
+        "wan2_month_projected",
         "wan2_speedtest_download",
         "wan2_speedtest_upload",
         "wan2_speedtest_ping",
@@ -311,15 +357,48 @@ def disabled_device_keys(options: Mapping[str, Any]) -> frozenset[str]:
     return frozenset(disabled)
 
 
-# Gateway model identifiers from UniFi stat/device
-GATEWAY_MODELS = {
-    "UDMPRO",
-    "UDM",
-    "UDMSE",
-    "UDMPROSE",
-    "UDMBASE",
-    "UNVR",
-    "UNVRPRO",
-    "UCG-Ultra",
-    "UCG-Max",
+# Gateway model codes from UniFi stat/device, mapped to product display names.
+# The list names the gateway on its device card and confirms a selection; it
+# does not gate detection, which is signature-first (see gateway.py).
+GATEWAY_MODELS: dict[str, str] = {
+    "UDM": "UDM",
+    "UDMPRO": "UDM-Pro",
+    "UDMPROSE": "UDM-SE",
+    "UDMPROMAX": "UDM-Pro-Max",
+    "UDMEA4C": "UDM-Beast",
+    "UDW": "Dream Wall",
+    "UDRULT": "UCG-Ultra",
+    "UCGMAX": "UCG-Max",
+    "UDMA6A8": "UCG-Fiber",
+    "UDMA6AD": "UCG-Industrial",
+    "UDR": "UDR",
+    "UDMA67A": "UDR7",
+    "UDMA6B9": "UDR-5G-Max",
+    "UX": "UX",
+    "UDMA69B": "UX7",
+    "UDMENT": "EFG",
+    "UDMEA4B": "EF-Core",
+    "UXG": "UXG-Lite",
+    "UXGB": "UXG-Max",
+    "UXGPRO": "UXG-Pro",
+    "UXGENT": "UXG-Enterprise",
+    "UXGA6AA": "UXG-Fiber",
+    "UGW3": "USG-3P",
+    "UGW4": "USG-Pro-4",
+    "UGW8": "UGW8",
+    "UGWHD4": "USG",
+    "UGWXG": "USG-XG-8",
 }
+
+# Gateway device types from UniFi stat/device
+GATEWAY_TYPES = frozenset({"udm", "ugw", "usg", "ucg", "uxg"})
+
+
+def gateway_display_model(model: str | None) -> str | None:
+    """Return the product display name for a gateway model code.
+
+    An unlisted code is returned unchanged, so the card shows the raw code.
+    """
+    if model is None:
+        return None
+    return GATEWAY_MODELS.get(model, model)

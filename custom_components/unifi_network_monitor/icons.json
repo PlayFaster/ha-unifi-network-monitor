@@ -201,6 +201,12 @@
       "gateway_wan1_month_total": {
         "default": "mdi:chart-bar"
       },
+      "gateway_wan1_month_projected": {
+        "default": "mdi:chart-timeline-variant"
+      },
+      "gateway_wan2_month_projected": {
+        "default": "mdi:chart-timeline-variant"
+      },
       "gateway_wan2_month_rx": {
         "default": "mdi:chart-bar"
       },

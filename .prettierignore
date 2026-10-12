@@ -1,0 +1,6 @@
+# Prettier does not format Markdown. markdownlint owns it, and prettier rewrites
+# tables and wraps prose against it. The tasks name json and yaml files, so this
+# file only stops an ad-hoc `prettier` run. Prettier reads it from the directory it
+# is run in, so a run from a subdirectory is not covered.
+*.md
+**/*.md
