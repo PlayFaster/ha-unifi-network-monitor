@@ -17,6 +17,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: UniFi Network Monitor](#internal-detailed-changelog-unifi-network-monitor)
+  - [\[1.1.0\] - 2026-10-12 - Release: Gateway Detection, Projected Data Usage, Diagnostics Hardening, and WAN Weight Controls](#110---2026-10-12---release-gateway-detection-projected-data-usage-diagnostics-hardening-and-wan-weight-controls)
   - [\[1.1.0-dev14\] - 2026-10-12 - Diagnostics Download: Rejection, Endpoint and Gateway Captures; Scrubber Hardened; Hardware Diagnostics Check](#110-dev14---2026-10-12---diagnostics-download-rejection-endpoint-and-gateway-captures-scrubber-hardened-hardware-diagnostics-check)
   - [\[1.1.0-dev12\] - 2026-10-12 - Gateway Detection: Signature-First Selection; Unrecognized-Gateway Repair; Automatic Identity Correction](#110-dev12---2026-10-12---gateway-detection-signature-first-selection-unrecognized-gateway-repair-automatic-identity-correction)
   - [\[1.1.0-dev11\] - 2026-10-11 - Hardware Check: WAN Port Name Sent; Device-Registry Test Deprecations Fixed; Validation Clean](#110-dev11---2026-10-11---hardware-check-wan-port-name-sent-device-registry-test-deprecations-fixed-validation-clean)
@@ -28,7 +29,7 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.1.0-dev5\] - 2026-08-26 - Documentation: Comprehensive Changelog Readability and Header Standardization](#110-dev5---2026-08-26---documentation-comprehensive-changelog-readability-and-header-standardization)
   - [\[1.1.0-dev4\] - 2026-08-24 - Notes Queue: Tasks Folder Migration; Legacy Topic Folders Archived](#110-dev4---2026-08-24---notes-queue-tasks-folder-migration-legacy-topic-folders-archived)
   - [\[1.1.0-dev3\] - 2026-08-14 - Tooling Bumps: Zizmor, MyPy, JSONSchema, and PHACC](#110-dev3---2026-08-14---tooling-bumps-zizmor-mypy-jsonschema-and-phacc)
-  - [\[1.0.1-dev22\] - 2026-08-08 - Control & Diagnostics: Refresh Now Failure Reporting; Live Data Verification](#101-dev22---2026-08-08---control--diagnostics-refresh-now-failure-reporting-live-data-verification)
+  - [\[1.0.1-dev22\] - 2026-08-08 - Control \& Diagnostics: Refresh Now Failure Reporting; Live Data Verification](#101-dev22---2026-08-08---control--diagnostics-refresh-now-failure-reporting-live-data-verification)
   - [\[1.0.1-dev21\] - 2026-08-08 - Code Review: Refresh Now Failure Reporting Finding and Architecture Audit](#101-dev21---2026-08-08---code-review-refresh-now-failure-reporting-finding-and-architecture-audit)
   - [\[1.0.1-dev20\] - 2026-08-08 - Boundary Test Coverage: Alert Truncation, Device-Parse Guards, and Rogue Sorting](#101-dev20---2026-08-08---boundary-test-coverage-alert-truncation-device-parse-guards-and-rogue-sorting)
   - [\[1.0.1-dev19\] - 2026-08-08 - Mutation Testing: Diagnostics Token Scrubbing Assertions](#101-dev19---2026-08-08---mutation-testing-diagnostics-token-scrubbing-assertions)
@@ -38,11 +39,11 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.1-dev15\] - 2026-08-08 - Branch Coverage: Coordinator Branch Tests Added; Sixteen Modules at 100% Coverage](#101-dev15---2026-08-08---branch-coverage-coordinator-branch-tests-added-sixteen-modules-at-100-coverage)
   - [\[1.0.1-dev14\] - 2026-08-08 - Branch Coverage: Platform and Diagnostics Branch Tests Added](#101-dev14---2026-08-08---branch-coverage-platform-and-diagnostics-branch-tests-added)
   - [\[1.0.1-dev13\] - 2026-08-08 - Testing Baseline: Standards Sweeps and Translation Reconciliation; Zero-Assertion Tests Fixed](#101-dev13---2026-08-08---testing-baseline-standards-sweeps-and-translation-reconciliation-zero-assertion-tests-fixed)
-  - [\[1.0.1-dev12\] - 2026-08-08 - WAN Control & Forecast: Weight Write Hardening; Projected Data Usage Sensors Added](#101-dev12---2026-08-08---wan-control--forecast-weight-write-hardening-projected-data-usage-sensors-added)
+  - [\[1.0.1-dev12\] - 2026-08-08 - WAN Control \& Forecast: Weight Write Hardening; Projected Data Usage Sensors Added](#101-dev12---2026-08-08---wan-control--forecast-weight-write-hardening-projected-data-usage-sensors-added)
   - [\[1.0.1-dev11\] - 2026-08-08 - Test Infrastructure: Device-Registry Mock Helpers and Ruff Clean Baseline](#101-dev11---2026-08-08---test-infrastructure-device-registry-mock-helpers-and-ruff-clean-baseline)
-  - [\[1.0.1-dev10\] - 2026-08-08 - Config Flow & Docs: Reauth Entry Resolution; README Speedtest Controls Added](#101-dev10---2026-08-08---config-flow--docs-reauth-entry-resolution-readme-speedtest-controls-added)
+  - [\[1.0.1-dev10\] - 2026-08-08 - Config Flow \& Docs: Reauth Entry Resolution; README Speedtest Controls Added](#101-dev10---2026-08-08---config-flow--docs-reauth-entry-resolution-readme-speedtest-controls-added)
   - [\[1.0.1-dev9\] - 2026-08-07 - Documentation: README Automation Examples and Formatting Alignment](#101-dev9---2026-08-07---documentation-readme-automation-examples-and-formatting-alignment)
-  - [\[1.0.1-dev8\] - 2026-08-07 - Tooling & CI: Shared Workflows Bumped; Branch Coverage and Mutation Testing Configured](#101-dev8---2026-08-07---tooling--ci-shared-workflows-bumped-branch-coverage-and-mutation-testing-configured)
+  - [\[1.0.1-dev8\] - 2026-08-07 - Tooling \& CI: Shared Workflows Bumped; Branch Coverage and Mutation Testing Configured](#101-dev8---2026-08-07---tooling--ci-shared-workflows-bumped-branch-coverage-and-mutation-testing-configured)
   - [\[1.0.1-dev7\] - 2026-07-28 - Documentation: README Automation Example Glitch Guards and Float Rounding Added](#101-dev7---2026-07-28---documentation-readme-automation-example-glitch-guards-and-float-rounding-added)
   - [\[1.0.1-dev6\] - 2026-07-27 - Architecture Docs: Device-Registry Analysis Split to Shared Standards](#101-dev6---2026-07-27---architecture-docs-device-registry-analysis-split-to-shared-standards)
   - [\[1.0.1-dev5\] - 2026-07-27 - Standards Tracking: Dev Standards Test Coverage Baseline Recorded](#101-dev5---2026-07-27---standards-tracking-dev-standards-test-coverage-baseline-recorded)
@@ -53,11 +54,69 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-07-22 - Initial Public Release](#100---2026-07-22---initial-public-release)
   - [Document Audit Status](#document-audit-status)
 
+---
+
+## [1.1.0] - 2026-10-12 - Release: Gateway Detection, Projected Data Usage, Diagnostics Hardening, and WAN Weight Controls
+
+### Highlights
+
+- **Gateway Detection**: Gateways detected by their WAN configuration, unlisted models included.
+
+### Summary
+
+- **Gateway Detection**: Gateways are detected by their WAN configuration rather than an exact model list, raising a repair if unconfirmed; existing installs that adopted the wrong device are corrected automatically on the next start when confirmed.
+- **Projected Usage Sensors**: Two new sensors forecast end-of-calendar-month data usage per WAN from current cycle usage, without extra polling requests.
+- **Diagnostics Visibility**: Diagnostics downloads provide clearer visibility into connection and request status, with strengthened redaction of local network names and identifiers.
+- **WAN Balance Controls**: Setting WAN load-balance weights now applies adjustments cleanly and keeps paired weights in sync.
+- **Database Hygiene**: Enforced unrecorded status for static sensor attributes so they do not needlessly grow the database.
+- **Refresh Now**: The button raises an error if the gateway is unreachable rather than completing silently.
+
+### ⚠️ Action Required
+
+- **Home Assistant 2025.2.0 or newer is required**: the minimum supported Home Assistant version is now 2025.2.0 (Python 3.13+).
+
+### Added
+
+- **Signature-first gateway selection** *(refines Gateway Detection, introduced in 1.0.0)*: gateway identification prioritizes active WAN configurations and device roles rather than relying solely on a predefined model catalog, ensuring unlisted gateway models are reliably detected. Gateways that cannot be confirmed surface a repair issue with guidance.
+
+- **Projected monthly usage**: two sensors forecast end-of-calendar-month data usage for each WAN from the current cycle's run rate. `WAN1/WAN2 Projected Usage` are derived from counters already polled with no extra requests to your gateway. They carry no `state_class`, preventing forecasts from skewing long-term statistics; confidence is published as `confidence`, `basis`, `cycle_day`, and `cycle_start` attributes.
+
+- **Automatic gateway identity correction**: if an entry previously attached itself to another device due to an unlisted gateway model, setup detects the true gateway and moves unique IDs and device identifiers automatically, keeping existing entity IDs, history, and dashboards.
+
+- **Detailed diagnostic captures** *(enhances Diagnostics, introduced in 1.0.0)*: diagnostics downloads include endpoint reachability records, login handshake metadata, gateway selection rationale, and structural summaries of refused controller requests (`last_rejection`) to assist troubleshooting without exposing sensitive values.
+
+### Fixed
+
+- **WAN load-balance weight consistency** *(refines WAN Load-Balance Control, introduced in 1.0.0)*: updating the WAN load-balance weight re-reads the active configuration immediately before writing and applies adjustments as an atomic pair, preventing timing discrepancies between WAN1 and WAN2.
+
+- **Database growth** *(refines Recorder Exclusions, introduced in 1.0.0)*: `strongest_rogue_rssi`, `proximity_threshold`, `application_version`, `application_build`, and `device_type` were recorded on every poll. They are now excluded from the recorder database.
+
+- **Refresh Now error reporting** *(refines Refresh Now, introduced in 1.0.0)*: the button raises an error when the controller cannot be reached, allowing automations and scripts to detect when a refresh did not complete.
+
+- **Diagnostic redaction** *(enhances Diagnostics, introduced in 1.0.0)*: WAN and ISP names are removed from alert messages; ISP numbers (`ISP_ASN`) and non-default site names are redacted from diagnostic downloads.
+
+- **Secondary WAN status on single-WAN setups**: gateways with only one configured WAN interface now report secondary WAN link status as `unknown` (`None`) rather than `False`.
+
+### Changed
+
+- **Minimum Home Assistant version raised to 2025.2.0**: requires Python 3.13+.
+
+- **Repair issues are now scoped to the config entry** *(enhances Repair Issues from 1.0.0)*: repair notifications are now tied to the specific config entry, preventing entries from overwriting each other in multi-gateway environments.
+
+- **Reauthentication screen** *(enhances Reauthentication from 1.0.0)*: clarifies the effect of leaving credential fields blank during reauthentication.
+
+### Under the hood
+
+- **Test Suite**: expanded to 967 tests achieving 100% line and branch coverage with zero partial branches.
+- **Strict Typing**: Mypy Strict enforced across all 19 component source modules with zero type errors.
+- **Code Standards**: adopted Home Assistant Core import sorting (`isort`) and McCabe cyclomatic complexity linting (`C901`).
+- **Hardware Diagnostics Validation**: verified with automated leak analysis (`scripts/diag_check.py`) confirming 0 of 1,204 controller values in 21 categories found in the download.
+
 ## [1.1.0-dev14] - 2026-10-12 - Diagnostics Download: Rejection, Endpoint and Gateway Captures; Scrubber Hardened; Hardware Diagnostics Check
 
 ### Summary
 
-The last build before the `1.1.0` pre-release, which goes to the reporter of issue #23 with a request for a diagnostics download. The download now records what the integration saw on its requests, how the gateway was chosen and the evidence for the stuck uptime defect, and it is proven clean against every identifying value the controller holds. Chores `C-020` (logging) and `C-032` (repair-name test) are closed for this project.
+Focussed on diagnostics download. The download now records what the integration saw on its requests, how the gateway was chosen and the evidence for the stuck uptime defect, and it is proven clean against every identifying value the controller holds. Chores `C-020` (logging) and `C-032` (repair-name test) are closed for this project.
 
 ### Added
 
@@ -71,7 +130,7 @@ The last build before the `1.1.0` pre-release, which goes to the reporter of iss
 ### Changed
 
 - **Request path**: `_get`, `_post` and `_put` share `_request`, which keeps the existing re-authentication on `401` and the existing exception types.
-- **Hardware script banners**: `hardware_check.py` and `diag_check.py` print their verdicts in colour (green pass, red fail, yellow skip) with the Huawei helpers; `NO_COLOR` turns it off, and the results summary strips the codes before reading a banner.
+- **Hardware script banners**: `hardware_check.py` and `diag_check.py` print their verdicts in color (green pass, red fail, yellow skip) with the Huawei helpers; `NO_COLOR` turns it off, and the results summary strips the codes before reading a banner.
 - **Client list read**: `UnifiNetworkAPI.get_clients()` reads `stat/sta`, read-only, for `diag_check.py`'s leak scan; the integration does not poll it.
 - **Scrubber**: an alert parameter's blanked `name` is learned as a free-text literal, so the alert's message loses it too; `ISP_ASN` is blanked; a site name other than `default` is redacted.
 - **Logging**: the device-parse warning logs a masked MAC; the held-values, communication-lost and endpoint messages interpolate `FETCH_STRIKE_LIMIT`; an exception with an empty message is logged by its class name, as is `Request failed`.
@@ -245,7 +304,7 @@ Records the uncommitted changes since `[1.1.0-dev3]` that `[1.1.0-dev4]` to `[1.
 - **Mypy probatio errors suppressed (C-037)**: `voluptuous` treated as untyped (core #182112, probatio); `binary_sensor` and `button` allow implicit re-export (core #182211). Overrides at `pyproject.toml:87` and `:96`. Mypy Strict on 2026-10-11 reports no probatio or device-class errors.
 - **Hardware check installs probatio first (C-036)**: `import homeassistant  # noqa: F401` added before the package import in `scripts/hardware_check.py`. Not yet run; the 2026-10-11 run stopped with no config-entry store.
 - **Integration Health capability renamed**: `_DRIFT_CAPABILITY["gateway"]` changed from "Gateway telemetry" to "Gateway metrics", visible in the `degraded_capabilities` attribute.
-- **Documentent Spelling**: comments in `coordinator.py` and `sensor.py`, README, `DEVELOPMENT.md`, `api_endpoints.md` and `value_min_max.md`; "behaviour" and "behavioural" changed to US spelling (C-028, partial).
+- **Document Spelling**: comments in `coordinator.py` and `sensor.py`, README, `DEVELOPMENT.md`, `api_endpoints.md` and `value_min_max.md`; "behavior" and "behavioural" changed to US spelling (C-028, partial).
 - **Prettier excluded from Markdown**: `*.md` override removed from `.prettierrc.json`, the pre-commit hook limited to `json` and `yaml`, and `.prettierignore` added at the project root.
 - **Component assets copied into `mutants/`**: `setup.cfg` `also_copy` adds `icons.json`, `strings.json`, `services.yaml`, `quality_scale.yaml` and `translations/` (C-034; mutation run pending).
 - **Local tool folders ignored**: `.gitignore` adds `.coverage.*`, `.mdbase/`, `.scratch_*` and `.agents/`.
@@ -416,7 +475,7 @@ Closes the three items the phased work had parked or deferred. Two of them neede
 
 ### Notes
 
-- **§20 Diagnostics closed — verified against a real, populated capture**, not by reading code. This module held `diagnostics: done` across two IQS scans while leaking real identifiers, so source-reading was not acceptable evidence. The capture carried 95 gateway keys, 20 devices, 5 rogue-history entries and a live alert block. Scanning the whole file found **0 raw MACs and 0 private IPs**; identifiers are tokenised or redacted on every surface, and the alert **free text** is scrubbed inline — the path that cannot be confirmed from source.
+- **§20 Diagnostics closed — verified against a real, populated capture**, not by reading code. This module held `diagnostics: done` across two IQS scans while leaking real identifiers, so source-reading was not acceptable evidence. The capture carried 95 gateway keys, 20 devices, 5 rogue-history entries and a live alert block. Scanning the whole file found **0 raw MACs and 0 private IPs**; identifiers are tokenized or redacted on every surface, and the alert **free text** is scrubbed inline — the path that cannot be confirmed from source.
 
 - **The live `About` reconciliation needed the source key mapping, not string matching.** Live carries 48 against the doc's 46. Three naive comparisons in a row produced artefacts, because the doc's Key column holds `translation_key` (`gateway_board_temp`) while `unique_id` holds `key` (`board_temp`) — comparing them directly is vacuous. Mapped properly, the arithmetic closes: 46 − 3 disabled entities that cannot appear live = 43 overlap, + 5 undocumented = 48. The five were all non-sensor platforms, which is why a sensor-focused column had missed them.
 
@@ -464,7 +523,7 @@ Both mandated syntax checks are clean across all 17 source files: zero bare-tupl
 
   Separately, `test_alert_title_with_params` was named for a behavior it never checked: it asserted length and ellipsis only, both of which hold if `{device}` is left as a literal placeholder or the parameters dict is dropped entirely. **Six of the eight surviving `alert_title` mutants were parameter-dropping variants.** The substitution assertions now live in their own tests with a title short enough that truncation cannot hide the result — the reason they could never have worked in the original.
 
-- **Five-type exception coverage for the device-parse guard** (`tests/test_coordinator_branches.py`, 1 parametrised over 5).
+- **Five-type exception coverage for the device-parse guard** (`tests/test_coordinator_branches.py`, 1 parametrized over 5).
 
   Eight identical `except (AttributeError, KeyError, TypeError, ValueError, IndexError)` handlers guard the parse blocks in `_async_update_data`. The suite raised exactly one of the five, so narrowing any tuple to `except ValueError:` would have passed every test. Branch coverage could not see it: it records that the handler was entered, not which types can enter it. The stake is blast radius — these guards exist so one malformed device is skipped with a warning, and losing one lets the exception escape `_async_update_data` and fail the whole update, taking every entity unavailable over a single bad record.
 
@@ -492,7 +551,7 @@ Mutation testing analysis on `diagnostics.py`. Added 12 mutation-targeted tests 
 
   > the diagnostics tests asserted that the output carried **no secret**, and never that it carried the **right token**.
 
-  `assert "entry" in result` and `assert x == "**REDACTED**"` are satisfied by a scrub that is skipped, nulled, or written to the wrong key — because `None` contains no MAC either. It is the same defect the projection tests had at `[1.0.1-dev18]`, in different clothes: asserting an answer is _plausible_ rather than _right_.
+  `assert "entry" in result` and `assert x == "**REDACTED**"` are satisfied by a scrub that is skipped, nulled, or written to the wrong key — because `None` contains no MAC either. It is the same defect the projection tests had at `[1.0.1-dev18]`, in different clothes: asserting an answer is *plausible* rather than *right*.
 
   What the new tests pin, by exact value: the token sequence (`device-1`, `device-2`, `rogue-1`, stable on reuse); longest-first substitution, where one identifier is nested inside another; a literal of **exactly** the minimum length; the `_learn` type guard; full-record equality for `_scrub_device`; the alert `DEVICE` and blank-block branches; a fully populated capture asserted token by token; and a device known by two MACs.
 
@@ -522,7 +581,7 @@ Mutation testing analysis on `diagnostics.py`. Added 12 mutation-targeted tests 
 ### Notes
 
 - **Mutation Testing Runs**: Mutation, three runs. The second confirmed the `[1.0.1-dev18]` projection work at **761 killed / 284 survived** — exactly `+5 killed / −5 survived` against the first, by count rather than by inference. The third verified this entry's work at **840 killed / 205 survived of 1045, 0 timeouts**: **+79 kills from 12 tests**.
-- **`diagnostics.py`: 87 survivors → 8**, and all 8 were triaged and written up _before_ the verifying run — three equivalents and five killable-but-not-worth-killing. No unexplained residue.
+- **`diagnostics.py`: 87 survivors → 8**, and all 8 were triaged and written up *before* the verifying run — three equivalents and five killable-but-not-worth-killing. No unexplained residue.
 - **The §14 / §21 Standards Test Coverage cells stay `UNVERIFIED`.** Both rest on `sensor.py`, whose 45+ survivors are all mocked-coordinator mutants and therefore evidence about the harness, not the behavior. Clearing them on a run that could not have tested them would repeat the exact error this phase exists to catch.
 
 ## [1.0.1-dev18] - 2026-08-08 - Branch Coverage: Unreachable Defensive Guards Removed; Zero Partial Branches Achieved
@@ -539,7 +598,7 @@ Cleaned up five unreachable branches in `coordinator.py`, reaching 100% branch c
 
   The fifth was `elif len(sorted_speedtest) == 1:`, which required a list of length zero — impossible inside the enclosing `if speedtest_raw:`. It becomes a plain `else` with the reasoning stated in a comment.
 
-  **Why remove rather than keep.** They cost nothing at runtime, but they were unreachable code that told the next reader a non-list payload was a real case worth handling, and they left five permanent partials — which meant "partials must be zero" could never be an enforceable rule, and an unenforceable rule is how the next genuine gap hides. The safety they appeared to provide is now held by `test_every_optional_fetch_returns_a_list_whatever_the_api_returns`, which fails the moment normalisation stops — earlier and louder than a dead `if` ever would.
+  **Why remove rather than keep.** They cost nothing at runtime, but they were unreachable code that told the next reader a non-list payload was a real case worth handling, and they left five permanent partials — which meant "partials must be zero" could never be an enforceable rule, and an unenforceable rule is how the next genuine gap hides. The safety they appeared to provide is now held by `test_every_optional_fetch_returns_a_list_whatever_the_api_returns`, which fails the moment normalization stops — earlier and louder than a dead `if` ever would.
 
 ### Changed
 
@@ -593,7 +652,7 @@ Phase 3 of the August 2026 update plan — every documentation change in one rel
 
 ### Changed
 
-- **`docs/value_min_max.md`: the AP satisfaction-score decision is applied.** The three score sensors are documented at `min = 0`, and the old rationale — which argued for `-1` and warned that `0` would wrongly suppress newly provisioned APs — is replaced. `-1` is an _indicator_ that the score has not been computed, not a measurement; admitting it would put a non-percentage on a percentage sensor where it would chart, average and enter long-term statistics as though an AP had scored below zero. Suppression is the intended outcome, and `unknown` is the honest answer. **The code was always right; this document was the side that was wrong.**
+- **`docs/value_min_max.md`: the AP satisfaction-score decision is applied.** The three score sensors are documented at `min = 0`, and the old rationale — which argued for `-1` and warned that `0` would wrongly suppress newly provisioned APs — is replaced. `-1` is an *indicator* that the score has not been computed, not a measurement; admitting it would put a non-percentage on a percentage sensor where it would chart, average and enter long-term statistics as though an AP had scored below zero. Suppression is the intended outcome, and `unknown` is the honest answer. **The code was always right; this document was the side that was wrong.**
 - **All 34 previously-undocumented guard bands are documented**, in three new sections — Internet & WAN, Speedtest, and Configuration Counts. That is `sensor_review`'s 32 plus the two Projected Usage sensors added at `[1.0.1-dev12]`, which reconciles exactly. `docs/value_min_max.md` now matches the code in both directions with **zero** undocumented bands.
 - **`docs/DEVELOPMENT.md` records the `PARALLEL_UPDATES` reasoning**, traced per write path rather than settled by the house rule about read-only entities. `0` is correct on all six platforms — and the exercise is what found the debounce-cancel hazard fixed at `[1.0.1-dev12]`, which a concurrency cap would not have prevented.
 - **The API-key menu path in `strings.json` and `translations/en.json`** now matches the README: **UniFi Network → Integrations → Create New API Key**. The setup form previously showed a different path from the documentation, and the form is the one users follow.
@@ -606,7 +665,7 @@ Phase 3 of the August 2026 update plan — every documentation change in one rel
 - **Standards Test Coverage matrix — four cells move, two stay.** The matrix lives inside the dated `[1.0.1-dev5]` entry and is left as written; this note is the correction.
   - **§10** (session-terminating call awaited on unload) — `PENDING` → **met**. `tests/test_teardown_contract.py` asserts `logout()` is awaited, that the store flush is ordered before it, that a failing logout does not block the unload, and that the platform-unload result is propagated.
   - **§12** (translations + icons reconciled against code) — `PENDING` → **met**. `tests/test_translations_icons.py` reconciles in all three directions against **module source**, plus exception messages in both directions. This was recorded as the highest-value gap in the table.
-  - **§14 / §21** — stay `UNVERIFIED`. Their stated reason ("the test exists but has never been executed — container down") is obsolete: both execute and pass, and §21's asserts the live-key comparison rather than the tautology. But `UNVERIFIED` means _not yet shown to fail on a real regression_, which is mutation testing's job, and that run is in progress. , but their stated reason no longer holds.\*\* That reason — "the test exists but has never been executed (container down)" — is obsolete: both tests execute and pass, and §21's asserts the live-key comparison rather than the tautology. The cells are held deliberately until mutation testing shows them failing on a real regression, which is what `UNVERIFIED` means. The historical entry is left as written rather than edited; this note is the correction.
+  - **§14 / §21** — stay `UNVERIFIED`. Their stated reason ("the test exists but has never been executed — container down") is obsolete: both execute and pass, and §21's asserts the live-key comparison rather than the tautology. But `UNVERIFIED` means *not yet shown to fail on a real regression*, which is mutation testing's job, and that run is in progress. , but their stated reason no longer holds.\*\* That reason — "the test exists but has never been executed (container down)" — is obsolete: both tests execute and pass, and §21's asserts the live-key comparison rather than the tautology. The cells are held deliberately until mutation testing shows them failing on a real regression, which is what `UNVERIFIED` means. The historical entry is left as written rather than edited; this note is the correction.
 - **Phase 2 Standards Test Coverage**: Two further cells in that matrix are now met by Phase 2 and will be re-graded alongside: **§10** (session-terminating call awaited on unload) and **§12** (translations and icons reconciled against code).
 
 ### Verified
@@ -624,13 +683,13 @@ Phase 2 of the August 2026 update plan, finished. No production behavior changes
 
 ### Added
 
-- **`tests/test_coordinator_branches.py`** (34 tests) takes `coordinator.py` from 26 partial branches to 5, and `__init__.py` to zero. Covers the AP name map's MAC-less record, an unrecognised WAN group, the gateway parse's temperature / storage / zero-size-division / non-WAN-uplink guards, an unknown health subsystem, a cached boot time with no timestamp, site resolution in both the transient and the permanent direction, four speedtest mapping paths, and all five system-log alert branches — including that an alert older than 24 hours is still reported as the most recent one while contributing nothing to the 24-hour count.
+- **`tests/test_coordinator_branches.py`** (34 tests) takes `coordinator.py` from 26 partial branches to 5, and `__init__.py` to zero. Covers the AP name map's MAC-less record, an unrecognized WAN group, the gateway parse's temperature / storage / zero-size-division / non-WAN-uplink guards, an unknown health subsystem, a cached boot time with no timestamp, site resolution in both the transient and the permanent direction, four speedtest mapping paths, and all five system-log alert branches — including that an alert older than 24 hours is still reported as the most recent one while contributing nothing to the 24-hour count.
 
 ### Verified
 
 - `pytest tests/` — **802 passed**, 0 failed. **100% line** (2944 statements, 0 missing), **99% branch**.
 - **Partial branches 27 → 5**, with **16 of 17 modules at 100% branch**.
-- **All five remaining partials are unreachable, not untested.** Four are `isinstance(x, list)` checks on payloads that `_fetch_optional` has already normalised with `list()` on both its success and its failure path; the fifth needs a speedtest list of length zero, which the enclosing truthiness check prevents. They are left in place pending an owner decision rather than removed, and a new test pins the normalisation guarantee the redundancy rests on — if that ever stops holding, the test fails before the guards become live again.
+- **All five remaining partials are unreachable, not untested.** Four are `isinstance(x, list)` checks on payloads that `_fetch_optional` has already normalized with `list()` on both its success and its failure path; the fifth needs a speedtest list of length zero, which the enclosing truthiness check prevents. They are left in place pending an owner decision rather than removed, and a new test pins the normalization guarantee the redundancy rests on — if that ever stops holding, the test fails before the guards become live again.
 - Assertion audit **PASSED** (0 of 766); `ruff check`, `ruff format --check` and `mypy --strict` clean.
 
 ## [1.0.1-dev14] - 2026-08-08 - Branch Coverage: Platform and Diagnostics Branch Tests Added
@@ -668,7 +727,7 @@ Phase 2 of the August 2026 update plan — the test baseline. No production beha
 ### Added
 
 - **Guard-band coverage sweeps** (`tests/test_standards_guards.py`). Every numeric sensor must declare a lower bound or appear on a named, currently-empty allow-list, and no accumulating counter may carry an upper bound. The sweep is deliberately **static**: a guard band is never published as state or an attribute — it only suppresses an out-of-range value — so no live query can tell whether one exists. The upper-bound requirement is scoped to percentages, the only quantity here with a real ceiling; demanding one of every counter would push the next author into inventing a number that silently suppresses real data.
-- **A ban on `SensorStateClass.TOTAL`**, with an empty allow-list and a stale-entry check. Under `TOTAL` the recorder recognises a reset only from a changing `last_reset`; every counter here resets to zero without publishing one, so `TOTAL_INCREASING` is always correct and nothing fails at runtime when it is not.
+- **A ban on `SensorStateClass.TOTAL`**, with an empty allow-list and a stale-entry check. Under `TOTAL` the recorder recognizes a reset only from a changing `last_reset`; every counter here resets to zero without publishing one, so `TOTAL_INCREASING` is always correct and nothing fails at runtime when it is not.
 - **Translation and icon reconciliation** (`tests/test_translations_icons.py`), against **code** rather than file-to-file — two hand-maintained files can agree perfectly and both describe an entity that no longer exists. Keys are read from module source so that single-instance entities, which set `_attr_translation_key` on the class rather than in a description, are not reported as dead entries. Exception messages are reconciled separately and in both directions.
 - **Stored-secret pre-fill guards** for all three config-flow schemas and both credentials. No defect today; the guard is on what comes next.
 - **Teardown contract tests** — `logout()` is awaited on unload, the store flush is ordered before it, a failing logout does not block the unload, and the platform-unload result is propagated.
@@ -696,7 +755,7 @@ Phase 1 of the August 2026 update plan — the behavior changes. A failing test 
 ### Fixed
 
 - **Stale Configuration Overwrite Prevention**: The WAN load-balance write no longer PUTs stale held state. `networkconf` is a degradable endpoint, so the object the coordinator was holding could be minutes old — and the write PUT that whole object back with one field replaced, silently reverting every other controller-side change made since. It now re-reads `networkconf` immediately before composing the PUT. Both refusal paths (no WAN objects, no `_id`) fire before any write, so a bad read writes nothing at all.
-- **Dual-WAN Weight Disagreement Guard**: A cancelled debounce could leave WAN1 and WAN2 disagreeing. The entity cancels its own debounce task on every slider move, and once the two-second wait had elapsed that cancellation landed _between the two weight PUTs_ — WAN1 written, WAN2 not, the pair no longer summing to 100, and nothing reporting it. Two slider moves about two seconds apart were enough. The pair is now awaited through `asyncio.shield`: the caller can still be cancelled, but the write completes.
+- **Dual-WAN Weight Disagreement Guard**: A cancelled debounce could leave WAN1 and WAN2 disagreeing. The entity cancels its own debounce task on every slider move, and once the two-second wait had elapsed that cancellation landed *between the two weight PUTs* — WAN1 written, WAN2 not, the pair no longer summing to 100, and nothing reporting it. Two slider moves about two seconds apart were enough. The pair is now awaited through `asyncio.shield`: the caller can still be cancelled, but the write completes.
 - **A pending debounced write is now flushed on removal, not discarded.** Both number entities cancelled their buffer in `async_will_remove_from_hass`. A reload triggers removal and an options change triggers a reload, so a value set inside the two-second window was routinely lost while the UI went on showing it. The flush is conditional on the write not having started, so an in-flight write is never issued twice.
 - **Repair issues are cleared on unload and on removal.** Neither teardown path touched the issue registry. After removal in particular there was nothing left that could ever clear a raised repair, leaving a permanent Repairs warning about an integration the user had deleted.
 - **The reauth screen explains what a blank field does.** `config.step.reauth_confirm` had no `data_description` at all — on the one screen where a blank submit re-tries the credential that just failed. The new text says so explicitly rather than copying reconfigure's reassuring "leave blank to keep the current value".
@@ -760,7 +819,7 @@ Made in response to `readme_review` `REVIEW_MODE=Full`, whose findings were disp
 
 ### Notes
 
-- **`readme_review` 2a.4 was disputed and re-verified — the finding stands.** The claim was that a `numeric_state` trigger cannot fire from `unknown` to a value. It can: `condition.py` returns `False` for a non-numeric state rather than raising, which _arms_ the trigger, and the return to an in-range value then fires it. Proved twice — by reading `homeassistant/helpers/condition.py:1565` and by a behavioral test showing `50 → unknown → 50` fires. The premise would have been correct against the older `ConditionError` behavior. Guards were added to the affected examples subsequently.
+- **`readme_review` 2a.4 was disputed and re-verified — the finding stands.** The claim was that a `numeric_state` trigger cannot fire from `unknown` to a value. It can: `condition.py` returns `False` for a non-numeric state rather than raising, which *arms* the trigger, and the return to an in-range value then fires it. Proved twice — by reading `homeassistant/helpers/condition.py:1565` and by a behavioral test showing `50 → unknown → 50` fires. The premise would have been correct against the older `ConditionError` behavior. Guards were added to the affected examples subsequently.
 
 ## [1.0.1-dev9] - 2026-08-07 - Documentation: README Automation Examples and Formatting Alignment
 
@@ -795,7 +854,7 @@ Shared CI bump to v2.0.10, automated release zip asset generation, and test conf
 - **`ruff` Rules**: Updated `ruff` rules, via shared CI to match latest HA exclusions and inclusions.
 - **Shared File Header Warnings**: Added comments to several of the shared sync files to clarify they were shared and not to be edited locally.
 - **AGENTS No git:** Updated `AGENTS.md` to clarify strict restrictive rules around write git use.
-- **US UK Spelling**: Updated spelling to US standard (z vs s, color vs colour etc), to match HA standard.
+- **US UK Spelling**: Updated spelling to US standard (z vs s, color vs color etc), to match HA standard.
 - **Tools not Dev Tools**: Changed References to "Developer Tools" to "Tools" to align with HA 2026.8+
 - **`changelog_local` ToC**: Added Table of Contents to `changelog_local` (top-of-file) and to end of `CHANGELOG`.
 
@@ -1001,6 +1060,6 @@ Entry structure — headers, titles, category headings and the split between thi
 
 ## Document Audit Status
 
-- **Headers Checked**: `1.1.0-dev11` to `1.0.0` (2026-10-11); 32 entries aligned to CF-101
-- **Bullets Checked**: `1.1.0-dev11` to `1.0.0` (2026-10-11); 209 bullets audited and verified per CF-202 (zero data loss)
+- **Headers Checked**: `1.1.0-dev14` to `1.0.0` (2026-10-12); 34 entries aligned to CF-101
+- **Bullets Checked**: `1.1.0-dev14` to `1.0.0` (2026-10-12); 233 bullets audited and verified per CF-202 (zero data loss)
 - **Specification**: Follows `changelog_format.md` (maintainer engineering voice; zero data loss)

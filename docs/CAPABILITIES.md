@@ -2,9 +2,9 @@
 
 An architectural reference and at-a-glance inventory of verified capabilities, interfaces, technical guarantees, and version lineage for `ha-unifi-network-monitor`.
 
-**Current Through:** `v1.1.0-dev11` (covering `v1.0.0` to `v1.1.0-dev11`) · **Last Audited:** 2026-10-11 · **Status:** `In-Progress Dev`
+**Current Through:** `v1.1.0` (covering `v1.0.0` to `v1.1.0`) · **Last Audited:** 2026-10-12 · **Status:** `Active`
 
-Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series shipped as public `v1.1.0` on 2026-08-08. `1.1.0-dev3` to `1.1.0-dev11` are unreleased builds that follow it. Capabilities that predate the detailed changelog are recorded as `v1.0.0 verified`, the earliest verified release.
+Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series and `1.1.0-dev3` to `1.1.0-dev14` series shipped together as public `v1.1.0` on 2026-10-12. Capabilities that predate the detailed changelog are recorded as `v1.0.0 verified`, the earliest verified release.
 
 ---
 
@@ -59,6 +59,28 @@ Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series shipped as public `v1.
 - **Lifecycle Timeline**:
   - `v1.0.0 verified`: Reauth and reconfigure flows.
   - `v1.1.0`: Entry resolution via `_get_reauth_entry()` (`1.0.1-dev10`); secret pre-fill guards (`1.0.1-dev13`); reauth field descriptions (`1.0.1-dev12`).
+
+### Signature-First Gateway Selection
+
+- **Purpose**: Identifies the UniFi gateway from the controller's device list using WAN interfaces and device roles rather than relying solely on a fixed catalog of product models.
+- **Entities & Interfaces**: `gateway.py` (`select_gateway`, `has_wan_signature`, `is_gateway_type`); `const.py` (`GATEWAY_TYPES`, `GATEWAY_MODELS`).
+- **Technical Guarantees**:
+  - A device carrying a non-empty `wan1` or `wan2` object is prioritized as the gateway signature.
+  - Ties are resolved through gateway `type` codes (`udm`, `ugw`, `usg`, `ucg`, `uxg`), online state, and listed models, falling back to stored MAC.
+  - An unrecognized gateway state (`ambiguous` or `none`) surfaces an ERROR-level repair issue after 3 consecutive polls rather than misidentifying a switch or AP.
+- **Lifecycle Timeline**:
+  - `v1.1.0`: Introduced (`1.1.0-dev12`).
+
+### Automatic Gateway Identity Correction
+
+- **Purpose**: Detects existing integration entries that attached themselves to switches or access points due to previously unlisted gateway models, automatically correcting their identities without manual reconfiguration.
+- **Entities & Interfaces**: `identity.py` (`detect_on_first_poll`, `stored_mac_absent`); repair `gateway_identity_blocked`.
+- **Technical Guarantees**:
+  - Validated on the first poll of setup using two of three confirmation signals (WAN object, gateway type, catalog model).
+  - Automatically rewrites entity unique IDs and device identifiers across a single scheduled reload, keeping existing entity IDs, history, and dashboards.
+  - Detects identity collisions with other config entries and raises a repair without corrupting existing device registries.
+- **Lifecycle Timeline**:
+  - `v1.1.0`: Introduced (`1.1.0-dev12`).
 
 ---
 
@@ -215,25 +237,27 @@ Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series shipped as public `v1.
 ### Repair Issues
 
 - **Purpose**: Raises Home Assistant repairs for conditions the user must act on.
-- **Entities & Interfaces**: Repairs `site_resolution_failed`, `schema_drift_detected`.
+- **Entities & Interfaces**: Repairs `site_resolution_failed`, `schema_drift_detected`, `gateway_not_recognized`, `gateway_identity_blocked`.
 - **Technical Guarantees**:
   - Issue ids are scoped to the config entry through `repair_issue_id(entry_id, name)`, so two gateways cannot overwrite each other's issue.
-  - Every name in `REPAIR_ISSUE_NAMES` is cleared on unload and on removal.
+  - Every name in `REPAIR_ISSUE_NAMES` is cleared on unload and on removal; verified dynamically by `test_every_repair_the_code_raises_is_registered_for_removal`.
+  - `gateway_not_recognized` is raised after 3 consecutive polls with no gateway selected (whether ambiguous or none) and lists candidate models; cleared immediately once a gateway is confirmed.
 - **Lifecycle Timeline**:
-  - `v1.0.0 verified`: Both repairs.
-  - `v1.1.0`: Entry-scoped ids; cleared on unload and removal (`1.0.1-dev12`).
+  - `v1.0.0 verified`: Initial repairs (`site_resolution_failed`, `schema_drift_detected`).
+  - `v1.1.0`: Entry-scoped ids; cleared on unload and removal (`1.0.1-dev12`); `gateway_not_recognized` and `gateway_identity_blocked` added (`1.1.0-dev12`); dynamic removal registry test (`1.1.0-dev14`).
 
-### Diagnostics Download Sanitization
+### Diagnostics Download Captures and Sanitization
 
-- **Purpose**: Produces a config-entry diagnostics download that can be shared publicly.
-- **Entities & Interfaces**: Home Assistant **Download diagnostics**; `diagnostics.py`.
+- **Purpose**: Produces a comprehensive config-entry diagnostics download with endpoint and error context that can be shared publicly safely.
+- **Entities & Interfaces**: Home Assistant **Download diagnostics**; `diagnostics.py`, `api.py` (`last_rejection`, `login_metadata`), `coordinator.py` (`endpoint_outcomes`).
 - **Technical Guarantees**:
   - `TO_REDACT` masks credentials, host, MACs, local and public IPs, ISP name and organization, and BSSIDs.
-  - `_Scrubber` assigns stable pseudonymous tokens, so the same device keeps the same token across the download, and scrubs identifiers from alert free text and parameters.
-  - Verified against a populated live capture, not only by source reading.
+  - `_Scrubber` assigns stable pseudonymous tokens, scrubs identifiers from alert parameters and messages, blanks `ISP_ASN`, and redacts non-default site names.
+  - Dedicated capture blocks (`endpoints`, `last_rejection`, `login`, `gateway`) capture reachability status, login headers, and error structures without storing values.
+  - Verified against a populated live capture with automated zero-leak whole-word scanning (`scripts/diag_check.py`).
 - **Lifecycle Timeline**:
   - `v1.0.0 verified`: Redaction in place.
-  - `v1.1.0`: Token scrubbing mutation-tested (`1.0.1-dev19`); verified against a live capture (`1.0.1-dev22`).
+  - `v1.1.0`: Token scrubbing mutation-tested (`1.0.1-dev19`); verified against a live capture (`1.0.1-dev22`); structured captures (`endpoints`, `last_rejection`, `login`, `gateway`) added and leak-checked against 1,204 controller values across 21 categories (`1.1.0-dev14`).
 
 ### Recorder Hygiene and About Notes
 
@@ -251,11 +275,10 @@ Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series shipped as public `v1.
 
 ### Unit and Regression Test Suite
 
-- **Purpose**: Verifies behavior and standards across all 17 component modules.
-- **Interfaces**: `tests/` (40 files); `Pytest: Check Test Coverage` task with `--cov-branch`.
+- **Purpose**: Verifies behavior and standards across all 19 component modules.
+- **Interfaces**: `tests/` (44 files); `Pytest: Check Test Coverage` task with `--cov-branch`.
 - **Lifecycle Timeline**:
-  - `v1.1.0`: 100% branch coverage with 0 partial branches (`1.0.1-dev18`); `fail_under = 100` enforced from `1.1.0-dev10`.
-  - `v1.1.0-dev11`: 846 tests, 100% line and branch coverage.
+  - `v1.1.0`: 100% branch coverage with 0 partial branches (`1.0.1-dev18`); `fail_under = 100` enforced from `1.1.0-dev10`; 967 tests at 100% line and branch coverage (`1.1.0-dev14`).
 
 ### Standards Guard Sweeps
 
@@ -298,4 +321,4 @@ Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series shipped as public `v1.
 
 ---
 
-*Capabilities dossier audited against codebase and changelogs up to `v1.1.0-dev11` on 2026-10-11. Maintained via `capabilities_build.md`.*
+*Capabilities dossier audited against codebase and changelogs up to `v1.1.0` on 2026-10-12. Maintained via `capabilities_build.md`.*

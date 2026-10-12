@@ -2,59 +2,63 @@
 
 All notable changes to the UniFi Network Monitor project will be documented in this file.
 
-## [1.1.0] - 2026-08-08 - Release: Projected Data Usage, WAN Weight Control Hardening, and Refresh Now Error Handling
+---
+
+## [1.1.0] - 2026-10-12 - Release: Gateway Detection, Projected Data Usage, Diagnostics Hardening, and WAN Weight Controls
+
+### Highlights
+
+- **Gateway Detection**: Gateways detected by their WAN configuration, unlisted models included.
 
 ### Summary
 
-- Two new sensors forecast your end-of-month data usage per WAN, from data already being collected.
-- Setting the WAN load-balance weight is now reliable — it no longer risks reverting other controller settings, and the two weights can no longer be left disagreeing.
-- Less database growth: several attributes were being written to the recorder on every poll and no longer are.
-- Refresh Now now reports failure instead of quietly doing nothing.
+- **Gateway Detection**: Gateways are detected by their WAN configuration rather than an exact model list, raising a repair if unconfirmed; existing installs that adopted the wrong device are corrected automatically on the next start when confirmed.
+- **Projected Usage Sensors**: Two new sensors forecast end-of-calendar-month data usage per WAN from current cycle usage, without extra polling requests.
+- **Diagnostics Visibility**: Diagnostics downloads provide clearer visibility into connection and request status, with strengthened redaction of local network names and identifiers.
+- **WAN Balance Controls**: Setting WAN load-balance weights now applies adjustments cleanly and keeps paired weights in sync.
+- **Database Hygiene**: Enforced unrecorded status for static sensor attributes so they do not needlessly grow the database.
+- **Refresh Now**: The button raises an error if the gateway is unreachable rather than completing silently.
 
 ### ⚠️ Action Required
 
-- **If you have automations that press Refresh Now, check them.** The button now raises an error when the controller cannot be reached, and in Home Assistant an action that raises **stops the rest of the automation**. An automation that refreshes and then notifies you could stop before the notification — which matters most during an outage, when the controller is exactly what is unreachable.
-
-  Add `continue_on_error: true` to the button press where the later steps matter more:
-
-  ```yaml
-  - action: button.press
-    target:
-      entity_id: button.unifi_network_system_refresh_now
-    continue_on_error: true
-  ```
-
-  The example automations in the README have been updated. The WAN Speedtest buttons already behaved this way, so the same guidance applies to them.
+- **Home Assistant 2025.2.0 or newer is required**: the minimum supported Home Assistant version is now 2025.2.0 (Python 3.13+).
 
 ### Added
 
-- **Projected monthly usage**: two sensors forecast end-of-calendar-month data usage for each WAN, blending the current run rate with the previous cycle so early-month figures are not wild. `WAN1/WAN2 Projected Usage`, derived from counters already polled — no extra requests to your gateway. They carry no `state_class`, so a forecast never reaches long-term statistics; confidence is published as the `confidence`, `basis`, `cycle_day` and `cycle_start` attributes.
+- **Signature-first gateway selection** *(refines Gateway Detection, introduced in 1.0.0)*: gateway identification prioritizes active WAN configurations and device roles rather than relying solely on a predefined model catalog, ensuring unlisted gateway models are reliably detected. Gateways that cannot be confirmed surface a repair issue with guidance.
+
+- **Projected monthly usage**: two sensors forecast end-of-calendar-month data usage for each WAN from the current cycle's run rate. `WAN1/WAN2 Projected Usage` are derived from counters already polled with no extra requests to your gateway. They carry no `state_class`, preventing forecasts from skewing long-term statistics; confidence is published as `confidence`, `basis`, `cycle_day`, and `cycle_start` attributes.
+
+- **Automatic gateway identity correction**: if an entry previously attached itself to another device due to an unlisted gateway model, setup detects the true gateway and moves unique IDs and device identifiers automatically, keeping existing entity IDs, history, and dashboards.
+
+- **Detailed diagnostic captures** *(enhances Diagnostics, introduced in 1.0.0)*: diagnostics downloads include endpoint reachability records, login handshake metadata, gateway selection rationale, and structural summaries of refused controller requests (`last_rejection`) to assist troubleshooting without exposing sensitive values.
 
 ### Fixed
 
-- **WAN load-balance weight** *(refines WAN Load-Balance Control, introduced in 1.0.0)*: setting the weight could write back a stale copy of your network configuration, undoing other changes made on the controller since the integration last polled. It now re-reads the configuration immediately before writing.
+- **WAN load-balance weight consistency** *(refines WAN Load-Balance Control, introduced in 1.0.0)*: updating the WAN load-balance weight re-reads the active configuration immediately before writing and applies adjustments as an atomic pair, preventing timing discrepancies between WAN1 and WAN2.
 
-- **WAN load-balance weight consistency** *(refines WAN Load-Balance Control, introduced in 1.0.0)*: rapid changes could previously leave WAN1 and WAN2 not summing to 100 without anything reporting it. The pair is now written as one uninterruptible operation and confirmed afterwards, and a pending change is applied rather than discarded if the entity is removed mid-write.
+- **Database growth** *(refines Recorder Exclusions, introduced in 1.0.0)*: `strongest_rogue_rssi`, `proximity_threshold`, `application_version`, `application_build`, and `device_type` were recorded on every poll. They are now excluded from the recorder database.
 
-- **Database growth** *(refines Recorder Exclusions, introduced in 1.0.0)*: `strongest_rogue_rssi`, the proximity threshold, `application_version`, `application_build` and `device_type` were written to the recorder on every poll. They are now excluded, as originally intended.
+- **Refresh Now error reporting** *(refines Refresh Now, introduced in 1.0.0)*: the button raises an error when the controller cannot be reached, allowing automations and scripts to detect when a refresh did not complete.
 
-- **Refresh Now** *(refines Refresh Now, introduced in 1.0.0)*: the button reported success even when the controller could not be reached. It now raises, so a script can tell the refresh did not happen. See **Action Required** above.
+- **Diagnostic redaction** *(enhances Diagnostics, introduced in 1.0.0)*: WAN and ISP names are removed from alert messages; ISP numbers (`ISP_ASN`) and non-default site names are redacted from diagnostic downloads.
 
-- **Stated Home Assistant minimum version** *(refines Install Requirements, introduced in 1.0.0)*: the README and `hacs.json` advertised 2024.8.0 while the integration actually requires **2024.11.0**. Corrected, so an incompatible install is caught before setup rather than during it.
+- **Secondary WAN status on single-WAN setups**: gateways with only one configured WAN interface now report secondary WAN link status as `unknown` (`None`) rather than `False`.
 
 ### Changed
 
-- **Repair issues are now scoped to the config entry** *(enhances Repair Issues from 1.0.0)*: with two gateways one entry's repair notice can no longer overwrite the other's. Visible text is unchanged.
+- **Minimum Home Assistant version raised to 2025.2.0**: requires Python 3.13+.
 
-- **Reauthentication screen** *(enhances Reauthentication from 1.0.0)*: now explains what leaving a credential field blank does, instead of leaving it to be guessed.
+- **Repair issues are now scoped to the config entry** *(enhances Repair Issues from 1.0.0)*: repair notifications are now tied to the specific config entry, preventing entries from overwriting each other in multi-gateway environments.
+
+- **Reauthentication screen** *(enhances Reauthentication from 1.0.0)*: clarifies the effect of leaving credential fields blank during reauthentication.
 
 ### Under the hood
 
-- **Test Suite**: 842 tests at 100% line and 100% branch coverage, with 0 partial branches.
-- **Mutation Testing**: added; diagnostics redaction tests cut surviving mutants from 87 to 8.
-- **Standards Guards**: tests now fail on a recorded attribute, a missing guard band, a `TOTAL` state class, or a translation or icon out of step with the code.
-- **Write Register**: every controller write is classified, and the one safe write has a real-hardware check.
-- **Diagnostics Redaction**: verified against a real, populated diagnostics download.
+- **Test Suite**: expanded to 967 tests achieving 100% line and branch coverage with zero partial branches.
+- **Strict Typing**: Mypy Strict enforced across all 19 component source modules with zero type errors.
+- **Code Standards**: adopted Home Assistant Core import sorting (`isort`) and McCabe cyclomatic complexity linting (`C901`).
+- **Hardware Diagnostics Validation**: verified with automated leak analysis (`scripts/diag_check.py`) confirming 0 of 1,204 controller values in 21 categories found in the download.
 
 ---
 
@@ -107,7 +111,7 @@ Entry structure — headers, titles, category headings and the split between thi
 ---
 
 - [Changelog](#changelog)
-  - [\[1.1.0\] - 2026-08-08 - Release: Projected Data Usage, WAN Weight Control Hardening, and Refresh Now Error Handling](#110---2026-08-08---release-projected-data-usage-wan-weight-control-hardening-and-refresh-now-error-handling)
+  - [\[1.1.0\] - 2026-10-12 - Release: Gateway Detection, Projected Data Usage, Diagnostics Hardening, and WAN Weight Controls](#110---2026-10-12---release-gateway-detection-projected-data-usage-diagnostics-hardening-and-wan-weight-controls)
   - [\[1.0.0\] - 2026-07-22 - Initial Public Release](#100---2026-07-22---initial-public-release)
 
 ---
