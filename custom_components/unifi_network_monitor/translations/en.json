@@ -566,6 +566,9 @@
     },
     "wan_config_not_loaded": {
       "message": "WAN configuration is not loaded yet; try again in a moment."
+    },
+    "speedtest_wan2_port_unknown": {
+      "message": "The gateway does not report a WAN2 port, so a WAN2 speedtest cannot be run."
     }
   },
   "issues": {
@@ -576,6 +579,14 @@
     "schema_drift_detected": {
       "title": "UniFi data looks malformed",
       "description": "UniFi Network Monitor received data in an unexpected shape for: {capabilities}. This usually follows a UniFi controller/firmware update that changed a field, and means some sensors may be wrong or empty. Check for a UniFi Network Monitor update; if it persists after updating, please report it. See the Integration Health sensor for details."
+    },
+    "gateway_not_recognized": {
+      "title": "UniFi gateway not recognized",
+      "description": "UniFi Network Monitor could not identify a single gateway among the devices the controller reports, so the gateway, WAN and speedtest sensors are unavailable. Device models considered: {models}.\n\nIf your gateway is among them, please report it with the integration's diagnostics download so it can be recognized. This message clears automatically once a gateway is identified."
+    },
+    "gateway_identity_blocked": {
+      "title": "UniFi gateway identity could not be corrected",
+      "description": "UniFi Network Monitor found that this entry is set up on a device that is not the gateway, but could not move it to the gateway because another UniFi Network Monitor entry, or one of its entities, already uses the gateway's identity. Remove the duplicate entry, then reload this one."
     }
   },
   "options": {

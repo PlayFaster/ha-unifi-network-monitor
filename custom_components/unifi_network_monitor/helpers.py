@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, cast
 from homeassistant.helpers.device_registry import DeviceInfo, format_mac
 
 from ._compat import via_device_link
-from .const import DOMAIN
+from .const import DOMAIN, gateway_display_model
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -72,7 +72,7 @@ def build_gateway_device_info(
         identifiers={(DOMAIN, mac)},
         name=f"{entry.title} Gateway",
         manufacturer="Ubiquiti",
-        model=coordinator.gateway_model,
+        model=gateway_display_model(coordinator.gateway_model),
         sw_version=coordinator.sw_version,
         configuration_url=f"https://{entry.options.get('host', '')}",
     )

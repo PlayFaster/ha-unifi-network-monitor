@@ -77,7 +77,7 @@ Today that suppression is invisible: the sensor reads `unknown` and nothing dist
 
 ### Cross-model verification beyond the UDM Pro
 
-Confirm the gateway parse against a second gateway model — a UDM SE, UDM Base, UCG-Ultra or UNVR. `GATEWAY_MODELS` lists nine, and exactly one has ever been exercised.
+Confirm the gateway parse against a second gateway model, such as a UCG-Ultra, UDR or UXG. Detection is signature-first and `GATEWAY_MODELS` lists 27 codes, but only the UDM Pro has been exercised; the parser is tested on variant payloads (v1.1.0-dev12).
 
 **Blocked by:** having one gateway. Every non-UDM-Pro path in `_parse_gateway` is inferred from the API documentation and from what a UDM Pro returns.
 
@@ -149,5 +149,6 @@ Three items left this table on 2026-08-08 and are now in **Done** — `about` no
 
 | Version | Date | Change |
 | :-- | :-- | :-- |
+| v1.1.1 | 2026-10-12 | Cross-model verification entry rewritten for the `1.1.0-dev12` signature-first gateway detection and the 27-code model list; it stays **Blocked** on having one gateway. |
 | v1.1.0 | 2026-08-08 | **First three items met, and the Done group opened.** The August 2026 update cycle closed at `[1.1.0]`, meeting `about` note coverage (23 → 46 declared / 48 live, with the Internet distribution problem fixed at 1 → 18), mutation testing (module list decided by measurement; three runs ending 840 killed / 205 survived of 1045), and the **§20 diagnostics verification**, which moved out of **Blocked** when the owner supplied a populated capture — 0 raw MACs and 0 private IPs across the whole file, with the alert free text scrubbed inline. Removed a stale precondition from the mutation entry: it warned that the project had no `setup.cfg`, which stopped being true when the module list was written. The summary table drops to four forward items, one of them blocked. |
 | v1.0.0 | 2026-08-08 | Initial, per `roadmap_format.md` v1.2.0. Records three forward items, two Maybes with stated triggers, two Blocked items with the obstacle named and the note that nothing is queued behind the diagnostics one, two Revisit decisions with observable reopening triggers, and three Declines. **No Done group**, because membership there is by provenance and this is the first roadmap this project has had — the group will populate as the items above are met rather than being backfilled from the changelog. Created as item 27 of the August 2026 update plan. |

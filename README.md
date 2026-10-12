@@ -63,7 +63,9 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
 **📟 Gateway Hardware:**
 
 - **Fully Tested**: **UDM Pro** - tested on **UniFi OS `5.1.19`** with **Network application `10.4`**.
-- **Expected Compatible**: Other UniFi OS gateways running the Network application, which should include the UDM range, and possibly others. These are untested.
+- **Expected Compatible**: Other UniFi gateways running the Network application: the Dream Machine range (UDM, UDM-SE, UDM-Pro-Max), Cloud Gateways (UCG-Ultra, UCG-Max, UCG-Fiber), Dream Routers and Express (UDR, UDR7, UX, UX7), Enterprise Fortress Gateways, next-generation gateways (UXG) and Security Gateways (USG). These are untested.
+- **Gateway Detection**: The gateway is the device that reports WAN interface data; where several or none do, its UniFi device type and then its model decide, so a new gateway model is detected without an update. The gateway's device card shows the product name, or the model code where the model is not yet known.
+- **Single-WAN Gateways**: WAN2 Active and WAN2 Up report unknown, not off, on a gateway that has no second WAN, and the **Run WAN2 Speedtest** button reports that the gateway has no WAN2 port.
 - **Access Points & Switches**: Adopted UniFi APs and switches **optionally** are discovered automatically for per-device sensors (see [Configuration](#-configuration)).
 - **Not Supported**: Non-UniFi hardware; setups without a UniFi OS gateway.
 
@@ -1742,6 +1744,32 @@ These three fields tune the passive rogue-AP sensors. They apply only while **Se
 Both ignore lists can also be edited from automations with the `add_rogue_ignore` / `remove_rogue_ignore` / `set_rogue_ignore` actions (see [Actions](#-actions-services)).
 
 ![Reconfigure](.github/images/unifi_mon_setup_reconfig.png)
+
+---
+
+</details>
+
+<br>
+
+### 🔨 Repairs
+
+Four conditions raise a card in Home Assistant's **Repairs** panel. Each clears automatically once the condition is resolved.
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
+
+| Condition | Detected State | Surface Reported | Actionable User Step |
+| :-- | :-- | :-- | :-- |
+| **Site Not Resolved** | API key cannot read the v3 site list | **Repairs card** (`site_resolution_failed`) & Integration Health | Give the API key full site permissions |
+| **Data Format Change** | Responses parse to empty data across several polls | **Repairs card** (`schema_drift_detected`) & Integration Health (`drift` attr) | Check for an integration update, or report the issue |
+| **Gateway Not Recognized** | No single gateway identified on 3 consecutive polls | **Repairs card** (`gateway_not_recognized`), listing the device models considered | Report the issue with the diagnostics download |
+| **Gateway Identity Blocked** | The entry could not move to its gateway because another entry already uses it | **Repairs card** (`gateway_identity_blocked`) | Remove the duplicate entry, then reload this one |
+
+- **Gateway Not Recognized**: The card lists the device models considered; the gateway, WAN and speedtest sensors stay unavailable until a gateway is identified.
+- **Gateway Identity Correction**: An entry attached to a device that is not the gateway moves to the gateway automatically once the gateway is confirmed, and Home Assistant reloads it once. Entity IDs, history and dashboards are kept, and a warning is logged. If another entry already uses the gateway, the **Gateway Identity Blocked** card appears instead.
 
 ---
 

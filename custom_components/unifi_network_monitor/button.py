@@ -183,6 +183,13 @@ class UnifiSpeedtestButton(
         """Trigger a speedtest."""
         gateway_data = (self.coordinator.data or {}).get("gateway") or {}
         ifname = gateway_data.get(f"{self._interface_key}_ifname")
+        if ifname is None and self._interface_key == "wan2":
+            # A command with no interface_name runs on WAN1, so a WAN2 run with
+            # no known port would report WAN1's result as WAN2's.
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="speedtest_wan2_port_unknown",
+            )
         try:
             await self.coordinator.async_trigger_speedtest(ifname)
         except UnifiError as err:

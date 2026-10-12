@@ -61,10 +61,8 @@ from custom_components.unifi_network_monitor.api import (  # noqa: E402
     UnifiError,
     UnifiNetworkAPI,
 )
-from custom_components.unifi_network_monitor.const import (  # noqa: E402
-    DOMAIN,
-    GATEWAY_MODELS,
-)
+from custom_components.unifi_network_monitor.const import DOMAIN  # noqa: E402
+from custom_components.unifi_network_monitor.gateway import select_gateway  # noqa: E402
 
 # Home Assistant's config directory in the devcontainer, as in the ZTE and Huawei
 # scripts; the project root holds no `config/`.
@@ -91,22 +89,24 @@ def _load_options() -> dict[str, Any]:
     raise SystemExit(f"No {DOMAIN} config entry found in {_STORAGE}.")
 
 
-# Same fallbacks as ``_parse_gateway`` in coordinator.py: a UDM Pro's WAN ports.
-_DEFAULT_IFNAME = {"wan1": "eth8", "wan2": "eth9"}
+# Logical WAN names, mapped to the gateway's own port names. There is no
+# default port: a gateway that reports none is a skip, not a guess.
+_LOGICAL_WAN = frozenset({"wan1", "wan2"})
 
 
-def _resolve_ifname(devices: list[dict[str, Any]], interface: str) -> str:
+def _resolve_ifname(devices: list[dict[str, Any]], interface: str) -> str | None:
     """Map ``wan1`` / ``wan2`` to the gateway's port name, as the button does.
 
     ``cmd/devmgr`` takes the physical port (``eth8``), and answers the logical
     name (``wan1``) with a bare HTTP 400. Any other value is a port name already
-    and passes through unchanged.
+    and passes through unchanged. ``None`` when the gateway reports no port.
     """
-    if interface not in _DEFAULT_IFNAME:
+    if interface not in _LOGICAL_WAN:
         return interface
-    gateway = next((d for d in devices if d.get("model") in GATEWAY_MODELS), {})
+    gateway = select_gateway(devices).device or {}
     wan = gateway.get(interface) or {}
-    return str(wan.get("ifname") or _DEFAULT_IFNAME[interface])
+    ifname = wan.get("ifname")
+    return str(ifname) if ifname else None
 
 
 def _latest_run(results: list[dict[str, Any]]) -> tuple[int, dict[str, Any] | None]:
@@ -117,11 +117,19 @@ def _latest_run(results: list[dict[str, Any]]) -> tuple[int, dict[str, Any] | No
     return int(newest.get("time") or 0), newest
 
 
-async def _check_speedtest(api: UnifiNetworkAPI, interface: str, timeout: int) -> bool:
-    """Run the SAFE write and confirm a *new* result actually appears."""
+async def _check_speedtest(
+    api: UnifiNetworkAPI, interface: str, timeout: int
+) -> bool | None:
+    """Run the SAFE write and confirm a *new* result actually appears.
+
+    Returns ``None`` (a skip) when the gateway reports no port for the WAN.
+    """
     print("[A] trigger_speedtest  (SAFE)")
 
     ifname = _resolve_ifname(await api.get_devices(), interface)
+    if ifname is None:
+        print(f"    SKIP  the gateway reports no port for {interface}")
+        return None
     print(f"    interface: {interface} -> {ifname}")
 
     before_ts, _ = _latest_run(await api.get_speedtest_results())
@@ -184,6 +192,9 @@ async def _main(interface: str, timeout: int) -> int:
         "changing the WAN weights is a person's decision to make and undo."
     )
     # Verdict banner in the family format; `Show: Results Summary` reads it.
+    if ok is None:
+        print("\n✔  Hardware check: SKIPPED  (0/1 passed, 1 skipped)")
+        return 0
     if ok:
         print("\n\u2714  Hardware check: PASSED  (1/1)")
     else:

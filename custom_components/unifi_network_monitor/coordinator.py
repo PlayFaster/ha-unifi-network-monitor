@@ -20,6 +20,7 @@ from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
+from . import identity
 from .alerts import alert_title, build_alert_attrs, build_event_payload
 from .api import UnifiAuthError, UnifiConnectionError, UnifiNetworkAPI
 from .const import (
@@ -70,7 +71,6 @@ from .const import (
     EVENT_NEW_ALERT,
     EVENT_NEW_ROGUE_AP,
     FETCH_STRIKE_LIMIT,
-    GATEWAY_MODELS,
     HEALTH_DRIFT_STRIKE_LIMIT,
     PROJECTION_CONFIDENCE_LOW,
     PROJECTION_CONFIDENCE_MEDIUM,
@@ -89,6 +89,7 @@ from .const import (
     rogue_history_storage_key,
     usage_watermark_storage_key,
 )
+from .gateway import GatewaySelection, select_gateway
 from .helpers import calendar_cycle_bounds, project_cycle_usage
 
 _LOGGER = logging.getLogger(__name__)
@@ -593,9 +594,9 @@ def _parse_gateway(
         "wan2_public_ip": wan2_public_ip,
         "update_available": bool(device.get("upgradable")),
         # WAN1
-        "wan1_ifname": wan1_data.get("ifname") or "eth8",
-        "wan1_active": bool(wan1_data.get("is_uplink")),
-        "wan1_up": bool(wan1_data.get("up")),
+        "wan1_ifname": wan1_data.get("ifname") or None,
+        "wan1_active": bool(wan1_data.get("is_uplink")) if wan1_data else None,
+        "wan1_up": bool(wan1_data.get("up")) if wan1_data else None,
         "wan1_latency": _safe_int(wan1_data.get("latency")),
         "wan1_availability": _safe_float(wan1_data.get("availability")),
         "wan1_sfp_found": (
@@ -605,9 +606,9 @@ def _parse_gateway(
         "wan1_sfp_part": wan1_data.get("sfp_part"),
         "wan1_sfp_serial": wan1_data.get("sfp_serial"),
         # WAN2
-        "wan2_ifname": wan2_data.get("ifname") or "eth9",
-        "wan2_active": bool(wan2_data.get("is_uplink")),
-        "wan2_up": bool(wan2_data.get("up")),
+        "wan2_ifname": wan2_data.get("ifname") or None,
+        "wan2_active": bool(wan2_data.get("is_uplink")) if wan2_data else None,
+        "wan2_up": bool(wan2_data.get("up")) if wan2_data else None,
         "wan2_latency": _safe_int(wan2_data.get("latency")),
         "wan2_availability": _safe_float(wan2_data.get("availability")),
         "wan2_sfp_found": (
@@ -822,6 +823,9 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # Self-diagnosis: per-source consecutive schema-drift counters. A drift
         # signal must persist HEALTH_DRIFT_STRIKE_LIMIT cycles before it flags.
         self._drift_strikes: dict[str, int] = {}
+        # Consecutive polls on which no single gateway could be selected; the
+        # gateway_not_recognized repair is raised at HEALTH_DRIFT_STRIKE_LIMIT.
+        self._gateway_miss_strikes = 0
 
         # Explicit user actions (Refresh Now, speedtest run, weight change,
         # scan-interval change) set this so the next update fetches even when
@@ -868,6 +872,13 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.gateway_model: str = entry.data.get("model", "UDM Pro")
         self.sw_version: str | None = entry.data.get("sw_version")
         self.site_uuid: str | None = None
+        # The latest gateway selection, kept for the repair, the identity
+        # correction and the diagnostics download.
+        self.gateway_selection: GatewaySelection | None = None
+        # Identity check runs on the first poll of this load that selects a
+        # gateway, and on no later poll (identity.py).
+        self._identity_check_armed = True
+        self.stored_mac_absent: bool | None = None
 
         # Full networkconf objects for WAN/WAN2 — needed for PUT writes
         self._networkconf_wan: dict[str, Any] | None = None
@@ -1439,6 +1450,38 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         else:
             ir.async_delete_issue(self.hass, DOMAIN, issue_id)
 
+    def _sync_gateway_issue(
+        self, selection: GatewaySelection, devices: list[dict[str, Any]]
+    ) -> None:
+        """Raise/clear the gateway_not_recognized repair from the selection.
+
+        Raised only when no single gateway is selected (``ambiguous`` or
+        ``none``) on HEALTH_DRIFT_STRIKE_LIMIT consecutive polls. A selected
+        gateway, listed or not, raises nothing and clears the repair.
+        """
+        issue_id = repair_issue_id(self.entry.entry_id, "gateway_not_recognized")
+        if selection.device is not None:
+            self._gateway_miss_strikes = 0
+            ir.async_delete_issue(self.hass, DOMAIN, issue_id)
+            return
+        self._gateway_miss_strikes += 1
+        if self._gateway_miss_strikes < HEALTH_DRIFT_STRIKE_LIMIT:
+            return
+        if selection.reason == "ambiguous":
+            pool = list(selection.candidates)
+        else:
+            pool = [d for d in devices if d.get("type") not in ("usw", "uap")]
+        models = sorted({str(d.get("model")) for d in pool if d.get("model")})
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            issue_id,
+            is_fixable=False,
+            severity=ir.IssueSeverity.ERROR,
+            translation_key="gateway_not_recognized",
+            translation_placeholders={"models": ", ".join(models) or "none"},
+        )
+
     def endpoint_available(self, source: str | None) -> bool:
         """Return False when an optional endpoint has exhausted its retry strikes.
 
@@ -1718,11 +1761,26 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 gateway_data: dict[str, Any] | None = None
                 devices: dict[str, dict[str, Any]] = {}
 
+                # Selection considers every device, online or not; the offline
+                # skip below applies to parsing only.
+                self.gateway_selection = select_gateway(devices_raw, self.gateway_mac)
+                selected_gateway = self.gateway_selection.device
+                self._sync_gateway_issue(self.gateway_selection, devices_raw)
+                self.stored_mac_absent = identity.stored_mac_absent(
+                    self.entry, devices_raw
+                )
+                if self._identity_check_armed and selected_gateway is not None:
+                    self._identity_check_armed = False
+                    if identity.detect_on_first_poll(
+                        self.hass, self.entry, self.gateway_selection, devices_raw
+                    ):
+                        return self.data  # reload scheduled; setup corrects
+
                 for device in devices_raw:
                     if device.get("state", 0) == 0:
                         continue  # Offline — skip
                     try:
-                        if device.get("model") in GATEWAY_MODELS:
+                        if selected_gateway is not None and device is selected_gateway:
                             gateway_device = device
                             gateway_data = _parse_gateway(device, update_time, self)
                         elif device.get("is_access_point"):
@@ -2042,16 +2100,17 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             reverse=True,
                         )
 
-                        # Get configured physical interfaces for WAN1/WAN2
-                        wan1_ifname = "eth8"
-                        wan2_ifname = "eth9"
+                        # The gateway's own WAN port names; None when absent,
+                        # with no default from another gateway model.
+                        wan1_ifname: str | None = None
+                        wan2_ifname: str | None = None
                         if gateway_device:
-                            wan1_ifname = (
-                                gateway_device.get("wan1", {}).get("ifname") or "eth8"
-                            )
-                            wan2_ifname = (
-                                gateway_device.get("wan2", {}).get("ifname") or "eth9"
-                            )
+                            wan1_ifname = (gateway_device.get("wan1") or {}).get(
+                                "ifname"
+                            ) or None
+                            wan2_ifname = (gateway_device.get("wan2") or {}).get(
+                                "ifname"
+                            ) or None
 
                         # Check if results have interface metadata
                         has_interface = any(
@@ -2065,12 +2124,18 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                             # 1. Map by interface name or network group (preferred)
                             for item in sorted_speedtest:
                                 if w1 is None and (
-                                    item.get("interface_name") == wan1_ifname
+                                    (
+                                        wan1_ifname is not None
+                                        and item.get("interface_name") == wan1_ifname
+                                    )
                                     or item.get("wan_networkgroup") == "WAN"
                                 ):
                                     w1 = item
                                 if w2 is None and (
-                                    item.get("interface_name") == wan2_ifname
+                                    (
+                                        wan2_ifname is not None
+                                        and item.get("interface_name") == wan2_ifname
+                                    )
                                     or item.get("wan_networkgroup") == "WAN2"
                                 ):
                                     w2 = item

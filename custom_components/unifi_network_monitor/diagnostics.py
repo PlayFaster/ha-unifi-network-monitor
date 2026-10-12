@@ -166,6 +166,31 @@ def _is_mac(value: Any) -> bool:
     return bool(_MAC_RE.fullmatch(str(value or "").strip()))
 
 
+# entry.data keys written by the gateway identity correction (identity.py);
+# each holds a MAC or, for an entry set up with no gateway, the host.
+_IDENTITY_KEYS = ("previous_unique_id", "previous_mac", "identity_blocked_mac")
+
+
+def _scrub_identity_value(scrub: _Scrubber, value: Any) -> Any:
+    """Tokenise a MAC as a device MAC; redact anything else, such as a host."""
+    if not value:
+        return value
+    return scrub.device_token(value) if _is_mac(value) else REDACTED
+
+
+def _scrub_identity_keys(scrub: _Scrubber, entry_data: dict[str, Any]) -> None:
+    """Scrub the identity-correction keys, including the pending record."""
+    for key in _IDENTITY_KEYS:
+        if key in entry_data:
+            entry_data[key] = _scrub_identity_value(scrub, entry_data[key])
+    pending = entry_data.get("identity_pending")
+    if isinstance(pending, dict):
+        entry_data["identity_pending"] = {
+            k: (_scrub_identity_value(scrub, v) if k in (*_IDENTITY_KEYS, "mac") else v)
+            for k, v in pending.items()
+        }
+
+
 def _learn(scrub: _Scrubber, source: Any) -> None:
     """Learn the free-text identifiers carried by a mapping."""
     if not isinstance(source, dict):
@@ -295,6 +320,7 @@ async def async_get_config_entry_diagnostics(  # noqa: C901
                 scrub.rogue_token(record["essid"])
 
     # --- Pass 2: rewrite ---------------------------------------------------
+    _scrub_identity_keys(scrub, entry_data)
     if isinstance(boot_times, dict):
         entry_data["boot_times"] = {
             (scrub.device_token(key) if _is_mac(key) else key): record

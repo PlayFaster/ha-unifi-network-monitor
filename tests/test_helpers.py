@@ -51,7 +51,8 @@ def test_build_gateway_device_info() -> None:
     assert "connections" not in info
     assert info["identifiers"] == {(DOMAIN, MOCK_MAC)}
     assert "Gateway" in info["name"]
-    assert info["model"] == "UDMPRO"
+    # The card shows the display name; the stored model stays the raw code (I2).
+    assert info["model"] == "UDM-Pro"
     assert info["sw_version"] == "5.1.19.33549"
     # The gateway is the tree root — it must link to no parent on any HA version.
     assert_is_root(info)

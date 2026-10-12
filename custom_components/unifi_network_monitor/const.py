@@ -182,7 +182,12 @@ PROJECTION_CONFIDENCE_MEDIUM = 0.75
 # multi-entry is reachable here: config_flow sets unique_id from the gateway
 # MAC, so two UDMs are two entries, and a bare id would let one entry's repair
 # overwrite the other's and either one clear both.
-REPAIR_ISSUE_NAMES = ("site_resolution_failed", "schema_drift_detected")
+REPAIR_ISSUE_NAMES = (
+    "site_resolution_failed",
+    "schema_drift_detected",
+    "gateway_not_recognized",
+    "gateway_identity_blocked",
+)
 
 
 def repair_issue_id(entry_id: str, name: str) -> str:
@@ -352,15 +357,48 @@ def disabled_device_keys(options: Mapping[str, Any]) -> frozenset[str]:
     return frozenset(disabled)
 
 
-# Gateway model identifiers from UniFi stat/device
-GATEWAY_MODELS = {
-    "UDMPRO",
-    "UDM",
-    "UDMSE",
-    "UDMPROSE",
-    "UDMBASE",
-    "UNVR",
-    "UNVRPRO",
-    "UCG-Ultra",
-    "UCG-Max",
+# Gateway model codes from UniFi stat/device, mapped to product display names.
+# The list names the gateway on its device card and confirms a selection; it
+# does not gate detection, which is signature-first (see gateway.py).
+GATEWAY_MODELS: dict[str, str] = {
+    "UDM": "UDM",
+    "UDMPRO": "UDM-Pro",
+    "UDMPROSE": "UDM-SE",
+    "UDMPROMAX": "UDM-Pro-Max",
+    "UDMEA4C": "UDM-Beast",
+    "UDW": "Dream Wall",
+    "UDRULT": "UCG-Ultra",
+    "UCGMAX": "UCG-Max",
+    "UDMA6A8": "UCG-Fiber",
+    "UDMA6AD": "UCG-Industrial",
+    "UDR": "UDR",
+    "UDMA67A": "UDR7",
+    "UDMA6B9": "UDR-5G-Max",
+    "UX": "UX",
+    "UDMA69B": "UX7",
+    "UDMENT": "EFG",
+    "UDMEA4B": "EF-Core",
+    "UXG": "UXG-Lite",
+    "UXGB": "UXG-Max",
+    "UXGPRO": "UXG-Pro",
+    "UXGENT": "UXG-Enterprise",
+    "UXGA6AA": "UXG-Fiber",
+    "UGW3": "USG-3P",
+    "UGW4": "USG-Pro-4",
+    "UGW8": "UGW8",
+    "UGWHD4": "USG",
+    "UGWXG": "USG-XG-8",
 }
+
+# Gateway device types from UniFi stat/device
+GATEWAY_TYPES = frozenset({"udm", "ugw", "usg", "ucg", "uxg"})
+
+
+def gateway_display_model(model: str | None) -> str | None:
+    """Return the product display name for a gateway model code.
+
+    An unlisted code is returned unchanged, so the card shows the raw code.
+    """
+    if model is None:
+        return None
+    return GATEWAY_MODELS.get(model, model)

@@ -108,6 +108,37 @@ async def test_config_flow_api_key_success(hass: Any) -> None:
 
 
 @pytest.mark.usefixtures("socket_enabled")
+async def test_config_flow_without_a_gateway_uses_the_host(hass: Any) -> None:
+    """No gateway selected: no device is adopted and the host is the identity.
+
+    Issue #23: the removed first-device fallback stored a switch MAC as the
+    entry's identity. The entry now stores ``mac: ""`` and no model, and the
+    coordinator raises ``gateway_not_recognized`` (I3, I4).
+    """
+    switch = {"mac": "aa:00:00:00:00:01", "model": "USM8P210", "type": "usw"}
+    api = "custom_components.unifi_network_monitor.api.UnifiNetworkAPI"
+    with (
+        patch(f"{api}.get_devices", AsyncMock(return_value=[switch])),
+        patch(f"{api}.get_sysinfo", AsyncMock(return_value=[])),
+        patch(
+            "custom_components.unifi_network_monitor.async_setup_entry",
+            AsyncMock(return_value=True),
+        ),
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": "user"}
+        )
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], user_input=VALID_INPUT
+        )
+
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert result["data"]["mac"] == ""
+    assert result["data"].get("model") is None
+    assert result["result"].unique_id == VALID_INPUT["host"]
+
+
+@pytest.mark.usefixtures("socket_enabled")
 async def test_config_flow_cannot_connect(hass: Any) -> None:
     """Config flow shows error on connection failure."""
     with patch(

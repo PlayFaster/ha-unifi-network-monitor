@@ -29,7 +29,7 @@ Beyond passive entities there are four capability classes, each with architectur
 - **On-demand response actions** — self-contained fetches, deliberately **decoupled from the feature toggles**, so they work even when the matching sensor group is disabled.
 - **List-management actions** — mutate `entry.options`; the reload listener applies the change.
 - **Bus events** — fire from the coordinator parse with a first-poll/re-enable baseline plus bounded dedup, gated on the owning feature flag.
-- **Self-diagnosis** — an Integration Health `problem` binary sensor backed by the `site_resolution_failed` + `schema_drift_detected` repair issues, plus a **persistent** BSSID-keyed rogue-AP appearance history in a `Store` that survives restarts.
+- **Self-diagnosis** — an Integration Health `problem` binary sensor backed by the `site_resolution_failed` + `schema_drift_detected` repair issues; `gateway_not_recognized` and `gateway_identity_blocked` are raised by the coordinator and `identity.py`, plus a **persistent** BSSID-keyed rogue-AP appearance history in a `Store` that survives restarts.
 
 See **Architecture** and the sections below.
 
@@ -48,6 +48,10 @@ Data flows in one direction: **`api.py` → `coordinator.py` → platform entiti
   - Three data endpoints: `/proxy/network/api/s/{site}/stat/device`, `/stat/health`, `/stat/sysinfo`.
   - `validate_connection()` — fetches devices + sysinfo, finds gateway device, returns `{mac, model, sw_version}`. Used only at config flow time.
   - Two exception types: `UnifiConnectionError` (network/transient) and `UnifiAuthError` (credentials). Raise the right one.
+
+- **`gateway.py`**: `select_gateway()`, signature-first gateway selection with no Home Assistant imports; used by `api.py`, the coordinator and `scripts/hardware_check.py`.
+
+- **`identity.py`**: detects and applies the automatic gateway identity correction; called from `async_setup_entry` before the coordinator is constructed, and once from the first selecting poll.
 
 - **`coordinator.py` (`UnifiNetworkDataUpdateCoordinator`)** — polling + parsing + resilience layer.
   - **Flat Identity**: gateway MAC, model, and sw_version are loaded from `entry.data` at init time — no network call needed to identify the gateway device on boot.
@@ -139,7 +143,7 @@ Several tests here are **sweeps**: they assert that every member of a _set_ is c
 | An entity attribute | `test_no_entity_publishes_a_recorded_attribute`, `test_health_detail_is_unrecorded`, `test_rogue_proximity_rssi_is_unrecorded`, `test_gateway_sensor_records_nothing` | Add the key to that class's `_unrecorded_attributes`. **Repeat `"about"` if the class declares its own set**. |
 | A credential field in any config-flow schema | `test_stored_secrets_are_never_pre_filled`, `test_no_field_leaks_a_stored_secret` | Never seed it from stored options — not as `default` and not as `suggested_value`. |
 | A new write command in `api.py` | `test_every_write_is_classified`, `test_every_entry_carries_a_written_reason` | Add it to `scripts/write_classification.py` as `SAFE`, `ATTENDED` or `NEVER_AUTOMATED`, **with a written reason**. |
-| A new repair issue | `test_repair_issue_names_cover_both_repairs` | Add the name to `REPAIR_ISSUE_NAMES` in `const.py` and raise it through `repair_issue_id(entry_id, name)`. |
+| A new repair issue | `test_repair_issue_names_cover_all_four_repairs` | Add the name to `REPAIR_ISSUE_NAMES` in `const.py` and raise it through `repair_issue_id(entry_id, name)`. |
 | A test with no assertion | the assertion audit (`python .workbench/check_test_assertions.py`) | Assert the observable outcome — nothing cancelled, nothing written, the error logged. |
 | **Any new partial branch** | branch coverage (`pytest --cov --cov-branch`) | Treat it as a missing test; the bar is zero partial branches. |
 | Any branch in a `for` loop guard | branch coverage (`pytest --cov --cov-branch`) | Use **at least two** items with the unwanted one **first**, and assert the later item was still processed. |

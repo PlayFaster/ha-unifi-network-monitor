@@ -210,6 +210,30 @@ async def test_speedtest_button_press_none_data() -> None:
     coordinator.async_trigger_speedtest.assert_awaited_with(None)
 
 
+async def test_wan2_speedtest_without_a_port_raises_and_sends_nothing() -> None:
+    """WAN2 with no port raises; a command without a port would run on WAN1."""
+    coordinator = _make_coordinator(
+        {
+            **MOCK_COORDINATOR_DATA,
+            "gateway": {**MOCK_COORDINATOR_DATA["gateway"], "wan2_ifname": None},
+        }
+    )
+    entry = _make_entry()
+
+    from custom_components.unifi_network_monitor.button import (
+        _WAN2_SPEEDTEST_DESCRIPTION,
+        UnifiSpeedtestButton,
+    )
+
+    button = UnifiSpeedtestButton(
+        coordinator, entry, _WAN2_SPEEDTEST_DESCRIPTION, "wan2"
+    )
+    with pytest.raises(HomeAssistantError) as exc_info:
+        await button.async_press()
+    assert exc_info.value.translation_key == "speedtest_wan2_port_unknown"
+    coordinator.async_trigger_speedtest.assert_not_awaited()
+
+
 async def test_speedtest_button_press_wraps_error() -> None:
     """A UnifiError from the trigger is surfaced as HomeAssistantError."""
     coordinator = _make_coordinator(MOCK_COORDINATOR_DATA)

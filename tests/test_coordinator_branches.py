@@ -262,6 +262,14 @@ _GATEWAY_DEVICE: dict[str, Any] = {
     "state": 1,
 }
 
+# The same gateway reporting its WAN port names, as a UDM Pro does. Port names
+# come from the device only, with no default (I7).
+_GATEWAY_WITH_PORTS: dict[str, Any] = {
+    **_GATEWAY_DEVICE,
+    "wan1": {"ifname": "eth8"},
+    "wan2": {"ifname": "eth9"},
+}
+
 
 def _api(**overrides: Any) -> MagicMock:
     api = MagicMock()
@@ -438,12 +446,13 @@ async def test_a_speedtest_result_with_no_time_leaves_lastrun_unset(
     """A result without a timestamp still yields speeds, but no "last run"."""
     mock_config_entry.add_to_hass(hass)
     api = _api(
+        get_devices=AsyncMock(return_value=[dict(_GATEWAY_WITH_PORTS)]),
         get_speedtest_results=AsyncMock(
             return_value=[
                 {"interface_name": "eth8", "download_mbps": 500},
                 {"interface_name": "eth9", "download_mbps": 200},
             ]
-        )
+        ),
     )
     coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
 
@@ -663,14 +672,14 @@ def test_parse_gateway_ignores_an_uplink_that_is_not_the_wan_port() -> None:
     assert result["wan1_local_ip"] is None
 
 
-async def test_speedtest_falls_back_to_default_interfaces_without_a_gateway(
+async def test_speedtest_parses_without_a_gateway(
     hass: Any, mock_config_entry: Any
 ) -> None:
-    """With no gateway in stat/device the default interface names are used.
+    """With no gateway in stat/device the speedtest parse still completes.
 
     Reachable while the gateway is rebooting: the speedtest history is still
-    served by the controller, so the results must still map rather than being
-    dropped for want of an ifname lookup.
+    served by the controller. No port name is assumed (I7): the earlier
+    ``eth8`` / ``eth9`` defaults belonged to the UDM Pro only.
     """
     mock_config_entry.add_to_hass(hass)
     api = _api(
@@ -703,11 +712,12 @@ async def test_speedtest_with_only_wan2_metadata_leaves_wan1_unset(
     """
     mock_config_entry.add_to_hass(hass)
     api = _api(
+        get_devices=AsyncMock(return_value=[dict(_GATEWAY_WITH_PORTS)]),
         get_speedtest_results=AsyncMock(
             return_value=[
                 {"interface_name": "eth9", "download_mbps": 200, "time": 1},
             ]
-        )
+        ),
     )
     coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
 
@@ -945,3 +955,92 @@ async def test_force_refresh_now_fetches_inline_while_paused(
     api.get_devices.assert_awaited()
     assert coordinator.last_update_success is True
     assert coordinator._force_refresh_once is False
+
+
+# ---------------------------------------------------------------------------
+# WAN port names from the device only (v1.1.0-dev12 I7)
+# ---------------------------------------------------------------------------
+
+
+async def _poll_gateway(
+    hass: Any, entry: Any, gateway: dict[str, Any], results: list[dict[str, Any]]
+) -> dict[str, Any]:
+    entry.add_to_hass(hass)
+    api = _api(
+        get_devices=AsyncMock(return_value=[gateway]),
+        get_speedtest_results=AsyncMock(return_value=results),
+    )
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, entry, api)
+    result = await coordinator._async_update_data()
+    gateway_data: dict[str, Any] = result["gateway"]
+    return gateway_data
+
+
+async def test_gateway_without_ifname_publishes_none_and_maps_by_network_group(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """No port name is assumed; results map by ``wan_networkgroup``."""
+    gateway = {**_GATEWAY_DEVICE, "wan1": {"up": True}, "wan2": {"up": True}}
+    data = await _poll_gateway(
+        hass,
+        mock_config_entry,
+        gateway,
+        [
+            {"interface_name": "eth8", "wan_networkgroup": "WAN", "download_mbps": 5},
+            {"interface_name": "eth9", "wan_networkgroup": "WAN2", "download_mbps": 7},
+        ],
+    )
+    assert data["wan1_ifname"] is None
+    assert data["wan2_ifname"] is None
+    assert data["wan1_speedtest_download"] == 5
+    assert data["wan2_speedtest_download"] == 7
+
+
+async def test_gateway_with_port_eth4_maps_eth4(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """A gateway reporting ``eth4`` maps a result tagged ``eth4`` to WAN1."""
+    gateway = {**_GATEWAY_DEVICE, "wan1": {"ifname": "eth4"}}
+    data = await _poll_gateway(
+        hass,
+        mock_config_entry,
+        gateway,
+        [{"interface_name": "eth4", "download_mbps": 9}],
+    )
+    assert data["wan1_ifname"] == "eth4"
+    assert data["wan1_speedtest_download"] == 9
+
+
+async def test_untagged_result_is_not_matched_to_an_unknown_port(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """With no port name, a result lacking ``interface_name`` is not WAN2's.
+
+    Comparing ``None`` with a missing ``interface_name`` would match it.
+    """
+    gateway = {**_GATEWAY_DEVICE, "wan1": {"up": True}, "wan2": {"up": True}}
+    data = await _poll_gateway(
+        hass,
+        mock_config_entry,
+        gateway,
+        [
+            {"interface_name": "eth8", "wan_networkgroup": "WAN", "download_mbps": 5},
+            {"download_mbps": 3},
+        ],
+    )
+    assert data["wan1_speedtest_download"] == 5
+    assert data["wan2_speedtest_download"] is None
+
+
+async def test_wan1_none_keeps_speedtest_values(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """``wan1: None`` no longer raises in the speedtest block."""
+    gateway = {**_GATEWAY_DEVICE, "wan1": None}
+    data = await _poll_gateway(
+        hass,
+        mock_config_entry,
+        gateway,
+        [{"interface_name": "eth8", "wan_networkgroup": "WAN", "download_mbps": 5}],
+    )
+    assert data["wan1_speedtest_download"] == 5

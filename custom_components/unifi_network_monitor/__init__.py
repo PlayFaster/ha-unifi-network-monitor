@@ -41,11 +41,13 @@ from .const import (
     ROGUE_HISTORY_STORAGE_VERSION,
     USAGE_WATERMARK_STORAGE_VERSION,
     clamp_device_mode,
+    gateway_display_model,
     repair_issue_id,
     rogue_history_storage_key,
     usage_watermark_storage_key,
 )
 from .coordinator import UnifiNetworkDataUpdateCoordinator
+from .identity import async_apply_identity
 from .services import async_register_services
 
 _LOGGER = logging.getLogger(__name__)
@@ -173,6 +175,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         site=options.get(CONF_SITE, DEFAULT_SITE),
     )
 
+    # Gateway identity correction runs before the coordinator copies the MAC,
+    # model and boot-time latch from entry.data (identity.py).
+    async_apply_identity(hass, entry)
+
     coordinator = UnifiNetworkDataUpdateCoordinator(hass, entry, api)
     entry.runtime_data = coordinator
     # Load persisted rogue-AP appearance history before the first poll so the
@@ -195,7 +201,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             identifiers={(DOMAIN, mac)},
             name=f"{entry.title} Gateway",
             manufacturer="Ubiquiti",
-            model=coordinator.gateway_model,
+            model=gateway_display_model(coordinator.gateway_model),
             sw_version=coordinator.sw_version,
             configuration_url=f"https://{options.get(CONF_HOST, '')}",
         )

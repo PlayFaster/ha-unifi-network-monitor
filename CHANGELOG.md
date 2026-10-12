@@ -32,25 +32,40 @@ All notable changes to the UniFi Network Monitor project will be documented in t
 
 ### Fixed
 
-- **WAN load-balance weight**: setting the weight could write back a stale copy of your network configuration, undoing other changes made on the controller since the integration last polled. It now re-reads the configuration immediately before writing.
+- **WAN load-balance weight** *(refines WAN Load-Balance Control, introduced in 1.0.0)*: setting the weight could write back a stale copy of your network configuration, undoing other changes made on the controller since the integration last polled. It now re-reads the configuration immediately before writing.
 
-- **WAN load-balance weight consistency**: rapid changes could previously leave WAN1 and WAN2 not summing to 100 without anything reporting it. The pair is now written as one uninterruptible operation and confirmed afterwards, and a pending change is applied rather than discarded if the entity is removed mid-write.
+- **WAN load-balance weight consistency** *(refines WAN Load-Balance Control, introduced in 1.0.0)*: rapid changes could previously leave WAN1 and WAN2 not summing to 100 without anything reporting it. The pair is now written as one uninterruptible operation and confirmed afterwards, and a pending change is applied rather than discarded if the entity is removed mid-write.
 
-- **Database growth**: `strongest_rogue_rssi`, the proximity threshold, `application_version`, `application_build` and `device_type` were written to the recorder on every poll. They are now excluded, as originally intended.
+- **Database growth** *(refines Recorder Exclusions, introduced in 1.0.0)*: `strongest_rogue_rssi`, the proximity threshold, `application_version`, `application_build` and `device_type` were written to the recorder on every poll. They are now excluded, as originally intended.
 
-- **Refresh Now**: the button reported success even when the controller could not be reached. It now raises, so a script can tell the refresh did not happen. See **Action Required** above.
+- **Refresh Now** *(refines Refresh Now, introduced in 1.0.0)*: the button reported success even when the controller could not be reached. It now raises, so a script can tell the refresh did not happen. See **Action Required** above.
 
-- **Stated Home Assistant minimum version**: the README and `hacs.json` advertised 2024.8.0 while the integration actually requires **2024.11.0**. Corrected, so an incompatible install is caught before setup rather than during it.
+- **Stated Home Assistant minimum version** *(refines Install Requirements, introduced in 1.0.0)*: the README and `hacs.json` advertised 2024.8.0 while the integration actually requires **2024.11.0**. Corrected, so an incompatible install is caught before setup rather than during it.
 
 ### Changed
 
-- **Repair issues are now scoped to the config entry**, so with two gateways one entry's repair notice can no longer overwrite the other's. Visible text is unchanged.
+- **Repair issues are now scoped to the config entry** *(enhances Repair Issues from 1.0.0)*: with two gateways one entry's repair notice can no longer overwrite the other's. Visible text is unchanged.
 
-- **Reauthentication screen** now explains what leaving a credential field blank does, instead of leaving it to be guessed.
+- **Reauthentication screen** *(enhances Reauthentication from 1.0.0)*: now explains what leaving a credential field blank does, instead of leaving it to be guessed.
+
+### Under the hood
+
+- **Test Suite**: 842 tests at 100% line and 100% branch coverage, with 0 partial branches.
+- **Mutation Testing**: added; diagnostics redaction tests cut surviving mutants from 87 to 8.
+- **Standards Guards**: tests now fail on a recorded attribute, a missing guard band, a `TOTAL` state class, or a translation or icon out of step with the code.
+- **Write Register**: every controller write is classified, and the one safe write has a real-hardware check.
+- **Diagnostics Redaction**: verified against a real, populated diagnostics download.
 
 ---
 
 ## [1.0.0] - 2026-07-22 - Initial Public Release
+
+### Highlights
+
+- **Internet Data Usage**: daily and monthly totals, per WAN in dual-WAN mode.
+- **Speedtest Tracking**: per-WAN results with one-click manual runs.
+- **Rogue AP and Alerts**: rogue-AP detection and UniFi system-log alerts for automations.
+- **WAN Load Balancing**: see failover status and set the WAN weight.
 
 ### Summary
 

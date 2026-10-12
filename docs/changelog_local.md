@@ -2,7 +2,7 @@
 
 All changes to this project will be documented in this file. This is the detailed changelog, to include non user facing changes and intra-release changes.
 
-> [!IMPORTANT]>
+> [!IMPORTANT]
 >
 > ## Authoring Rules for AI Agents & Maintainers (`changelog_format.md`)
 >
@@ -17,33 +17,34 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: UniFi Network Monitor](#internal-detailed-changelog-unifi-network-monitor)
-  - [\[1.1.0-dev11\] - 2026-10-11 - Hardware Check Sends the WAN Port Name; Device-Registry Test Deprecations Fixed; Validation Clean](#110-dev11---2026-10-11---hardware-check-sends-the-wan-port-name-device-registry-test-deprecations-fixed-validation-clean)
-  - [\[1.1.0-dev10\] - 2026-10-11 - Shared Tooling Sync: HA Core isort Adopted; Probatio Script Import and Mypy Overrides; Doc Wording Changed](#110-dev10---2026-10-11---shared-tooling-sync-ha-core-isort-adopted-probatio-script-import-and-mypy-overrides-doc-wording-changed)
+  - [\[1.1.0-dev12\] - 2026-10-12 - Gateway Detection: Signature-First Selection; Unrecognized-Gateway Repair; Automatic Identity Correction](#110-dev12---2026-10-12---gateway-detection-signature-first-selection-unrecognized-gateway-repair-automatic-identity-correction)
+  - [\[1.1.0-dev11\] - 2026-10-11 - Hardware Check: WAN Port Name Sent; Device-Registry Test Deprecations Fixed; Validation Clean](#110-dev11---2026-10-11---hardware-check-wan-port-name-sent-device-registry-test-deprecations-fixed-validation-clean)
+  - [\[1.1.0-dev10\] - 2026-10-11 - Shared Tooling Sync: HA Core isort Adopted; Probatio Script Import and Mypy Overrides; Telemetry Wording Removed](#110-dev10---2026-10-11---shared-tooling-sync-ha-core-isort-adopted-probatio-script-import-and-mypy-overrides-telemetry-wording-removed)
   - [\[1.1.0-dev9\] - 2026-09-23 - AGENTS.md: Guard Test Table Trimmed; Rationale Moved to docs/test\_guards.md](#110-dev9---2026-09-23---agentsmd-guard-test-table-trimmed-rationale-moved-to-docstest_guardsmd)
   - [\[1.1.0-dev8\] - 2026-09-23 - Breaking: Minimum Home Assistant Raised to 2025.2.0 for Python 3.13](#110-dev8---2026-09-23---breaking-minimum-home-assistant-raised-to-202520-for-python-313)
   - [\[1.1.0-dev7\] - 2026-09-08 - Documentation: Project Complexity \& Health Scorecard Added](#110-dev7---2026-09-08---documentation-project-complexity--health-scorecard-added)
-  - [\[1.1.0-dev6\] - 2026-08-26 - Linting: McCabe Complexity Rule (C901) \& Temporary Suppressions](#110-dev6---2026-08-26---linting-mccabe-complexity-rule-c901--temporary-suppressions)
+  - [\[1.1.0-dev6\] - 2026-08-26 - Linting: McCabe Complexity Rule (C901) Adopted; Two Functions Temporarily Suppressed](#110-dev6---2026-08-26---linting-mccabe-complexity-rule-c901-adopted-two-functions-temporarily-suppressed)
   - [\[1.1.0-dev5\] - 2026-08-26 - Documentation: Comprehensive Changelog Readability and Header Standardization](#110-dev5---2026-08-26---documentation-comprehensive-changelog-readability-and-header-standardization)
-  - [\[1.1.0-dev4\] - 2026-08-24 - Notes Queue: `.notes/tasks/` Created; The Topic Folders Sorted](#110-dev4---2026-08-24---notes-queue-notestasks-created-the-topic-folders-sorted)
+  - [\[1.1.0-dev4\] - 2026-08-24 - Notes Queue: Tasks Folder Migration; Legacy Topic Folders Archived](#110-dev4---2026-08-24---notes-queue-tasks-folder-migration-legacy-topic-folders-archived)
   - [\[1.1.0-dev3\] - 2026-08-14 - Tooling Bumps: Zizmor, MyPy, JSONSchema, and PHACC](#110-dev3---2026-08-14---tooling-bumps-zizmor-mypy-jsonschema-and-phacc)
-  - [\[1.0.1-dev22\] - 2026-08-08 - Refresh Now Failure Reporting; Diagnostics and About Verified Live](#101-dev22---2026-08-08---refresh-now-failure-reporting-diagnostics-and-about-verified-live)
+  - [\[1.0.1-dev22\] - 2026-08-08 - Control & Diagnostics: Refresh Now Failure Reporting; Live Data Verification](#101-dev22---2026-08-08---control--diagnostics-refresh-now-failure-reporting-live-data-verification)
   - [\[1.0.1-dev21\] - 2026-08-08 - Code Review: Refresh Now Failure Reporting Finding and Architecture Audit](#101-dev21---2026-08-08---code-review-refresh-now-failure-reporting-finding-and-architecture-audit)
   - [\[1.0.1-dev20\] - 2026-08-08 - Boundary Test Coverage: Alert Truncation, Device-Parse Guards, and Rogue Sorting](#101-dev20---2026-08-08---boundary-test-coverage-alert-truncation-device-parse-guards-and-rogue-sorting)
   - [\[1.0.1-dev19\] - 2026-08-08 - Mutation Testing: Diagnostics Token Scrubbing Assertions](#101-dev19---2026-08-08---mutation-testing-diagnostics-token-scrubbing-assertions)
-  - [\[1.0.1-dev18\] - 2026-08-08 - Zero Partial Branches: Five Unreachable Guards Removed](#101-dev18---2026-08-08---zero-partial-branches-five-unreachable-guards-removed)
+  - [\[1.0.1-dev18\] - 2026-08-08 - Branch Coverage: Unreachable Defensive Guards Removed; Zero Partial Branches Achieved](#101-dev18---2026-08-08---branch-coverage-unreachable-defensive-guards-removed-zero-partial-branches-achieved)
   - [\[1.0.1-dev17\] - 2026-08-08 - Documentation: Internet Group Sensor About Attributes Coverage Expansion](#101-dev17---2026-08-08---documentation-internet-group-sensor-about-attributes-coverage-expansion)
   - [\[1.0.1-dev16\] - 2026-08-08 - Documentation: Write-Classification Register and Roadmap Reconciliation](#101-dev16---2026-08-08---documentation-write-classification-register-and-roadmap-reconciliation)
-  - [\[1.0.1-dev15\] - 2026-08-08 - Branch Coverage Complete: Sixteen of Seventeen Modules at 100%](#101-dev15---2026-08-08---branch-coverage-complete-sixteen-of-seventeen-modules-at-100)
-  - [\[1.0.1-dev14\] - 2026-08-08 - Branch Coverage: Fifteen of Seventeen Modules at 100%](#101-dev14---2026-08-08---branch-coverage-fifteen-of-seventeen-modules-at-100)
-  - [\[1.0.1-dev13\] - 2026-08-08 - Standards Sweeps and Translation Reconciliation; Zero-Assertion Tests Fix](#101-dev13---2026-08-08---standards-sweeps-and-translation-reconciliation-zero-assertion-tests-fix)
-  - [\[1.0.1-dev12\] - 2026-08-08 - WAN Weight Write Hardening and Projected Data Usage](#101-dev12---2026-08-08---wan-weight-write-hardening-and-projected-data-usage)
+  - [\[1.0.1-dev15\] - 2026-08-08 - Branch Coverage: Coordinator Branch Tests Added; Sixteen Modules at 100% Coverage](#101-dev15---2026-08-08---branch-coverage-coordinator-branch-tests-added-sixteen-modules-at-100-coverage)
+  - [\[1.0.1-dev14\] - 2026-08-08 - Branch Coverage: Platform and Diagnostics Branch Tests Added](#101-dev14---2026-08-08---branch-coverage-platform-and-diagnostics-branch-tests-added)
+  - [\[1.0.1-dev13\] - 2026-08-08 - Testing Baseline: Standards Sweeps and Translation Reconciliation; Zero-Assertion Tests Fixed](#101-dev13---2026-08-08---testing-baseline-standards-sweeps-and-translation-reconciliation-zero-assertion-tests-fixed)
+  - [\[1.0.1-dev12\] - 2026-08-08 - WAN Control & Forecast: Weight Write Hardening; Projected Data Usage Sensors Added](#101-dev12---2026-08-08---wan-control--forecast-weight-write-hardening-projected-data-usage-sensors-added)
   - [\[1.0.1-dev11\] - 2026-08-08 - Test Infrastructure: Device-Registry Mock Helpers and Ruff Clean Baseline](#101-dev11---2026-08-08---test-infrastructure-device-registry-mock-helpers-and-ruff-clean-baseline)
-  - [\[1.0.1-dev10\] - 2026-08-08 - Reauth Entry Resolution; README Corrections](#101-dev10---2026-08-08---reauth-entry-resolution-readme-corrections)
+  - [\[1.0.1-dev10\] - 2026-08-08 - Config Flow & Docs: Reauth Entry Resolution; README Speedtest Controls Added](#101-dev10---2026-08-08---config-flow--docs-reauth-entry-resolution-readme-speedtest-controls-added)
   - [\[1.0.1-dev9\] - 2026-08-07 - Documentation: README Automation Examples and Formatting Alignment](#101-dev9---2026-08-07---documentation-readme-automation-examples-and-formatting-alignment)
-  - [\[1.0.1-dev8\] - 2026-08-07 - CI and Workflow Tooling Bumps; Branch and Mutation Testing Coverage](#101-dev8---2026-08-07---ci-and-workflow-tooling-bumps-branch-and-mutation-testing-coverage)
-  - [\[1.0.1-dev7\] - 2026-07-28 - README Automation Example Glitch Guards and Float Rounding](#101-dev7---2026-07-28---readme-automation-example-glitch-guards-and-float-rounding)
-  - [\[1.0.1-dev6\] - 2026-07-27 - Device-Registry Record Split](#101-dev6---2026-07-27---device-registry-record-split)
-  - [\[1.0.1-dev5\] - 2026-07-27 - Dev Standards Architectural Invariants Test Coverage Matrix](#101-dev5---2026-07-27---dev-standards-architectural-invariants-test-coverage-matrix)
+  - [\[1.0.1-dev8\] - 2026-08-07 - Tooling & CI: Shared Workflows Bumped; Branch Coverage and Mutation Testing Configured](#101-dev8---2026-08-07---tooling--ci-shared-workflows-bumped-branch-coverage-and-mutation-testing-configured)
+  - [\[1.0.1-dev7\] - 2026-07-28 - Documentation: README Automation Example Glitch Guards and Float Rounding Added](#101-dev7---2026-07-28---documentation-readme-automation-example-glitch-guards-and-float-rounding-added)
+  - [\[1.0.1-dev6\] - 2026-07-27 - Architecture Docs: Device-Registry Analysis Split to Shared Standards](#101-dev6---2026-07-27---architecture-docs-device-registry-analysis-split-to-shared-standards)
+  - [\[1.0.1-dev5\] - 2026-07-27 - Standards Tracking: Dev Standards Test Coverage Baseline Recorded](#101-dev5---2026-07-27---standards-tracking-dev-standards-test-coverage-baseline-recorded)
   - [\[1.0.1-dev4\] - 2026-07-27 - Recorder Hygiene: Unrecorded Attribute Exclusions and Entity Sweep](#101-dev4---2026-07-27---recorder-hygiene-unrecorded-attribute-exclusions-and-entity-sweep)
   - [\[1.0.1-dev3\] - 2026-07-27 - Cross-Project Alignment: Health Attribute Naming and Test Renames](#101-dev3---2026-07-27---cross-project-alignment-health-attribute-naming-and-test-renames)
   - [\[1.0.1-dev2\] - 2026-07-26 - Documentation: README Controls Reorganization and Automation Cross-Links](#101-dev2---2026-07-26---documentation-readme-controls-reorganization-and-automation-cross-links)
@@ -51,7 +52,72 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-07-22 - Initial Public Release](#100---2026-07-22---initial-public-release)
   - [Document Audit Status](#document-audit-status)
 
-## [1.1.0-dev11] - 2026-10-11 - Hardware Check Sends the WAN Port Name; Device-Registry Test Deprecations Fixed; Validation Clean
+## [1.1.0-dev12] - 2026-10-12 - Gateway Detection: Signature-First Selection; Unrecognized-Gateway Repair; Automatic Identity Correction
+
+### Summary
+
+Fixes issue #23: on a Cloud Gateway Ultra (`UDRULT`), which the model list lacked, setup adopted a switch as the gateway and the WAN1 Speedtest sensors stayed unavailable. Gateway detection is now signature first and shared by the config flow, the coordinator and the hardware check. An entry already set up on the wrong device is moved to the gateway's identity automatically, keeping entity IDs, history and devices. Built from the plan `v110_dev12_plan.md`.
+
+### Added
+
+- **Gateway selection module**: new `gateway.py`, with no Home Assistant imports, holds `select_gateway(devices, stored_mac)`. The device carrying a non-empty `wan1` or `wan2` object is selected; several carriers are narrowed by `type` in the new `GATEWAY_TYPES` (`udm`, `ugw`, `usg`, `ucg`, `uxg`), online state and a listed model. Without a carrier, gateway `type` and then a listed model select. A remaining tie goes to the stored MAC, otherwise the result is `ambiguous`; no candidate is `none`.
+- **Unrecognized-gateway repair**: `gateway_not_recognized`, at ERROR severity, is raised after `HEALTH_DRIFT_STRIKE_LIMIT` consecutive polls with `ambiguous` or `none` and cleared when a gateway is selected. It lists the tied candidates' models, or for `none` the models of devices whose `type` is not `usw` or `uap`. A selected gateway, listed or not, raises nothing and changes nothing in Integration Health.
+- **Automatic gateway identity correction**: new `identity.py`. On the first poll of each load that selects a gateway confirmed by two of three signals (WAN object, gateway `type`, listed model), and only where the stored MAC is empty or belongs to another present device, `identity_pending` is written and one reload scheduled. Setup then rewrites entity unique IDs, removes a stale per-device card holding the gateway MAC, rewrites the root and seven sub-device identifiers, clears the `gateway` boot-time latch and sets `entry.data` and `unique_id` in one write, keeping `previous_unique_id` and `previous_mac`. Every setup while `previous_unique_id` is kept re-runs the registry steps, each skipping work already done.
+- **Blocked-correction repair**: `gateway_identity_blocked`, raised when another entry or entity already holds the gateway identity; the block is stored as `identity_blocked_mac` and re-checked at each setup.
+
+### Changed
+
+- **Gateway model list**: `GATEWAY_MODELS` is a map of 27 `stat/device` codes to product display names, used for the gateway device card and to confirm a selection; it no longer gates detection. `UDRULT` and `UCGMAX` replace the product names `UCG-Ultra` and `UCG-Max`; `UDMSE`, `UDMBASE`, `UNVR` and `UNVRPRO` are removed. The UDM Pro card now shows `UDM-Pro`; `entry.data["model"]` keeps the code `UDMPRO`.
+- **Config flow without a gateway**: the first-device fallback in `validate_connection()` is removed. With `ambiguous` or `none` the entry stores `mac: ""` and no model, and its `unique_id` falls back to the host.
+- **WAN port names from the device only**: the UDM Pro defaults `eth8` / `eth9` are removed from `_parse_gateway`, the speedtest mapping and `scripts/hardware_check.py`. A missing port publishes `None`; results then map by `wan_networkgroup`, and `interface_name` is compared only with a known port.
+- **WAN2 Speedtest Run without a port**: raises the translated `speedtest_wan2_port_unknown` and sends nothing, since a command with no `interface_name` runs on WAN1.
+- **Absent WAN object**: WAN Active and WAN Up publish `None` (unknown) where they published `False`, so a single-WAN gateway's WAN2 reads unknown, not off.
+- **Hardware check**: a gateway reporting no port for the requested WAN is a skip (`Hardware check: SKIPPED`), not a guessed port.
+- **Diagnostics**: `previous_unique_id`, `previous_mac`, `identity_blocked_mac` and `identity_pending` are scrubbed; a MAC is tokenized as a device MAC and a host is redacted.
+
+### Fixed
+
+- **Blocked correction never retried (found during the build)**: the first version of `identity.py` kept `identity_blocked_mac` permanently, so removing the duplicate entry did not let the correction run. Setup now re-checks the block and clears the marker and repair once the conflict is gone.
+- **Device lookup bypassed the compatibility shims (found during documentation reconciliation)**: `identity.py` called `async_get_device(identifiers=…)` and read `device.config_entries` directly. Both are deprecated since Home Assistant 2026.8 and break in 2027.8 and 2027.10. Device identifiers are no longer unique across config entries, so with two no-gateway entries sharing `(DOMAIN, "")` the lookup could return the other entry's device and leave this entry's device unmigrated. Now uses `_compat.device_by_identifier()` and `_compat.owning_entry_ids()`, scoped to the entry; `test_correction_moves_only_this_entrys_device_when_identifiers_are_shared` failed with the old lookup.
+- **Identity resume removed the gateway root after an opt-in correction (found by the I9 scoped review)**: in an opt-in device mode the former switch gets its own card with the previous MAC as its identifier, so a later setup's resume took that card for the old root, removed the corrected gateway root and moved the switch card onto the gateway identifier. The device steps now stop once a gateway sub-device carries the new MAC; `test_opt_in_correction_survives_later_restarts` failed before the fix.
+- **Mypy Strict, two errors (found during the build)**: `is_online` returned `Any`; the coordinator passed a possibly-`None` selected gateway to `_parse_gateway`.
+
+### Tests
+
+- **`tests/test_gateway_selection.py`** (new): model list and display names; selection for a `UDRULT` gateway, an unlisted model, a switch listed first, online and offline carriers, type and model narrowing, `ambiguous`, `none`, `None` and empty WAN objects, the skipped narrowing, the stored-MAC tie-break and a missing `state`.
+- **`tests/test_identity_correction.py`** (new): end-to-end correction in default and opt-in device modes with entity IDs and device IDs kept; one reload; the blocked case and its retry after the duplicate is removed; an interrupted correction completed on the next setup; an empty MAC with the host as `unique_id`; a correct entry untouched; the controller offline at start; the two-of-three, online, presence and block rules; step-level branches.
+- **`tests/test_gateway_parse_variants.py`** (new): `_parse_gateway` and a full poll on payloads with no temperatures, storage, system stats or `wan2`, `wan1` without `ifname` or `None`, and an unlisted model.
+- **Existing tests updated for the new behavior**: the first-device fallback test now expects no identity; the card model is `UDM-Pro`; the repair-name test covers four names; two speedtest tests give the gateway its ports; the hardware-check default test now expects `None`. New tests cover the four I4 repair cases, the WAN2 button error, port mapping without `ifname`, the hardware-check skip and the scrubbed diagnostics keys.
+- **Mutation proofs**: each of thirteen fixes was disabled in turn and its targeted test failed, then passed once restored: `UDRULT` listed, the signature step, the repair raise, the two-of-three rule, the stored-MAC presence rule, the resume step, the block re-check, the `eth8` default, the bare `interface_name` comparison, the WAN2 guard, the absent-WAN `None`, the entry-scoped device lookup and the resume guard.
+
+### Verified
+
+- **Live check on the development UDM Pro**: after a restart onto this build, Integration Health `off` with no issues, no repair, the WAN1 and WAN2 Speedtest sensors holding values, the gateway card showing `UDM-Pro`, `entry.data` keeping `UDMPRO` and its MAC, and no identity-correction keys. `Hardware: Check Device` resolved `wan1` to `eth8` and reported `PASSED  (1/1)`.
+- **Validation Suite**: `Fix and Validate All` of 2026-10-12: every step passes except the two accepted (Test Depth; McCabe complexity, `_async_update_data` now 85); 918 tests, coverage 100.00% line and branch, Mypy Strict no issues in 19 source files, Sensor Manifest in sync (141 entities), Hardware Check `PASSED  (1/1)`. A repeat run changes only `docs/project_complexity.md`, which each run re-measures.
+- **Baseline diagnostics download**: saved as `local_only/diag_dl/v110_dev12_udmpro_diagnostics_20261012.json` (0 raw MACs) for comparison with `1.1.0-dev14`.
+
+### Documentation
+
+- **`README.md`**: supported gateways, signature-first detection and the `UDM-Pro` card name; single-WAN behavior; a `🔨 Repairs` section listing the four repairs and the automatic identity correction.
+- **`docs/DEVELOPMENT.md`**: Gateway Selection & Identity Correction section with its known limits; speedtest mapping without default ports; the WAN2 button error and the unmeasured WAN1-disabled case.
+- **`docs/ROADMAP.md`**: the cross-model verification entry rewritten for the new detection.
+- **`AGENTS.md`**: repair list, `gateway.py` and `identity.py` in the module layout, and the renamed repair-names test (sensor review, category H).
+- **`docs/api_endpoints.md`**: `cmd/devmgr` without `interface_name` runs on WAN1 (measured on the UDM Pro).
+- **`.notes/proj_structure.md`**: the two new modules and three new test files.
+- **`docs/DEVELOPMENT.md`**: the pre-2026.8 shared-device case added to the known limits.
+
+### Known
+
+- **WAN signature**: rests on one measured site and on unpoller's device structures; single-WAN and Shadow Mode payloads are not measured.
+- **Single-signal selection**: setup trusts a selection that identity correction would not move.
+- **Two no-gateway entries**: share the `(DOMAIN, "")` device identifiers until each is corrected.
+
+### Deferred
+
+- **Selection detail in diagnostics**: the selection reason, candidates, a completed correction and a stored MAC absent from the device list are published in `1.1.0-dev14`.
+- **Test Depth (C-022) and McCabe complexity**: accepted at `1.1.0-dev11` and unchanged.
+
+## [1.1.0-dev11] - 2026-10-11 - Hardware Check: WAN Port Name Sent; Device-Registry Test Deprecations Fixed; Validation Clean
 
 ### Summary
 
@@ -87,7 +153,7 @@ Clears the `Fix and Validate All` failures recorded under `[1.1.0-dev10]` Known,
 - **Test Depth (C-022)**: 2 outcomes not driven by a poll (`schema_drift_detected`, `site_resolution_failed`), 3 publish stubs not captured, 3 seams. Report-only; findings recorded against C-022 in the cross-project queue, and no allow-list written because both outcomes are reachable.
 - **McCabe complexity**: `_async_update_data` 83 and `async_get_config_entry_diagnostics` 31, suppressed since `[1.1.0-dev6]` and tracked by `mccabe_complexity_reduction.md`.
 
-## [1.1.0-dev10] - 2026-10-11 - Shared Tooling Sync: HA Core isort Adopted; Probatio Script Import and Mypy Overrides; Doc Wording Changed
+## [1.1.0-dev10] - 2026-10-11 - Shared Tooling Sync: HA Core isort Adopted; Probatio Script Import and Mypy Overrides; Telemetry Wording Removed
 
 ### Summary
 
@@ -134,7 +200,7 @@ Records the uncommitted changes since `[1.1.0-dev3]` that `[1.1.0-dev4]` to `[1.
 
 ### Known
 
-- `Fix and Validate All` 2026-10-11: 2 tests fail on 2026.10 device-registry deprecations (`devices` as a mapping, `async_get_device`); coverage 99.95%; Mypy 1 error at `services.py:375` (`ChildDeviceEntry`); Repo Links broken `../dev_std/dev_standards.md` in `about_attribute_list.md`; markdownlint MD001/MD051 in this file and MD028 at `AGENTS.md:20`; McCabe 83 and 31 (suppressed, `[1.1.0-dev6]`).
+- **Validation Baseline**: `Fix and Validate All` 2026-10-11: 2 tests fail on 2026.10 device-registry deprecations (`devices` as a mapping, `async_get_device`); coverage 99.95%; Mypy 1 error at `services.py:375` (`ChildDeviceEntry`); Repo Links broken `../dev_std/dev_standards.md` in `about_attribute_list.md`; markdownlint MD001/MD051 in this file and MD028 at `AGENTS.md:20`; McCabe 83 and 31 (suppressed, `[1.1.0-dev6]`).
 - **C-028 residual British spellings**: `Cancelling` at `coordinator.py:967` and `number.py:107`, `cancelled` at `coordinator.py:970`, `Organisation` at `sensor.py:990` (user-facing `about` text) and `favour` at `_compat.py:67`.
 
 ## [1.1.0-dev9] - 2026-09-23 - AGENTS.md: Guard Test Table Trimmed; Rationale Moved to docs/test_guards.md
@@ -182,13 +248,17 @@ The minimum supported Home Assistant version rises from 2024.11.0 to 2025.2.0. H
 
 ## [1.1.0-dev7] - 2026-09-08 - Documentation: Project Complexity & Health Scorecard Added
 
+### Summary
+
+Added tracked architectural health scorecard documenting structural complexity, McCabe cyclomatic metrics, and test surface.
+
 ### Added
 
 - **`docs/project_complexity.md` architectural health scorecard**: Added a tracked project scorecard documenting current structural complexity metrics, including PlayFaster Health Index score, unmasked McCabe cyclomatic complexity ($V(G)$), routine statement length distributions, module sizes, entity platform declarative efficiency, test surface, and code suppressions.
 
 ---
 
-## [1.1.0-dev6] - 2026-08-26 - Linting: McCabe Complexity Rule (C901) & Temporary Suppressions
+## [1.1.0-dev6] - 2026-08-26 - Linting: McCabe Complexity Rule (C901) Adopted; Two Functions Temporarily Suppressed
 
 ### Summary
 
@@ -213,7 +283,7 @@ Documentation only. No code, no tests, no entity changes.
 - **Added Lead-In Summaries**: Wrapped existing opening context into explicit `### Summary` blocks across all entries to establish an immediate high-level abstract for readers coming in cold.
 - **Synchronized Table of Contents**: Rebuilt TOC links to ensure exact alignment with updated headers.
 
-## [1.1.0-dev4] - 2026-08-24 - Notes Queue: `.notes/tasks/` Created; The Topic Folders Sorted
+## [1.1.0-dev4] - 2026-08-24 - Notes Queue: Tasks Folder Migration; Legacy Topic Folders Archived
 
 ### Summary
 
@@ -223,9 +293,9 @@ Documentation only. `tasks_folder_migrate` run against this project — over **e
 
 ### Changed
 
-- **This project files by topic, not into `issues/`.** `issues/` held one entry, and that one is a folder a shared prompt writes to. The plans were in `setup_options/` (16 documents), `device_registry/` and `info/`. Running the prompt's usual `issues/` then `info/` passes would have reported the project clean while leaving seventeen documents unexamined; the prompt now enumerates every subfolder.
+- **Topic Folder Queue Migration**: This project files by topic, not into `issues/`. `issues/` held one entry, and that one is a folder a shared prompt writes to. The plans were in `setup_options/` (16 documents), `device_registry/` and `info/`. Running the prompt's usual `issues/` then `info/` passes would have reported the project clean while leaving seventeen documents unexamined; the prompt now enumerates every subfolder.
 - **Nineteen entries classified:** 19 to `tasks/closed/`, 1 to `info/`, 3 left where they were — `issues/testing_deeper/`, `brand_icon_options/` which holds only images, and two reference notes. `check_queue_format.py --project ha-unifi-network-monitor` reports `PASSED`, and there are **no open local tasks**.
-- **`setup_options/` archived as a unit.** The initial planning series, delivered: `const.py` carries five `CONF_ENABLE_*` group flags plus `CONF_ENABLE_DUAL_WAN`, `config_flow.py` carries `SECTION_SENSOR_GROUPS`, `cleanup.py` exists, the alerts sensors and `EVENT_NEW_ROGUE_AP` / `get_rogue_aps` are in place, `integration_health` is in `binary_sensor.py`, and the README lists the Security sub-device.
+- **Setup Options Archive**: `setup_options/` archived as a unit. The initial planning series, delivered: `const.py` carries five `CONF_ENABLE_*` group flags plus `CONF_ENABLE_DUAL_WAN`, `config_flow.py` carries `SECTION_SENSOR_GROUPS`, `cleanup.py` exists, the alerts sensors and `EVENT_NEW_ROGUE_AP` / `get_rogue_aps` are in place, `integration_health` is in `binary_sensor.py`, and the README lists the Security sub-device.
 - **`.notes/proj_structure.md` corrected.** It named `setup_options/` and `device_registry/` as live folders and described `issues/` as the issue tracker. `tasks/` and `issues/` are now described as they are, and the two emptied folders are gone from the table.
 - **`device_model_2026_08.md` moved to `info/`.** Phase 1 is implemented and validated; Phase 2 is owned by `docs/ROADMAP.md`'s "Formal child devices (#1414)" and by the cross-project `child_devices_2026_09.md`, so the note is design detail rather than a task. `device_registry/` is now empty.
 
@@ -248,7 +318,7 @@ Maintenance updates for development dependencies and shared CI tools.
 - **Validate Bump**: Update `check-jsonschema` from 0.37.4 to 0.38.0
 - **Validate Bump**: Bumped PHACC `pytest-homeassistant-custom-component` from 0.13.354 to 0.13.355
 
-## [1.0.1-dev22] - 2026-08-08 - Refresh Now Failure Reporting; Diagnostics and About Verified Live
+## [1.0.1-dev22] - 2026-08-08 - Control & Diagnostics: Refresh Now Failure Reporting; Live Data Verification
 
 ### Summary
 
@@ -256,7 +326,7 @@ Closes the three items the phased work had parked or deferred. Two of them neede
 
 ### Fixed
 
-- **Refresh Now now tells the caller when it failed** (`button.py`, `coordinator.py`). The Phase 7 finding: `async_press` awaited the **debounced** `async_request_refresh`, which records failure on `last_update_success` but does not propagate it — so the button could not raise, and an automation pressing it reported success even when the gateway was unreachable. `SpeedtestButton` two entities away already raised.
+- **Refresh Now Failure Propagation** (`button.py`, `coordinator.py`): `async_press` awaited the **debounced** `async_request_refresh`, which records failure on `last_update_success` but does not propagate it — so the button could not raise, and an automation pressing it reported success even when the gateway was unreachable. `SpeedtestButton` two entities away already raised.
 
   Adds `async_force_refresh_now`, a non-debounced variant, so the outcome is known when the call returns; the button reads `last_update_success` and raises `HomeAssistantError` with a new `refresh_failed` translation key.
 
@@ -330,7 +400,7 @@ Both mandated syntax checks are clean across all 17 source files: zero bare-tupl
 
 - **Two of the five findings were in modules mutation cannot reach.** `coordinator.py` and `sensor.py` are excluded from the mutation module list because their tests mock the API and the coordinator, so no mutation run will ever surface a gap in them. That is the argument for running both passes rather than treating mutation as sufficient.
 - **No mutation re-run was made for this entry.** `cache_invalidation_files = tests/*.py` means these test additions discard all 1045 verdicts, so confirming the two mutation-visible kills costs a full run. Recorded as owed rather than performed — see the recommendations file's Implementation Notes for the expected delta.
-- Analysis report: `.notes/issues/testing_deeper/recommendations_20260808.md`.
+- **Analysis Report Reference**: Analysis report at `.notes/issues/testing_deeper/recommendations_20260808.md`.
 
 ## [1.0.1-dev19] - 2026-08-08 - Mutation Testing: Diagnostics Token Scrubbing Assertions
 
@@ -375,11 +445,11 @@ Mutation testing analysis on `diagnostics.py`. Added 12 mutation-targeted tests 
 
 ### Notes
 
-- Mutation, three runs. The second confirmed the `[1.0.1-dev18]` projection work at **761 killed / 284 survived** — exactly `+5 killed / −5 survived` against the first, by count rather than by inference. The third verified this entry's work at **840 killed / 205 survived of 1045, 0 timeouts**: **+79 kills from 12 tests**.
+- **Mutation Testing Runs**: Mutation, three runs. The second confirmed the `[1.0.1-dev18]` projection work at **761 killed / 284 survived** — exactly `+5 killed / −5 survived` against the first, by count rather than by inference. The third verified this entry's work at **840 killed / 205 survived of 1045, 0 timeouts**: **+79 kills from 12 tests**.
 - **`diagnostics.py`: 87 survivors → 8**, and all 8 were triaged and written up _before_ the verifying run — three equivalents and five killable-but-not-worth-killing. No unexplained residue.
 - **The §14 / §21 Standards Test Coverage cells stay `UNVERIFIED`.** Both rest on `sensor.py`, whose 45+ survivors are all mocked-coordinator mutants and therefore evidence about the harness, not the behavior. Clearing them on a run that could not have tested them would repeat the exact error this phase exists to catch.
 
-## [1.0.1-dev18] - 2026-08-08 - Zero Partial Branches: Five Unreachable Guards Removed
+## [1.0.1-dev18] - 2026-08-08 - Branch Coverage: Unreachable Defensive Guards Removed; Zero Partial Branches Achieved
 
 ### Summary
 
@@ -461,14 +531,14 @@ Phase 3 of the August 2026 update plan — every documentation change in one rel
   - **§10** (session-terminating call awaited on unload) — `PENDING` → **met**. `tests/test_teardown_contract.py` asserts `logout()` is awaited, that the store flush is ordered before it, that a failing logout does not block the unload, and that the platform-unload result is propagated.
   - **§12** (translations + icons reconciled against code) — `PENDING` → **met**. `tests/test_translations_icons.py` reconciles in all three directions against **module source**, plus exception messages in both directions. This was recorded as the highest-value gap in the table.
   - **§14 / §21** — stay `UNVERIFIED`. Their stated reason ("the test exists but has never been executed — container down") is obsolete: both execute and pass, and §21's asserts the live-key comparison rather than the tautology. But `UNVERIFIED` means _not yet shown to fail on a real regression_, which is mutation testing's job, and that run is in progress. , but their stated reason no longer holds.\*\* That reason — "the test exists but has never been executed (container down)" — is obsolete: both tests execute and pass, and §21's asserts the live-key comparison rather than the tautology. The cells are held deliberately until mutation testing shows them failing on a real regression, which is what `UNVERIFIED` means. The historical entry is left as written rather than edited; this note is the correction.
-- Two further cells in that matrix are now met by Phase 2 and will be re-graded alongside: **§10** (session-terminating call awaited on unload) and **§12** (translations and icons reconciled against code).
+- **Phase 2 Standards Test Coverage**: Two further cells in that matrix are now met by Phase 2 and will be re-graded alongside: **§10** (session-terminating call awaited on unload) and **§12** (translations and icons reconciled against code).
 
 ### Verified
 
 - `pytest tests/` — **811 passed**, 0 failed. `ruff check`, `ruff format --check` and `mypy --strict` clean.
 - prettier, markdownlint (project config), codespell and the markdown link check all clean across `README.md`, `AGENTS.md` and `docs/`.
 
-## [1.0.1-dev15] - 2026-08-08 - Branch Coverage Complete: Sixteen of Seventeen Modules at 100%
+## [1.0.1-dev15] - 2026-08-08 - Branch Coverage: Coordinator Branch Tests Added; Sixteen Modules at 100% Coverage
 
 ### Summary
 
@@ -487,7 +557,7 @@ Phase 2 of the August 2026 update plan, finished. No production behavior changes
 - **All five remaining partials are unreachable, not untested.** Four are `isinstance(x, list)` checks on payloads that `_fetch_optional` has already normalised with `list()` on both its success and its failure path; the fifth needs a speedtest list of length zero, which the enclosing truthiness check prevents. They are left in place pending an owner decision rather than removed, and a new test pins the normalisation guarantee the redundancy rests on — if that ever stops holding, the test fails before the guards become live again.
 - Assertion audit **PASSED** (0 of 766); `ruff check`, `ruff format --check` and `mypy --strict` clean.
 
-## [1.0.1-dev14] - 2026-08-08 - Branch Coverage: Fifteen of Seventeen Modules at 100%
+## [1.0.1-dev14] - 2026-08-08 - Branch Coverage: Platform and Diagnostics Branch Tests Added
 
 ### Summary
 
@@ -511,7 +581,7 @@ Phase 2 of the August 2026 update plan, continued. No production behavior change
 - **Not one branch turned out to be dead code** — 33 of 33 this pass, after 12-of-12 and 11-of-11 on the sibling projects.
 - Assertion audit **PASSED** (0 of 735); `ruff check`, `ruff format --check` and `mypy --strict` clean.
 
-## [1.0.1-dev13] - 2026-08-08 - Standards Sweeps and Translation Reconciliation; Zero-Assertion Tests Fix
+## [1.0.1-dev13] - 2026-08-08 - Testing Baseline: Standards Sweeps and Translation Reconciliation; Zero-Assertion Tests Fixed
 
 ### Summary
 
@@ -539,7 +609,7 @@ Phase 2 of the August 2026 update plan — the test baseline. No production beha
 - Assertion audit **PASSED**; `ruff check`, `ruff format --check` and `mypy --strict` all clean.
 - **Partial branches stand at 59** and are the outstanding half of this phase, listed by module in the plan's execution log.
 
-## [1.0.1-dev12] - 2026-08-08 - WAN Weight Write Hardening and Projected Data Usage
+## [1.0.1-dev12] - 2026-08-08 - WAN Control & Forecast: Weight Write Hardening; Projected Data Usage Sensors Added
 
 ### Summary
 
@@ -549,8 +619,8 @@ Phase 1 of the August 2026 update plan — the behavior changes. A failing test 
 
 ### Fixed
 
-- **The WAN load-balance write no longer PUTs stale held state.** `networkconf` is a degradable endpoint, so the object the coordinator was holding could be minutes old — and the write PUT that whole object back with one field replaced, silently reverting every other controller-side change made since. It now re-reads `networkconf` immediately before composing the PUT. Both refusal paths (no WAN objects, no `_id`) fire before any write, so a bad read writes nothing at all.
-- **A cancelled debounce could leave WAN1 and WAN2 disagreeing.** The entity cancels its own debounce task on every slider move, and once the two-second wait had elapsed that cancellation landed _between the two weight PUTs_ — WAN1 written, WAN2 not, the pair no longer summing to 100, and nothing reporting it. Two slider moves about two seconds apart were enough. The pair is now awaited through `asyncio.shield`: the caller can still be cancelled, but the write completes.
+- **Stale Configuration Overwrite Prevention**: The WAN load-balance write no longer PUTs stale held state. `networkconf` is a degradable endpoint, so the object the coordinator was holding could be minutes old — and the write PUT that whole object back with one field replaced, silently reverting every other controller-side change made since. It now re-reads `networkconf` immediately before composing the PUT. Both refusal paths (no WAN objects, no `_id`) fire before any write, so a bad read writes nothing at all.
+- **Dual-WAN Weight Disagreement Guard**: A cancelled debounce could leave WAN1 and WAN2 disagreeing. The entity cancels its own debounce task on every slider move, and once the two-second wait had elapsed that cancellation landed _between the two weight PUTs_ — WAN1 written, WAN2 not, the pair no longer summing to 100, and nothing reporting it. Two slider moves about two seconds apart were enough. The pair is now awaited through `asyncio.shield`: the caller can still be cancelled, but the write completes.
 - **A pending debounced write is now flushed on removal, not discarded.** Both number entities cancelled their buffer in `async_will_remove_from_hass`. A reload triggers removal and an options change triggers a reload, so a value set inside the two-second window was routinely lost while the UI went on showing it. The flush is conditional on the write not having started, so an in-flight write is never issued twice.
 - **Repair issues are cleared on unload and on removal.** Neither teardown path touched the issue registry. After removal in particular there was nothing left that could ever clear a raised repair, leaving a permanent Repairs warning about an integration the user had deleted.
 - **The reauth screen explains what a blank field does.** `config.step.reauth_confirm` had no `data_description` at all — on the one screen where a blank submit re-tries the credential that just failed. The new text says so explicitly rather than copying reconfigure's reassuring "leave blank to keep the current value".
@@ -593,7 +663,7 @@ Phase 0 of the August 2026 update plan (`.notes/info/updates_202608/status_plan.
 - Coverage **100% line** across all 17 modules, 2832 statements, 0 missing — the 5 previously-missing statements were all in `cleanup.py` and were the red suite, exactly as predicted.
 - `ruff check` **All checks passed** (was 3 errors); `ruff format --check` clean; `mypy --strict` **Success, 17 source files**.
 
-## [1.0.1-dev10] - 2026-08-08 - Reauth Entry Resolution; README Corrections
+## [1.0.1-dev10] - 2026-08-08 - Config Flow & Docs: Reauth Entry Resolution; README Speedtest Controls Added
 
 ### Summary
 
@@ -605,7 +675,7 @@ Made in response to `readme_review` `REVIEW_MODE=Full`, whose findings were disp
 
 ### Fixed
 
-- **The stated minimum Home Assistant version was three releases below what the code actually required.** `config_flow.py` enforces 2024.11.0; the README and `hacs.json` said 2024.8.0. Both corrected to **2024.11.0**, so a user on an unsupported version is told before install rather than at setup.
+- **Minimum Home Assistant Version Alignment**: The stated minimum Home Assistant version was three releases below what the code actually required. `config_flow.py` enforces 2024.11.0; the README and `hacs.json` said 2024.8.0. Both corrected to **2024.11.0**, so a user on an unsupported version is told before install rather than at setup.
 
 ### Changed
 
@@ -624,10 +694,10 @@ Formatting pass and entity domain correction in README automation examples.
 
 ### Changed
 
-- **Formats**: Formats and Lints for previous dev8
-- **README**: Corrected Automation Examples in `README.md` , several used `sensor.unifi_network_system_polling_interval`instead of `number.`.
+- **Formatting and Lint Baseline**: Formatted and linted codebase following dev8 updates.
+- **README Automation Examples Domain**: Corrected Automation Examples in `README.md`, several used `sensor.unifi_network_system_polling_interval` instead of `number.unifi_network_system_polling_interval`.
 
-## [1.0.1-dev8] - 2026-08-07 - CI and Workflow Tooling Bumps; Branch and Mutation Testing Coverage
+## [1.0.1-dev8] - 2026-08-07 - Tooling & CI: Shared Workflows Bumped; Branch Coverage and Mutation Testing Configured
 
 ### Summary
 
@@ -642,18 +712,18 @@ Shared CI bump to v2.0.10, automated release zip asset generation, and test conf
 
 ### Changed
 
-- **`release.yaml`**: Along with `.github`shared CI v2.0.10, added `release.yaml`to auto create and attached a zipfile to each new release, for download tracking purposes.
-- **`hacs.json`:** Updated to add `filename:`and `zip_release: true`fields, for zipfile use, for download tracking.
-- **PyTest Branch Coverage:** Added branch coverage to existing PyTest line coverage measurement. Added via shared sync `tasks.json`.
-- **`mutmut`:** Added `mutmut` via shared Dockerfile base image for Mutation Testing. Added task to `tasks.json`via shared sync.
-- **`ruff`Rules:** Updated `ruff`rules, via shared CI to match latest HA exclusions and inclusions.
-- **Shared Sync Do Not Edit**: Added comments to several of the shared sync files to clarify they were shared and not to be edited locally.
+- **Release Asset Automation**: Along with `.github` shared CI v2.0.10, added `release.yaml` to auto create and attach a zipfile to each new release, for download tracking purposes.
+- **HACS Zip Release Configuration**: Updated `hacs.json` to add `filename:` and `zip_release: true` fields, for zipfile use, for download tracking.
+- **PyTest Branch Coverage**: Added branch coverage to existing PyTest line coverage measurement. Added via shared sync `tasks.json`.
+- **Mutation Testing Task**: Added `mutmut` via shared Dockerfile base image for Mutation Testing. Added task to `tasks.json` via shared sync.
+- **`ruff` Rules**: Updated `ruff` rules, via shared CI to match latest HA exclusions and inclusions.
+- **Shared File Header Warnings**: Added comments to several of the shared sync files to clarify they were shared and not to be edited locally.
 - **AGENTS No git:** Updated `AGENTS.md` to clarify strict restrictive rules around write git use.
 - **US UK Spelling**: Updated spelling to US standard (z vs s, color vs colour etc), to match HA standard.
 - **Tools not Dev Tools**: Changed References to "Developer Tools" to "Tools" to align with HA 2026.8+
 - **`changelog_local` ToC**: Added Table of Contents to `changelog_local` (top-of-file) and to end of `CHANGELOG`.
 
-## [1.0.1-dev7] - 2026-07-28 - README Automation Example Glitch Guards and Float Rounding
+## [1.0.1-dev7] - 2026-07-28 - Documentation: README Automation Example Glitch Guards and Float Rounding Added
 
 ### Summary
 
@@ -670,7 +740,7 @@ Reinforced example automations in `README.md` to prevent false triggers during c
 
 ---
 
-## [1.0.1-dev6] - 2026-07-27 - Device-Registry Record Split
+## [1.0.1-dev6] - 2026-07-27 - Architecture Docs: Device-Registry Analysis Split to Shared Standards
 
 ### Summary
 
@@ -694,7 +764,7 @@ Split device registry documentation between family-wide shared issues analysis a
 - **This project remains the reference implementation** — all three shims, the only one with call sites for all three. The shared record notes that `zte_router_5g` implementing two is correct there, not incomplete.
 - **Open family action carried into the shared record:** the shims are verified against the HA `dev` branch and mock-patched flags, not a native 2026.8 build. If a signature shifted late in the cycle, `hasattr` flips `True` and the new branch calls something with the wrong arguments — worse than no shim. That checklist now applies to every project holding shims, not just this one.
 
-## [1.0.1-dev5] - 2026-07-27 - Dev Standards Architectural Invariants Test Coverage Matrix
+## [1.0.1-dev5] - 2026-07-27 - Standards Tracking: Dev Standards Test Coverage Baseline Recorded
 
 ### Summary
 
@@ -758,7 +828,7 @@ Implements `dev_standards` §14 as revised at **Standard Version 1.12.0**: `_unr
 ### Notes
 
 - **This project had no test for recorder hygiene at all** before now, which is why its `_unrecorded_attributes` sets had drifted while `zte_router_5g`'s were caught automatically. §14 1.12.0 now requires the test in every project — the rule is enforced by a test rather than by review precisely because a list that must track a property will not track it.
-- The §19 health sensor was **already correct** here: seven published attributes, all seven plus `about` excluded. That was care rather than construction — nothing enforced it until now.
+- **Health Sensor Attribute Hygiene**: The §19 health sensor was **already correct** here: seven published attributes, all seven plus `about` excluded. That was care rather than construction — nothing enforced it until now.
 
 ## [1.0.1-dev3] - 2026-07-27 - Cross-Project Alignment: Health Attribute Naming and Test Renames
 
@@ -770,7 +840,7 @@ Follows a three-way review of `unifi_network_monitor`, `zte_router_5g` and `wifi
 
 ### Fixed
 
-- **README Integration Health example referenced two attributes that do not exist.** The automation rendered `last_good_scan` where the coordinator writes **`last_good_update`**, so the template produced an empty value where it promised the time of the last good poll; and the explanatory note listed **`checks_failed`**, which this integration has never published (that was `wifi_ssid_monitor`'s name for the concept). Both corrected, and the note now lists the attributes actually available: `severity`, `degraded_capabilities`, `last_good_update`, `drift`, `auth_mode`, `v3_available`. Found by diffing the README against the coordinator during the cross-project review — copy-pasting the example previously gave a silently incomplete notification.
+- **README Integration Health Attribute Corrections**: The automation rendered `last_good_scan` where the coordinator writes **`last_good_update`**, so the template produced an empty value where it promised the time of the last good poll; and the explanatory note listed **`checks_failed`**, which this integration has never published (that was `wifi_ssid_monitor`'s name for the concept). Both corrected, and the note now lists the attributes actually available: `severity`, `degraded_capabilities`, `last_good_update`, `drift`, `auth_mode`, `v3_available`. Found by diffing the README against the coordinator during the cross-project review — copy-pasting the example previously gave a silently incomplete notification.
 
 ### Changed
 
@@ -780,7 +850,7 @@ Follows a three-way review of `unifi_network_monitor`, `zte_router_5g` and `wifi
 ### Notes
 
 - **This project remains the reference for the shared device-registry work.** `_compat.py` was ported to `zte_router_5g` this week (minus `owning_entry_ids`, which that integration has no call site for); `.notes/device_registry/device_model_2026_08.md` stays the single rationale document for all projects.
-- No source behavior changed in this entry — the fixes are a documentation correction and a constant substitution.
+- **Behavior Invariance**: No source behavior changed in this entry — the fixes are a documentation correction and a constant substitution.
 
 ## [1.0.1-dev2] - 2026-07-26 - Documentation: README Controls Reorganization and Automation Cross-Links
 
@@ -800,8 +870,8 @@ Added Integration Health automation example to README, restructured AGENTS.md fo
 
 ### Changed
 
-- **README**: Added an example automation to README to cover the INtegration Health problem sensor. Also standardized formatting of html tags.
-- **AGENTS**: Rewrite of AGENTS.md to move content shared across projects to a shared file, and to move sensor entity counts to using `docs/all_sensors.md`as the definitive source.
+- **README Health Example and HTML Formatting**: Added an example automation to README to cover the Integration Health problem sensor. Also standardized formatting of html tags.
+- **AGENTS.md Shared Standards Restructure**: Rewrite of AGENTS.md to move content shared across projects to a shared file, and to move sensor entity counts to using `docs/all_sensors.md` as the definitive source.
 
 ### Bumps
 
@@ -855,6 +925,6 @@ Entry structure — headers, titles, category headings and the split between thi
 
 ## Document Audit Status
 
-- **Headers Checked**: Initialized (Pending verification)
-- **Bullets Checked**: Initialized (Pending verification)
+- **Headers Checked**: `1.1.0-dev11` to `1.0.0` (2026-10-11); 32 entries aligned to CF-101
+- **Bullets Checked**: `1.1.0-dev11` to `1.0.0` (2026-10-11); 209 bullets audited and verified per CF-202 (zero data loss)
 - **Specification**: Follows `changelog_format.md` (maintainer engineering voice; zero data loss)

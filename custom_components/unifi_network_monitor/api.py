@@ -424,7 +424,8 @@ class UnifiNetworkAPI:
     async def validate_connection(self) -> dict[str, Any]:
         """Validate credentials and return gateway identity.
 
-        Returns a dict with ``mac``, ``model``, and ``sw_version``.
+        Returns a dict with ``mac``, ``model`` and ``sw_version``; with no gateway
+        selected, ``mac`` is empty and ``model`` is omitted.
         Raises ``UnifiAuthError`` or ``UnifiConnectionError`` on failure.
         """
         if self.username and self.password and not self.api_key:
@@ -437,25 +438,21 @@ class UnifiNetworkAPI:
         if sysinfo:
             sw_version = sysinfo[0].get("version")
 
-        from .const import GATEWAY_MODELS
+        if not devices:
+            raise UnifiConnectionError(
+                "No devices returned — check site ID and permissions"
+            )
 
-        for device in devices:
-            if device.get("model") in GATEWAY_MODELS:
-                return {
-                    "mac": device.get("mac", "").lower(),
-                    "model": device.get("model", "UDM Pro"),
-                    "sw_version": sw_version or device.get("version"),
-                }
+        from .gateway import select_gateway
 
-        # Fallback: treat first device as gateway
-        if devices:
-            d = devices[0]
-            return {
-                "mac": d.get("mac", "").lower(),
-                "model": d.get("model", "UniFi Gateway"),
-                "sw_version": sw_version,
-            }
-
-        raise UnifiConnectionError(
-            "No devices returned — check site ID and permissions"
-        )
+        selection = select_gateway(devices)
+        gateway = selection.device
+        if gateway is None:
+            # No gateway selected (ambiguous or none): the entry falls back to
+            # the host as its unique_id and the coordinator raises the repair.
+            return {"mac": "", "sw_version": sw_version}
+        return {
+            "mac": gateway.get("mac", "").lower(),
+            "model": gateway.get("model", "UDM Pro"),
+            "sw_version": sw_version or gateway.get("version"),
+        }
