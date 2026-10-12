@@ -14,6 +14,8 @@ Two defects from the August 2026 plan (§M Phase 1):
 
 from __future__ import annotations
 
+import ast
+from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -36,14 +38,64 @@ def test_repair_issue_id_is_entry_scoped() -> None:
     assert repair_issue_id("abc123", "x") != repair_issue_id("def456", "x")
 
 
-def test_repair_issue_names_cover_all_four_repairs() -> None:
-    """The clear-on-teardown list must not drift from the raise sites."""
-    assert set(REPAIR_ISSUE_NAMES) == {
-        "site_resolution_failed",
-        "schema_drift_detected",
-        "gateway_not_recognized",
-        "gateway_identity_blocked",
-    }
+_COMPONENT = (
+    Path(__file__).parent.parent / "custom_components" / "unifi_network_monitor"
+)
+
+
+def _raised_repair_names() -> set[str]:
+    """Collect the name argument of every ``repair_issue_id`` call in the component.
+
+    String literals are taken as they are, and a module constant (such as
+    ``identity.BLOCKED_ISSUE``) is resolved from its module. The one call whose
+    name iterates ``REPAIR_ISSUE_NAMES`` itself, the clearing loop in
+    ``__init__.py``, is skipped: it reads the list this test checks.
+    """
+    names: set[str] = set()
+    for path in sorted(_COMPONENT.glob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        constants = {
+            target.id: node.value.value
+            for node in tree.body
+            if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant)
+            for target in node.targets
+            if isinstance(target, ast.Name) and isinstance(node.value.value, str)
+        }
+        loop_vars = {
+            node.target.id
+            for node in ast.walk(tree)
+            if isinstance(node, ast.For)
+            and isinstance(node.target, ast.Name)
+            and isinstance(node.iter, ast.Name)
+            and node.iter.id == "REPAIR_ISSUE_NAMES"
+        }
+        for node in ast.walk(tree):
+            if not (
+                isinstance(node, ast.Call)
+                and getattr(node.func, "id", getattr(node.func, "attr", None))
+                == "repair_issue_id"
+                and len(node.args) == 2
+            ):
+                continue
+            arg = node.args[1]
+            if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                names.add(arg.value)
+            elif isinstance(arg, ast.Name) and arg.id in loop_vars:
+                continue
+            elif isinstance(arg, ast.Name) and arg.id in constants:
+                names.add(constants[arg.id])
+            else:
+                raise AssertionError(
+                    f"{path.name}:{node.lineno}: repair_issue_id name not resolvable"
+                )
+    return names
+
+
+def test_every_repair_the_code_raises_is_registered_for_removal() -> None:
+    """Every repair name raised in the component is cleared on unload and removal."""
+    raised = _raised_repair_names()
+    assert len(raised) >= 4, "the sweep found too few raise sites to mean anything"
+    assert raised == set(REPAIR_ISSUE_NAMES)
 
 
 # ---------------------------------------------------------------------------

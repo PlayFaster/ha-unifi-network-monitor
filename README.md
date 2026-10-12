@@ -2045,9 +2045,16 @@ The same applies in reverse: if you remove the official integration later, this 
 
 This is the most useful file to attach to a GitHub issue. It captures your options, the current coordinator data, and the rogue-AP history in one JSON file.
 
+It also records what the integration saw on its last requests, so a problem can usually be diagnosed from the file alone:
+
+- **Each data source** - whether it answered (with how many records came back), failed (with the error type), or was not asked (because you turned that feature off), and for each request its HTTP status and the controller's own result code.
+- **The last refused response** - the most recent response the controller refused or that could not be read, with its status and error code. Only the field names of its records are kept, never their values. It clears once a poll succeeds with nothing failing.
+- **The last login** - for username and password setups, the shape of the last login response: header and cookie names and whether a session was issued, never a value.
+- **The gateway** - how it was chosen and from which candidate models, the gateway's own start time beside the boot time the integration shows, and the controller's timezone.
+
 **It is redacted before it is written**, in two ways:
 
-- **Credentials are removed outright** - API key, password, username - along with your gateway host, WAN IP addresses, ISP name, SFP serial numbers, and the user-assigned WAN interface names (which usually name your ISP).
+- **Credentials are removed outright** - API key, password, username - along with your gateway host, WAN IP addresses, ISP name and network number, SFP serial numbers, a site name you have changed from `default`, and the user-assigned WAN interface names (which usually name your ISP).
 - **Everything else identifying is pseudonymized**, not blanked. Each adopted device becomes `device-1`, `device-2`… and each nearby network becomes `rogue-1`, `rogue-2`… The same device keeps the same token everywhere it appears, so the file still makes sense to read - an alert about `device-4` can still be matched against `device-4` in the device list.
 
 This covers MAC addresses, your device names, internal IPs, and the SSIDs of nearby networks - including where these are embedded in the free text of a captured alert.

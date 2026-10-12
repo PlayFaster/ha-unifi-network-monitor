@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from copy import deepcopy
+from datetime import UTC, datetime
+import logging
 import re
 from typing import Any
 
@@ -12,7 +15,45 @@ from homeassistant.core import HomeAssistant
 
 from .coordinator import UnifiNetworkDataUpdateCoordinator
 
+_LOGGER = logging.getLogger(__name__)
+
 REDACTED = "**REDACTED**"
+
+# UniFi's built-in site name. It says nothing about the install, so it is kept;
+# any other site name is the user's own and is redacted.
+_DEFAULT_SITE = "default"
+
+# Fields the diagnostics captures produce (``api.last_rejection``,
+# ``api.login_metadata``, ``api.routes`` and ``coordinator.endpoint_outcomes``),
+# partitioned by what the download does with them
+# (improve_diagnostics_on_bad_payload_data.md §2.4, §3). PUBLISHED fields are
+# names, codes, counts and flags and go out as they are. GATED fields can carry a
+# value from the controller and pass the scrubber first. A new field fails
+# ``test_every_discovery_field_is_classified`` until it is placed in one set.
+DISCOVERY_METADATA_PUBLISHED = frozenset(
+    {
+        "verdict",
+        "method",
+        "route",
+        "status",
+        "rc",
+        "records",
+        "populated",
+        "content_type",
+        "text_length",
+        "recorded_at",
+        "outcome",
+        "header_names",
+        "cookie_names",
+        "token_issued",
+        "token_source",
+        "csrf_header",
+        "error",
+        "strikes",
+        "reason",
+    }
+)
+DISCOVERY_METADATA_GATED = frozenset({"msg", "keys", "payload", "body_preview"})
 
 TO_REDACT = {
     "api_key",
@@ -54,7 +95,15 @@ _IP_RE = re.compile(
 # the rest are blanked outright.
 _ALERT_DEVICE_BLOCKS = frozenset({"DEVICE", "DEVICE_WITH_PORT"})
 _ALERT_BLANK_BLOCKS = frozenset(
-    {"ISP_NAME", "WAN_SUBNET", "WAN_NAME", "CONSOLE_NAME", "AP_NAME", "CLIENT"}
+    {
+        "ISP_NAME",
+        "ISP_ASN",
+        "WAN_SUBNET",
+        "WAN_NAME",
+        "CONSOLE_NAME",
+        "AP_NAME",
+        "CLIENT",
+    }
 )
 _ALERT_ATTR_KEYS = ("last_high_attrs", "last_very_high_attrs")
 _ALERT_TEXT_KEYS = ("message", "title")
@@ -191,6 +240,114 @@ def _scrub_identity_keys(scrub: _Scrubber, entry_data: dict[str, Any]) -> None:
         }
 
 
+def _scrub_value(scrub: _Scrubber, value: Any) -> Any:
+    """Scrub every string inside a captured value, at any depth."""
+    if isinstance(value, str):
+        return scrub.text(value)
+    if isinstance(value, dict):
+        return {key: _scrub_value(scrub, item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_scrub_value(scrub, item) for item in value]
+    return value
+
+
+def _publish_capture(scrub: _Scrubber, record: Any) -> Any:
+    """Publish one capture record: gated fields scrubbed, the rest as they are."""
+    if not isinstance(record, dict):
+        return None
+    out: dict[str, Any] = {}
+    for key, value in record.items():
+        if key in DISCOVERY_METADATA_GATED:
+            out[key] = async_redact_data(_scrub_value(scrub, value), TO_REDACT)
+        elif key in DISCOVERY_METADATA_PUBLISHED:
+            out[key] = value
+    return out
+
+
+def _endpoints_block(scrub: _Scrubber, coordinator: Any) -> dict[str, Any]:
+    """Each endpoint's latest outcome, and each route's status and ``meta.rc``."""
+    outcomes = getattr(coordinator, "endpoint_outcomes", None)
+    routes = getattr(coordinator.api, "routes", None)
+    return {
+        "outcomes": {
+            str(label): _publish_capture(scrub, record)
+            for label, record in (
+                outcomes if isinstance(outcomes, dict) else {}
+            ).items()
+        },
+        "routes": {
+            str(key): _publish_capture(scrub, record)
+            for key, record in (routes if isinstance(routes, dict) else {}).items()
+        },
+    }
+
+
+def _iso(timestamp: Any) -> str | None:
+    """Return an epoch-seconds value as an ISO time in UTC, or None."""
+    if isinstance(timestamp, bool) or not isinstance(timestamp, int):
+        return None
+    return datetime.fromtimestamp(timestamp, UTC).isoformat()
+
+
+def _gateway_block(
+    scrub: _Scrubber, coordinator: Any, data: Any, boot_times: Any
+) -> dict[str, Any]:
+    """Selection, uptime evidence and controller timezone for the gateway."""
+    selection = getattr(coordinator, "gateway_selection", None)
+    reason = getattr(selection, "reason", None)
+    selected = getattr(selection, "device", None)
+    raw_candidates = getattr(selection, "candidates", ())
+    candidates = [
+        {
+            "device": scrub.device_token(device.get("mac")),
+            "model": device.get("model"),
+            "type": device.get("type"),
+            "state": device.get("state"),
+        }
+        for device in (
+            raw_candidates if isinstance(raw_candidates, (tuple, list)) else ()
+        )
+        if isinstance(device, dict)
+    ]
+    gateway = data.get("gateway") if isinstance(data, dict) else None
+    gateway = gateway if isinstance(gateway, dict) else {}
+    startup = getattr(coordinator, "gateway_startup_timestamp", None)
+    absent = getattr(coordinator, "stored_mac_absent", None)
+    timezone = getattr(coordinator, "controller_timezone", None)
+    # The gateway's latched boot time is cached under the label "gateway"
+    # (coordinator.get_stable_boot_time), not under its MAC.
+    cached = boot_times.get("gateway") if isinstance(boot_times, dict) else None
+    return {
+        "selection_reason": reason if isinstance(reason, str) else None,
+        "selected": scrub.device_token(selected.get("mac"))
+        if isinstance(selected, dict)
+        else None,
+        "candidates": candidates,
+        "stored_mac_absent": absent if isinstance(absent, bool) else None,
+        "startup_timestamp": startup
+        if isinstance(startup, int) and not isinstance(startup, bool)
+        else None,
+        "startup_time": _iso(startup),
+        "published_boot_time": gateway.get("boot_time"),
+        "uptime_secs": gateway.get("uptime_secs"),
+        "boot_times_cache": cached,
+        "controller_timezone": timezone if isinstance(timezone, str) else None,
+    }
+
+
+def _section(name: str, build: Callable[[], Any]) -> Any:
+    """Build one download section; a failure is recorded, never raised.
+
+    Home Assistant does not wrap ``config_entry_diagnostics``, so an exception
+    here is an HTTP 500 and no file at all (bad payload §5.1).
+    """
+    try:
+        return build()
+    except Exception as err:  # noqa: BLE001 - the download must always be produced
+        _LOGGER.debug("Diagnostics section %s failed: %s", name, type(err).__name__)
+        return {"section_error": type(err).__name__}
+
+
 def _learn(scrub: _Scrubber, source: Any) -> None:
     """Learn the free-text identifiers carried by a mapping."""
     if not isinstance(source, dict):
@@ -241,6 +398,11 @@ def _scrub_alert_block(scrub: _Scrubber, name: str, block: Any) -> Any:
     elif name in _ALERT_BLANK_BLOCKS:
         for key in ("id", "name"):
             if isinstance(out.get(key), str):
+                # The alert's message repeats the name in prose; learning it
+                # first removes it there too. The id is a generic code, such as
+                # "WAN", and is not learned.
+                if key == "name":
+                    scrub.literal(out[key])
                 out[key] = REDACTED
 
     # Backstop: UniFi can add parameter types we have not mapped, so every
@@ -327,6 +489,10 @@ async def async_get_config_entry_diagnostics(  # noqa: C901
             for key, record in boot_times.items()
         }
 
+    site = entry_options.get("site")
+    if isinstance(site, str) and site and site != _DEFAULT_SITE:
+        entry_options["site"] = REDACTED
+
     for key in ("rogue_ignore_ssids", "rogue_ignore_aps"):
         raw = entry_options.get(key)
         if isinstance(raw, str) and raw.strip():
@@ -399,4 +565,22 @@ async def async_get_config_entry_diagnostics(  # noqa: C901
             "integration_health": (coordinator.data or {}).get("integration_health"),
         },
         "data": async_redact_data(data, TO_REDACT),
+        "last_rejection": _section(
+            "last_rejection",
+            lambda: _publish_capture(
+                scrub, getattr(coordinator.api, "last_rejection", None)
+            ),
+        ),
+        "login": _section(
+            "login",
+            lambda: _publish_capture(
+                scrub, getattr(coordinator.api, "login_metadata", None)
+            ),
+        ),
+        "endpoints": _section(
+            "endpoints", lambda: _endpoints_block(scrub, coordinator)
+        ),
+        "gateway": _section(
+            "gateway", lambda: _gateway_block(scrub, coordinator, data, boot_times)
+        ),
     }

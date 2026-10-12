@@ -17,6 +17,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: UniFi Network Monitor](#internal-detailed-changelog-unifi-network-monitor)
+  - [\[1.1.0-dev14\] - 2026-10-12 - Diagnostics Download: Rejection, Endpoint and Gateway Captures; Scrubber Hardened; Hardware Diagnostics Check](#110-dev14---2026-10-12---diagnostics-download-rejection-endpoint-and-gateway-captures-scrubber-hardened-hardware-diagnostics-check)
   - [\[1.1.0-dev12\] - 2026-10-12 - Gateway Detection: Signature-First Selection; Unrecognized-Gateway Repair; Automatic Identity Correction](#110-dev12---2026-10-12---gateway-detection-signature-first-selection-unrecognized-gateway-repair-automatic-identity-correction)
   - [\[1.1.0-dev11\] - 2026-10-11 - Hardware Check: WAN Port Name Sent; Device-Registry Test Deprecations Fixed; Validation Clean](#110-dev11---2026-10-11---hardware-check-wan-port-name-sent-device-registry-test-deprecations-fixed-validation-clean)
   - [\[1.1.0-dev10\] - 2026-10-11 - Shared Tooling Sync: HA Core isort Adopted; Probatio Script Import and Mypy Overrides; Telemetry Wording Removed](#110-dev10---2026-10-11---shared-tooling-sync-ha-core-isort-adopted-probatio-script-import-and-mypy-overrides-telemetry-wording-removed)
@@ -51,6 +52,81 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.1-dev1\] - 2026-07-26 - Documentation and Tooling: Health Automation Example, AGENTS Structure, and CI Bumps](#101-dev1---2026-07-26---documentation-and-tooling-health-automation-example-agents-structure-and-ci-bumps)
   - [\[1.0.0\] - 2026-07-22 - Initial Public Release](#100---2026-07-22---initial-public-release)
   - [Document Audit Status](#document-audit-status)
+
+## [1.1.0-dev14] - 2026-10-12 - Diagnostics Download: Rejection, Endpoint and Gateway Captures; Scrubber Hardened; Hardware Diagnostics Check
+
+### Summary
+
+The last build before the `1.1.0` pre-release, which goes to the reporter of issue #23 with a request for a diagnostics download. The download now records what the integration saw on its requests, how the gateway was chosen and the evidence for the stuck uptime defect, and it is proven clean against every identifying value the controller holds. Chores `C-020` (logging) and `C-032` (repair-name test) are closed for this project.
+
+### Added
+
+- **Rejected-response capture**: `api.py` reads the body of a refused or unparsable response before raising and keeps the latest as `api.last_rejection`: verdict (`http_error`, `rc_error` or `unparsable`), route with `<site>` and `<site_uuid>` placeholders, status, `meta.rc`, `meta.msg`, key names and record count. A parsed body keeps only `meta` and the key names of its records, never their values; an unparsable body keeps a 500-character preview. A poll on which no fetch failed clears it.
+- **Login shape capture**: `api.login_metadata` records the outcome, status, header and cookie names, whether a token was issued and where, and whether a CSRF header came back, never a value.
+- **Route and endpoint records**: `api.routes` keeps each route's latest status, `meta.rc` and record counts; `coordinator.endpoint_outcomes` keeps each endpoint's latest outcome: `answered` with record and populated counts, `failed` with the error class and strike count, or `not_asked` with `disabled` or `v3_unavailable`.
+- **Gateway context**: the coordinator keeps the gateway's `startup_timestamp` and the controller's `sysinfo.timezone`.
+- **Diagnostics blocks**: `endpoints`, `last_rejection`, `login` and `gateway` (selection reason, candidates by token and model, `stored_mac_absent`, `startup_timestamp` and `startup_time` beside the published boot time and the cached latch, controller timezone), each built on its own so a failure is recorded as `section_error` and never raised. Capture fields are partitioned into `DISCOVERY_METADATA_PUBLISHED` and `DISCOVERY_METADATA_GATED`.
+- **Hardware diagnostics check**: `scripts/diag_check.py`, run by `Hardware: Check Diagnostics Download`, takes two downloads from Home Assistant, compares their structure, checks each block's healthy content and runs a whole-word leak scan against the controller's client, device, WLAN, network, WAN, ISP and rogue lists; `--sabotage` prints a not-applicable line.
+
+### Changed
+
+- **Request path**: `_get`, `_post` and `_put` share `_request`, which keeps the existing re-authentication on `401` and the existing exception types.
+- **Hardware script banners**: `hardware_check.py` and `diag_check.py` print their verdicts in colour (green pass, red fail, yellow skip) with the Huawei helpers; `NO_COLOR` turns it off, and the results summary strips the codes before reading a banner.
+- **Client list read**: `UnifiNetworkAPI.get_clients()` reads `stat/sta`, read-only, for `diag_check.py`'s leak scan; the integration does not poll it.
+- **Scrubber**: an alert parameter's blanked `name` is learned as a free-text literal, so the alert's message loses it too; `ISP_ASN` is blanked; a site name other than `default` is redacted.
+- **Logging**: the device-parse warning logs a masked MAC; the held-values, communication-lost and endpoint messages interpolate `FETCH_STRIKE_LIMIT`; an exception with an empty message is logged by its class name, as is `Request failed`.
+
+### Fixed
+
+- **Empty error text in warnings**: `TimeoutError()` produced `holding last values:` with nothing after it; observed on the development instance at 15:15.
+- **Raw MAC in a warning**: the device-parse warning logged an unmasked MAC (`C-020`).
+- **WAN name in alert text (diagnostics)**: an alert's message kept a WAN name its parameters redacted.
+- **Fallback message never applied (found during the build)**: `_request` built its message as `err or type(err).__name__`, which never falls back, because an exception is always truthy.
+- **Gateway boot-time cache not found (found during the live check)**: the `gateway` block looked the cache up by MAC; it is keyed `gateway`.
+- **Leak scan missed ISP, WAN and console names (found during the live check)**: `diag_check.py`'s first scan held none of them.
+- **Rejection cleared on the poll that recorded it (found by the independent review)**: a rejection from the site lookup, or a `200` with `meta.rc` `error`, was cleared because the clear rule counted only optional-fetch failures; it now also requires that no rejection was recorded during the poll (`api.rejection_serial`).
+- **Stale required-endpoint record (found by the independent review)**: a failing `devices` or `health` fetch left the previous poll's `answered` record; it now records `failed`.
+- **Leak scan coverage (found by the independent review)**: `diag_check.py` gained WAN IP and WAN MAC categories, MAC separator forms, and MAC-shape and IPv6-shape scans.
+- **Unscrubbed key names (found by the independent review)**: `last_rejection.keys` is now gated through the scrubber.
+- **Classification test hard-coded the coordinator's fields (found by the independent review)**: they are now taken from the real recorders.
+
+### Tests
+
+- **`tests/test_diagnostic_capture.py`** (new): captures through the real `_get`, `_post` and `_put` for a JSON `404`, an API-key `401`, an HTML `404`, an unparsable `200`, a `200` with `meta.rc` `error`, record values never kept, route counts, an unreadable body, login in each outcome, and an empty exception; endpoint outcomes, the clear rule, and the startup time and timezone over real polls.
+- **`tests/test_diagnostics_artefact.py`** (new): each block asserted in the produced download; no credential value anywhere; gated fields scrubbed; candidate names and MACs absent; the alert WAN name, `ISP_ASN` and site redaction; a failing section recorded; `test_every_discovery_field_is_classified` and the set-overlap test.
+- **`tests/test_log_privacy.py`** (new): a source sweep that fails on a `_LOGGER` call reading a raw `mac`, a planted MAC, hostname and SSID kept out of the log, the strike budget interpolated, and an empty exception named.
+- **`tests/test_diag_check.py`** (new): structure comparison, block checks, the whole-word leak scan, the `--sabotage` line, the unreachable message and the verdict banner.
+- **`tests/test_repairs.py`**: `test_every_repair_the_code_raises_is_registered_for_removal` derives the repair names from every `repair_issue_id` call, replacing a hand-written set (`C-032`).
+- **`tests/conftest.py`**: `mock_api` carries real empty captures.
+- **Mutation proofs**: 22 fixes and captures disabled in turn; each named test failed, then passed once restored.
+
+### Verified
+
+- **Live download on the development UDM Pro**: after a restart onto this build, the four blocks present; 18 endpoints `answered`; 18 routes with status and `meta.rc`; `selection_reason` `wan_signature`; gateway start 2026-09-19 beside the published boot time 2026-07-18; timezone `Europe/Dublin`.
+- **Leak scan**: 0 of 1194 controller values in 21 categories found in the download, and no MAC-shaped or IPv6-shaped value; `diag_check.py` reports `PASSED`, and `FAILED` with the device-name scrub reverted.
+- **Rejection capture against the controller**: an unknown site recorded `401` `api.err.NoSiteContext`; a missing v2 route recorded an `unparsable` HTML `404`.
+
+### Documentation
+
+- **`README.md`**: what the download now records, and the added redactions.
+- **`AGENTS.md`**: the shared request path and its captures; `scripts/diag_check.py`.
+- **`docs/DEVELOPMENT.md`**: Diagnostics Captures and the Hardware Diagnostics Check, with its known limits.
+- **`docs/api_endpoints.md`**: the controller's error contract.
+- **`docs/CAPABILITIES.md`**: the diagnostics check and its tasks.
+- **`.notes/proj_structure.md`**: the four new test files.
+
+### Known
+
+- **Session-loss recovery**: unmeasured in password mode; `--sabotage` prints a not-applicable line.
+- **Password-mode check runs**: each `diag_check.py` run logs in and out; its effect on the integration's session is unmeasured.
+- **Unknown site**: answered `401`, so it reads as an authentication failure; the download's `last_rejection` names `api.err.NoSiteContext`.
+
+### Deferred
+
+- **Stuck uptime timestamp**: its evidence is in the download; the fix follows the pre-release.
+- **Repair set alignment**: after the pre-release. **`C-019`** is not in this build.
+
+---
 
 ## [1.1.0-dev12] - 2026-10-12 - Gateway Detection: Signature-First Selection; Unrecognized-Gateway Repair; Automatic Identity Correction
 

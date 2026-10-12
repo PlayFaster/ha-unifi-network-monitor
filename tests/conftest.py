@@ -281,6 +281,11 @@ def mock_api() -> MagicMock:
     api.get_speedtest_results = AsyncMock(return_value=[])
     api.login = AsyncMock()
     api.logout = AsyncMock()
+    # Diagnostics captures (api.py); a bare MagicMock attribute would be
+    # published as a mock object rather than as the real empty state.
+    api.last_rejection = None
+    api.login_metadata = None
+    api.routes = {}
     return api
 
 

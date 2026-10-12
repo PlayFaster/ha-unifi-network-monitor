@@ -274,10 +274,11 @@ Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series shipped as public `v1.
 ### Write Register and Hardware Check
 
 - **Purpose**: Classifies every controller write and exercises each `SAFE` write against real hardware.
-- **Interfaces**: `scripts/write_classification.py`; `scripts/hardware_check.py`; `Hardware: Check Device` task.
+- **Interfaces**: `scripts/write_classification.py`; `scripts/hardware_check.py`; `Hardware: Check Device` task; `scripts/diag_check.py`; `Hardware: Check Diagnostics Download` and `Hardware: Check Diagnostics Recovery` tasks.
 - **Lifecycle Timeline**:
   - `v1.1.0`: Register and hardware check introduced (`1.0.1-dev16`).
   - `v1.1.0-dev11`: Hardware check reads `/config/.storage`, resolves the WAN port name and prints a verdict banner; `PASSED (1/1)` against a UDM Pro.
+  - `v1.1.0-dev14`: Diagnostics check introduced: two real downloads compared, block contents checked, and a leak scan against the controller's own lists; `PASSED` against a UDM Pro.
 
 ### Complexity Scorecard and Compatibility Ledger
 

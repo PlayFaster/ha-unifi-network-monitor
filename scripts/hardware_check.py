@@ -47,6 +47,7 @@ import argparse
 import asyncio
 from datetime import UTC, datetime
 import json
+import os
 from pathlib import Path
 import sys
 from typing import Any
@@ -63,6 +64,33 @@ from custom_components.unifi_network_monitor.api import (  # noqa: E402
 )
 from custom_components.unifi_network_monitor.const import DOMAIN  # noqa: E402
 from custom_components.unifi_network_monitor.gateway import select_gateway  # noqa: E402
+
+# Colour is on unless `NO_COLOR` is set, matching the Huawei and ZTE scripts:
+# stdout here is usually a pipe into `tee`, so auto-detection would strip it
+# exactly when it is wanted. The task strips ANSI codes with `sed` before it
+# writes the report file the results summary reads.
+_COLOUR = os.environ.get("NO_COLOR") is None
+
+
+def _c(code: str, text: str) -> str:
+    """Wrap text in an ANSI code, or return it unchanged when colour is off."""
+    return f"\033[{code}m{text}\033[0m" if _COLOUR else text
+
+
+def _green(text: str) -> str:
+    """Return text in bold green."""
+    return _c("1;32", text)
+
+
+def _red(text: str) -> str:
+    """Return text in bold red."""
+    return _c("1;31", text)
+
+
+def _yellow(text: str) -> str:
+    """Return text in bold yellow."""
+    return _c("1;33", text)
+
 
 # Home Assistant's config directory in the devcontainer, as in the ZTE and Huawei
 # scripts; the project root holds no `config/`.
@@ -193,12 +221,12 @@ async def _main(interface: str, timeout: int) -> int:
     )
     # Verdict banner in the family format; `Show: Results Summary` reads it.
     if ok is None:
-        print("\n✔  Hardware check: SKIPPED  (0/1 passed, 1 skipped)")
+        print(_yellow("\n✔  Hardware check: SKIPPED  (0/1 passed, 1 skipped)"))
         return 0
     if ok:
-        print("\n\u2714  Hardware check: PASSED  (1/1)")
+        print(_green("\n\u2714  Hardware check: PASSED  (1/1)"))
     else:
-        print("\n\u2716  Hardware check: FAILED  (0/1 passed)")
+        print(_red("\n\u2716  Hardware check: FAILED  (0/1 passed)"))
     return 0 if ok else 1
 
 

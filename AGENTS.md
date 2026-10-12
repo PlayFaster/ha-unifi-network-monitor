@@ -44,12 +44,14 @@ Data flows in one direction: **`api.py` → `coordinator.py` → platform entiti
 - **`api.py` (`UnifiNetworkAPI`)** — async HTTP client for the UniFi Network API. Key behaviors:
   - Two auth modes: API key (`X-API-Key: <key>` header) or username/password (POST `/api/auth/login`, store TOKEN cookie + X-CSRF-Token header). API key is preferred.
   - **Auth mode gates the v3 endpoints — not a bug:** the Integration (v1) endpoints (`get_sites`/`get_wan_interfaces`/`get_vpn_*`/`get_firewall_policies`) are **API-key only**. Under username/password, `site_uuid` latches `"failed"` and the sensors fed by them (Rules Active/Configured/Disabled, VPN Connections Active/Total, WAN1/WAN2 Name) are legitimately `unknown` — expected, don't "fix" it. `coordinator._sync_site_issue` only raises the repair issue in API-key mode. See `DEVELOPMENT.md` §5 Gotcha.
-  - `_get(path)` handles auto re-auth on 401 for username/password mode.
+  - `_get`, `_post` and `_put` share `_request(method, path, payload)`, which handles auto re-auth on 401 for username/password mode and records each response for the diagnostics download: `api.routes` (each route's status, `meta.rc` and record counts), `api.last_rejection` (the latest refused or unparsable response, read before it is raised; key names of its records only) and `api.login_metadata` (header and cookie names and flags, never a value). Routes carry `<site>` and `<site_uuid>` placeholders (`route_of`).
   - Three data endpoints: `/proxy/network/api/s/{site}/stat/device`, `/stat/health`, `/stat/sysinfo`.
   - `validate_connection()` — fetches devices + sysinfo, finds gateway device, returns `{mac, model, sw_version}`. Used only at config flow time.
   - Two exception types: `UnifiConnectionError` (network/transient) and `UnifiAuthError` (credentials). Raise the right one.
 
 - **`gateway.py`**: `select_gateway()`, signature-first gateway selection with no Home Assistant imports; used by `api.py`, the coordinator and `scripts/hardware_check.py`.
+
+- **`scripts/diag_check.py`**: the hardware diagnostics check, run by `Hardware: Check Diagnostics Download`. It takes two downloads from Home Assistant through `GET /api/diagnostics/config_entry/<entry_id>` with `.notes/ha_restart/token.txt`, compares their structure, checks that the `endpoints`, `gateway`, `last_rejection` and `login` blocks hold what a healthy run holds, and fails on any value from the controller's client, device, WLAN, network, WAN, ISP and rogue lists found as a whole word in either file. It prints counts and paths, never a value, and never the word `Skipped`, which the results summary reads as a skip. `--sabotage` (`Hardware: Check Diagnostics Recovery`) prints a not-applicable line.
 
 - **`identity.py`**: detects and applies the automatic gateway identity correction; called from `async_setup_entry` before the coordinator is constructed, and once from the first selecting poll.
 

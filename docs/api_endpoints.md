@@ -2,6 +2,10 @@
 
 This document details the UniFi Network API endpoints used (and deliberately not used) by this integration, including their purpose, patterns, and context.
 
+## Error Contract
+
+Measured on the UDM Pro, 2026-10-12. A read error arrives as a non-2xx status whose JSON body carries `meta.rc: "error"` and a `meta.msg` code: `404` with `api.err.NotFound` for an unknown route, and `401` with `api.err.NoSiteContext` for an unknown site, which the integration reports as an authentication failure. A missing object under a valid route answers `200` with `meta.rc: "ok"` and empty `data`. A v2 route that does not exist answers `404` with an HTML page. No read answered `200` with `meta.rc: "error"`; the write routes were not probed. The integration records each route's status and `meta.rc` for the diagnostics download, and retains the last refused or unparsable response.
+
 ---
 
 ## 🔧 Authentication Endpoints

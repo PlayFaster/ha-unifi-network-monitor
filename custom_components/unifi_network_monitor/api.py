@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+import json
 import logging
+import re
 import time as _time
 from typing import Any
 
@@ -11,6 +14,38 @@ import aiohttp
 _LOGGER = logging.getLogger(__name__)
 
 _API_TIMEOUT = aiohttp.ClientTimeout(total=15)
+
+# A body kept for the diagnostics download is cut to this many characters, so a
+# large HTML error page cannot bloat the file.
+BODY_PREVIEW_LIMIT = 500
+
+# The site name and site UUID in a request path identify the install; routes in
+# the diagnostics record carry placeholders instead.
+_ROUTE_SUBS = (
+    (re.compile(r"/api/s/[^/]+/"), "/api/s/<site>/"),
+    (re.compile(r"/api/site/[^/]+/"), "/api/site/<site>/"),
+    (re.compile(r"/sites/[^/]+/"), "/sites/<site_uuid>/"),
+)
+
+
+def route_of(path: str) -> str:
+    """Return a request path with its site name and site UUID replaced."""
+    for pattern, placeholder in _ROUTE_SUBS:
+        path = pattern.sub(placeholder, path)
+    return path
+
+
+def _now() -> str:
+    """Return the current UTC time, to the second, for a capture record."""
+    return datetime.now(UTC).replace(microsecond=0).isoformat()
+
+
+def _meta(body: Any) -> tuple[Any, Any]:
+    """Return the ``meta.rc`` and ``meta.msg`` of a UniFi response envelope."""
+    meta = body.get("meta") if isinstance(body, dict) else None
+    if not isinstance(meta, dict):
+        return None, None
+    return meta.get("rc"), meta.get("msg")
 
 
 class UnifiError(Exception):
@@ -61,6 +96,16 @@ class UnifiNetworkAPI:
         self.site = site
         self._token: str | None = None
         self._csrf: str | None = None
+        # Diagnostics captures (improve_diagnostics_on_bad_payload_data.md §2):
+        # the most recent rejected response, the shape of the last login
+        # response, and the last outcome of every route. Names and counts only,
+        # except the rejected body, which the download scrubs before publishing.
+        self.last_rejection: dict[str, Any] | None = None
+        # Incremented on every retained rejection, so a poll can tell whether
+        # one arrived during it, whichever request recorded it.
+        self.rejection_serial = 0
+        self.login_metadata: dict[str, Any] | None = None
+        self.routes: dict[str, dict[str, Any]] = {}
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -80,101 +125,174 @@ class UnifiNetworkAPI:
             headers["X-CSRF-Token"] = self._csrf
         return headers
 
-    async def _post(self, path: str, payload: dict[str, Any]) -> Any:
-        """Perform a POST request with automatic re-auth on 401."""
-        url = f"{self._base_url()}{path}"
-        try:
-            async with self.session.post(
-                url,
-                json=payload,
-                headers=self._auth_headers(),
-                timeout=_API_TIMEOUT,
-                ssl=False,
-            ) as resp:
-                if resp.status == 401:
-                    if self.api_key:
-                        _raise_auth_error("API key rejected (401)")
-                    await self.login()
-                    async with self.session.post(
-                        url,
-                        json=payload,
-                        headers=self._auth_headers(),
-                        timeout=_API_TIMEOUT,
-                        ssl=False,
-                    ) as retry:
-                        retry.raise_for_status()
-                        return await retry.json()
-                resp.raise_for_status()
-                return await resp.json()
-        except (UnifiAuthError, UnifiConnectionError):
-            raise
-        except aiohttp.ClientResponseError as err:
-            if err.status == 401:
-                raise UnifiAuthError(f"Authentication failed: {err}") from err
-            raise UnifiConnectionError(f"HTTP error {err.status}: {err}") from err
-        except Exception as err:
-            raise UnifiConnectionError(f"Request failed: {err}") from err
+    # ------------------------------------------------------------------
+    # Diagnostics captures
+    # ------------------------------------------------------------------
 
-    async def _put(self, path: str, payload: dict[str, Any]) -> Any:
-        """Perform a PUT request with automatic re-auth on 401."""
-        url = f"{self._base_url()}{path}"
+    @staticmethod
+    async def _body_text(resp: Any) -> str | None:
+        """Read a response body as text, or None where it cannot be read."""
         try:
-            async with self.session.put(
-                url,
-                json=payload,
-                headers=self._auth_headers(),
-                timeout=_API_TIMEOUT,
-                ssl=False,
-            ) as resp:
-                if resp.status == 401:
-                    if self.api_key:
-                        _raise_auth_error("API key rejected (401)")
-                    await self.login()
-                    async with self.session.put(
-                        url,
-                        json=payload,
-                        headers=self._auth_headers(),
-                        timeout=_API_TIMEOUT,
-                        ssl=False,
-                    ) as retry:
-                        retry.raise_for_status()
-                        return await retry.json()
-                resp.raise_for_status()
-                return await resp.json()
-        except (UnifiAuthError, UnifiConnectionError):
-            raise
-        except aiohttp.ClientResponseError as err:
-            if err.status == 401:
-                raise UnifiAuthError(f"Authentication failed: {err}") from err
-            raise UnifiConnectionError(f"HTTP error {err.status}: {err}") from err
-        except Exception as err:
-            raise UnifiConnectionError(f"Request failed: {err}") from err
+            text = await resp.text()
+        except (aiohttp.ClientError, UnicodeDecodeError, ValueError):
+            return None
+        return text if isinstance(text, str) else None
 
-    async def _get(self, path: str) -> Any:
-        """Perform a GET request with automatic re-auth on 401."""
-        url = f"{self._base_url()}{path}"
+    def _record_route(self, method: str, path: str, **fields: Any) -> None:
+        """Record the latest outcome of one route, names and counts only."""
+        route = route_of(path)
+        self.routes[f"{method} {route}"] = {
+            "method": method,
+            "route": route,
+            "recorded_at": _now(),
+            **fields,
+        }
+
+    def _record_answer(self, method: str, path: str, status: Any, body: Any) -> None:
+        """Record a parsed answer; a ``meta.rc`` of error is also a rejection."""
+        rc, msg = _meta(body)
+        data = body.get("data") if isinstance(body, dict) else None
+        records = len(data) if isinstance(data, list) else None
+        populated = (
+            sum(1 for item in data if isinstance(item, dict) and item)
+            if isinstance(data, list)
+            else None
+        )
+        self._record_route(
+            method,
+            path,
+            status=status if isinstance(status, int) else None,
+            rc=rc,
+            msg=msg,
+            records=records,
+            populated=populated,
+        )
+        if rc == "error":
+            self._record_verdict(method, path, status, body, "rc_error")
+
+    def _record_verdict(
+        self, method: str, path: str, status: Any, body: Any, verdict: str
+    ) -> None:
+        """Retain a rejected, parsed response with the reason it was rejected."""
+        rc, msg = _meta(body)
+        data = body.get("data") if isinstance(body, dict) else None
+        self.rejection_serial += 1
+        self.last_rejection = {
+            "verdict": verdict,
+            "method": method,
+            "route": route_of(path),
+            "status": status if isinstance(status, int) else None,
+            "rc": rc,
+            "msg": msg,
+            "keys": sorted(body) if isinstance(body, dict) else None,
+            "records": len(data) if isinstance(data, list) else None,
+            # The envelope's ``meta`` and the key names of its records, never the
+            # record values: a rejected record may name a device or client the
+            # scrubber has not learned from the poll.
+            "payload": {
+                "meta": body.get("meta") if isinstance(body, dict) else None,
+                "data_keys": sorted(
+                    {str(k) for item in data if isinstance(item, dict) for k in item}
+                )
+                if isinstance(data, list)
+                else None,
+            },
+            "recorded_at": _now(),
+        }
+
+    def _record_unparsable(
+        self, method: str, path: str, status: Any, content_type: Any, text: str | None
+    ) -> None:
+        """Retain a response that could not be parsed, as a capped preview."""
+        self.rejection_serial += 1
+        self.last_rejection = {
+            "verdict": "unparsable",
+            "method": method,
+            "route": route_of(path),
+            "status": status if isinstance(status, int) else None,
+            "content_type": content_type if isinstance(content_type, str) else None,
+            "text_length": len(text) if text is not None else None,
+            "body_preview": text[:BODY_PREVIEW_LIMIT] if text is not None else None,
+            "recorded_at": _now(),
+        }
+        self._record_route(
+            method,
+            path,
+            status=self.last_rejection["status"],
+            rc=None,
+            msg=None,
+            records=None,
+            populated=None,
+        )
+
+    async def _record_failed_status(self, method: str, path: str, resp: Any) -> None:
+        """Read and retain the body of a non-2xx response before it is raised."""
+        status = resp.status
+        text = await self._body_text(resp)
+        body: Any = None
+        if text is not None:
+            try:
+                body = json.loads(text)
+            except ValueError:
+                body = None
+        if body is None:
+            self._record_unparsable(
+                method, path, status, getattr(resp, "content_type", None), text
+            )
+            return
+        self._record_verdict(method, path, status, body, "http_error")
+        rc, msg = _meta(body)
+        self._record_route(
+            method,
+            path,
+            status=status if isinstance(status, int) else None,
+            rc=rc,
+            msg=msg,
+            records=None,
+            populated=None,
+        )
+
+    async def _read(self, method: str, path: str, resp: Any) -> Any:
+        """Check a response's status, parse it, and record the outcome."""
+        status = resp.status
+        if isinstance(status, int) and status >= 400:
+            await self._record_failed_status(method, path, resp)
+        resp.raise_for_status()
         try:
-            async with self.session.get(
-                url,
-                headers=self._auth_headers(),
-                timeout=_API_TIMEOUT,
-                ssl=False,
-            ) as resp:
+            body = await resp.json()
+        except (aiohttp.ContentTypeError, ValueError) as err:
+            text = await self._body_text(resp)
+            self._record_unparsable(
+                method, path, status, getattr(resp, "content_type", None), text
+            )
+            raise UnifiConnectionError(
+                f"Unparsable response ({status}) from {route_of(path)}"
+            ) from err
+        self._record_answer(method, path, status, body)
+        return body
+
+    async def _request(
+        self, method: str, path: str, payload: dict[str, Any] | None = None
+    ) -> Any:
+        """Perform a request with automatic re-auth on 401, recording the outcome."""
+        url = f"{self._base_url()}{path}"
+        call = getattr(self.session, method.lower())
+        kwargs: dict[str, Any] = {"timeout": _API_TIMEOUT, "ssl": False}
+        if payload is not None:
+            kwargs["json"] = payload
+        try:
+            async with call(url, headers=self._auth_headers(), **kwargs) as resp:
                 if resp.status == 401:
+                    await self._record_failed_status(method, path, resp)
                     if self.api_key:
                         _raise_auth_error("API key rejected (401)")
                     # Re-authenticate once
                     await self.login()
-                    async with self.session.get(
-                        url,
-                        headers=self._auth_headers(),
-                        timeout=_API_TIMEOUT,
-                        ssl=False,
+                    async with call(
+                        url, headers=self._auth_headers(), **kwargs
                     ) as retry:
-                        retry.raise_for_status()
-                        return await retry.json()
-                resp.raise_for_status()
-                return await resp.json()
+                        return await self._read(method, path, retry)
+                return await self._read(method, path, resp)
         except (UnifiAuthError, UnifiConnectionError):
             raise
         except aiohttp.ClientResponseError as err:
@@ -182,7 +300,21 @@ class UnifiNetworkAPI:
                 raise UnifiAuthError(f"Authentication failed: {err}") from err
             raise UnifiConnectionError(f"HTTP error {err.status}: {err}") from err
         except Exception as err:
-            raise UnifiConnectionError(f"Request failed: {err}") from err
+            raise UnifiConnectionError(
+                f"Request failed: {str(err) or type(err).__name__}"
+            ) from err
+
+    async def _post(self, path: str, payload: dict[str, Any]) -> Any:
+        """Perform a POST request with automatic re-auth on 401."""
+        return await self._request("POST", path, payload)
+
+    async def _put(self, path: str, payload: dict[str, Any]) -> Any:
+        """Perform a PUT request with automatic re-auth on 401."""
+        return await self._request("PUT", path, payload)
+
+    async def _get(self, path: str) -> Any:
+        """Perform a GET request with automatic re-auth on 401."""
+        return await self._request("GET", path)
 
     def _extract(self, response: Any) -> list[dict[str, Any]]:
         """Extract ``data`` list from a UniFi API response envelope."""
@@ -207,12 +339,15 @@ class UnifiNetworkAPI:
                 ssl=False,
             ) as resp:
                 if resp.status == 401:
+                    self._record_login_metadata(resp, "rejected", None)
                     _raise_auth_error("Invalid username or password")
                 resp.raise_for_status()
                 # Extract TOKEN cookie
                 cookie = resp.cookies.get("TOKEN")
+                source: str | None = None
                 if cookie:
                     self._token = cookie.value
+                    source = "cookie"
                 else:
                     # Some firmware versions embed token in body
                     body = await resp.json()
@@ -221,17 +356,43 @@ class UnifiNetworkAPI:
                         if isinstance(body, dict)
                         else None
                     )
+                    source = "body" if self._token else None
                 # Extract CSRF token from response header (UDM Pro 2.x+)
                 self._csrf = resp.headers.get("X-CSRF-Token") or resp.headers.get(
                     "x-csrf-token"
                 )
                 if not self._token:
+                    self._record_login_metadata(resp, "no_token", None)
                     _raise_auth_error("Login succeeded but no TOKEN received")
+                self._record_login_metadata(resp, "ok", source)
                 _LOGGER.debug("UniFi login successful, CSRF=%s", bool(self._csrf))
         except (UnifiAuthError, UnifiConnectionError):
             raise
         except Exception as err:
+            self.login_metadata = {
+                "outcome": "error",
+                "error": type(err).__name__,
+                "recorded_at": _now(),
+            }
             raise UnifiConnectionError(f"Login request failed: {err}") from err
+
+    def _record_login_metadata(
+        self, resp: Any, outcome: str, source: str | None
+    ) -> None:
+        """Record the login response's shape: names and flags, never a value."""
+        headers = getattr(resp, "headers", None)
+        cookies = getattr(resp, "cookies", None)
+        status = getattr(resp, "status", None)
+        self.login_metadata = {
+            "outcome": outcome,
+            "status": status if isinstance(status, int) else None,
+            "header_names": sorted(str(k) for k in headers) if headers else [],
+            "cookie_names": sorted(str(k) for k in cookies) if cookies else [],
+            "token_issued": self._token is not None and outcome == "ok",
+            "token_source": source,
+            "csrf_header": bool(self._csrf) if outcome == "ok" else False,
+            "recorded_at": _now(),
+        }
 
     async def logout(self) -> None:
         """Log out of the UniFi session (username/password mode only)."""
@@ -353,6 +514,15 @@ class UnifiNetworkAPI:
         """Fetch historical speedtest results from the v2 API."""
         path = f"/proxy/network/v2/api/site/{self.site}/speedtest"
         resp = await self._get(path)
+        return self._extract(resp)
+
+    async def get_clients(self) -> list[dict[str, Any]]:
+        """Fetch connected clients (read-only).
+
+        Not polled by the integration; ``scripts/diag_check.py`` reads it to scan
+        the diagnostics download for client names, hostnames, MACs and IPs.
+        """
+        resp = await self._get(f"/proxy/network/api/s/{self.site}/stat/sta")
         return self._extract(resp)
 
     async def get_wlanconf(self) -> list[dict[str, Any]]:

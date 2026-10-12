@@ -412,6 +412,15 @@ def _safe_float(val: Any, default: float | None = None) -> float | None:
         return default
 
 
+def _err_text(err: BaseException) -> str:
+    """Return an exception's message, or its class name when the message is empty.
+
+    ``TimeoutError()`` carries no message, so a log line interpolating it ends
+    blank and says nothing about what failed.
+    """
+    return str(err) or type(err).__name__
+
+
 def _safe_int(val: Any, default: int | None = None) -> int | None:
     """Safely coerce to int."""
     if val in (None, ""):
@@ -819,6 +828,12 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # the update continues. See endpoint_available().
         self._endpoint_state: dict[str, dict[str, Any]] = {}
         self._stale_endpoints: set[str] = set()
+        # Diagnostics: each endpoint's outcome on its latest poll (answered,
+        # failed or not_asked, bad payload §5.7), and the number of optional
+        # fetches that failed this poll; the retained rejection is cleared only
+        # by a poll on which nothing failed.
+        self.endpoint_outcomes: dict[str, dict[str, Any]] = {}
+        self._poll_fetch_failures = 0
 
         # Self-diagnosis: per-source consecutive schema-drift counters. A drift
         # signal must persist HEALTH_DRIFT_STRIKE_LIMIT cycles before it flags.
@@ -879,6 +894,10 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # gateway, and on no later poll (identity.py).
         self._identity_check_armed = True
         self.stored_mac_absent: bool | None = None
+        # The gateway's own boot instant and the controller's timezone, kept for
+        # the diagnostics download beside the published boot time.
+        self.gateway_startup_timestamp: int | None = None
+        self.controller_timezone: str | None = None
 
         # Full networkconf objects for WAN/WAN2 — needed for PUT writes
         self._networkconf_wan: dict[str, Any] | None = None
@@ -1515,7 +1534,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 label,
                 state["failures"],
                 FETCH_STRIKE_LIMIT,
-                err,
+                _err_text(err),
             )
         else:
             if label not in self._stale_endpoints:
@@ -1524,7 +1543,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     self.entry.title,
                     label,
                     state["failures"],
-                    err,
+                    _err_text(err),
                 )
             self._stale_endpoints.add(label)
         last_good: list[dict[str, Any]] = state["last_good"]
@@ -1538,6 +1557,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """
         self._endpoint_state.pop(label, None)
         self._stale_endpoints.discard(label)
+        self.endpoint_outcomes[label] = {"outcome": "not_asked", "reason": "disabled"}
         if label == EP_SYSLOG:
             # Alerts is off — force the next fetch (on re-enable) to re-baseline
             # so the backlog doesn't flood the bus with events.
@@ -1575,13 +1595,51 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         try:
             data = list(await method())
         except (UnifiConnectionError, UnifiAuthError, TimeoutError) as err:
+            self._record_fetch_failed(label, state, err)
             return self._hold_or_stale(label, state, err, logging.DEBUG)
         except Exception as err:  # noqa: BLE001 - tolerate API drift per-endpoint
+            self._record_fetch_failed(label, state, err)
             return self._hold_or_stale(label, state, err, logging.WARNING)
+        self._record_fetch_answered(label, data)
         state["last_good"] = data
         state["failures"] = 0
         self._stale_endpoints.discard(label)
         return data
+
+    async def _fetch_required(self, method: Any, label: str) -> Any:
+        """Fetch a required endpoint, recording a failure before it propagates.
+
+        The global strike rule still handles the exception; this only keeps the
+        endpoint record from showing the previous poll's answer.
+        """
+        try:
+            return await method()
+        except Exception as err:
+            self.endpoint_outcomes[label] = {
+                "outcome": "failed",
+                "error": type(err).__name__,
+                "strikes": self.consecutive_failures + 1,
+            }
+            raise
+
+    def _record_fetch_answered(self, label: str, data: list[Any]) -> None:
+        """Record an endpoint that answered, with its record counts."""
+        self.endpoint_outcomes[label] = {
+            "outcome": "answered",
+            "records": len(data),
+            "populated": sum(1 for item in data if isinstance(item, dict) and item),
+        }
+
+    def _record_fetch_failed(
+        self, label: str, state: dict[str, Any], err: Exception
+    ) -> None:
+        """Record an endpoint that failed this poll, with its strike count."""
+        self._poll_fetch_failures += 1
+        self.endpoint_outcomes[label] = {
+            "outcome": "failed",
+            "error": type(err).__name__,
+            "strikes": state["failures"] + 1,
+        }
 
     async def _async_update_data(self) -> dict[str, Any]:  # noqa: C901
         """Fetch all data with 3-strike resilience."""
@@ -1596,6 +1654,8 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             return self.data
         # Consume the one-shot flag now that we're committing to a fetch.
         self._force_refresh_once = False
+        self._poll_fetch_failures = 0
+        rejections_at_start = getattr(self.api, "rejection_serial", 0)
 
         try:
             # Resolve Site UUID if using API Key and not resolved yet
@@ -1657,8 +1717,8 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
                 # Define concurrent tasks
                 tasks = [
-                    self.api.get_devices(),
-                    self.api.get_health(),
+                    self._fetch_required(self.api.get_devices, "devices"),
+                    self._fetch_required(self.api.get_health, "health"),
                     self._fetch_optional(self.api.get_sysinfo, EP_SYSINFO),
                     self._fetch_optional(self.api.get_networkconf, EP_NETWORKCONF),
                     self._optional(want_security, self.api.get_settings, EP_SETTINGS),
@@ -1721,6 +1781,16 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         ]
                     )
                 else:
+                    for label in (
+                        EP_WAN_IF,
+                        EP_VPN_SERVERS,
+                        EP_VPN_TUNNELS,
+                        EP_FIREWALL,
+                    ):
+                        self.endpoint_outcomes[label] = {
+                            "outcome": "not_asked",
+                            "reason": "v3_unavailable",
+                        }
 
                     async def dummy_fetch() -> list[Any]:
                         return []
@@ -1752,9 +1822,16 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     firewall_policies_raw,
                 ) = results
 
+                for label, raw in (("devices", devices_raw), ("health", health_raw)):
+                    self._record_fetch_answered(label, list(raw or []))
+
                 sw_version: str | None = None
                 if sysinfo_raw:
                     sw_version = sysinfo_raw[0].get("version")
+                    timezone = sysinfo_raw[0].get("timezone")
+                    self.controller_timezone = (
+                        timezone if isinstance(timezone, str) else None
+                    )
 
                 # Separate gateway from APs/switches
                 gateway_device: dict[str, Any] | None = None
@@ -1765,6 +1842,11 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 # skip below applies to parsing only.
                 self.gateway_selection = select_gateway(devices_raw, self.gateway_mac)
                 selected_gateway = self.gateway_selection.device
+                self.gateway_startup_timestamp = (
+                    _safe_int(selected_gateway.get("startup_timestamp"))
+                    if selected_gateway is not None
+                    else None
+                )
                 self._sync_gateway_issue(self.gateway_selection, devices_raw)
                 self.stored_mac_absent = identity.stored_mac_absent(
                     self.entry, devices_raw
@@ -1799,8 +1881,8 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         _LOGGER.warning(
                             "%s: Failed to parse device %s, skipping: %s",
                             self.entry.title,
-                            device.get("mac", "unknown"),
-                            err,
+                            identity.mask_identity(device.get("mac")),
+                            _err_text(err),
                         )
 
                 health = _parse_health(health_raw, update_time, self)
@@ -2390,6 +2472,15 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
                 self.consecutive_failures = 0
                 self.last_update_success_time = update_time
+                if (
+                    self._poll_fetch_failures == 0
+                    and getattr(self.api, "rejection_serial", 0) == rejections_at_start
+                ):
+                    # A stale rejection must not outlive the fault (bad payload
+                    # §3): only a poll on which nothing failed and nothing was
+                    # refused, by any request including the site lookup,
+                    # clears it.
+                    self.api.last_rejection = None
                 if not self._was_available:
                     self._was_available = True
                     _LOGGER.info("%s: Reconnected successfully.", self.entry.title)
@@ -2460,13 +2551,16 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     _LOGGER.warning if self.consecutive_failures == 1 else _LOGGER.debug
                 )
                 log(
-                    "%s: Authentication error fetching UniFi data (failure %d/3), holding last values: %s",
+                    "%s: Authentication error fetching UniFi data (failure %d/%d), holding last values: %s",
                     self.entry.title,
                     self.consecutive_failures,
-                    err,
+                    FETCH_STRIKE_LIMIT,
+                    _err_text(err),
                 )
                 return self.data
-            _LOGGER.error("%s: Authentication failed: %s", self.entry.title, err)
+            _LOGGER.error(
+                "%s: Authentication failed: %s", self.entry.title, _err_text(err)
+            )
             raise ConfigEntryAuthFailed(f"Authentication failed: {err}") from err
 
         except (UnifiConnectionError, TimeoutError) as err:
@@ -2480,15 +2574,19 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     _LOGGER.warning if self.consecutive_failures == 1 else _LOGGER.debug
                 )
                 log(
-                    "%s: Error fetching UniFi data (failure %d/3), holding last values: %s",
+                    "%s: Error fetching UniFi data (failure %d/%d), holding last values: %s",
                     self.entry.title,
                     self.consecutive_failures,
-                    err,
+                    FETCH_STRIKE_LIMIT,
+                    _err_text(err),
                 )
                 return self.data
             self._was_available = False
             _LOGGER.error(
-                "%s: Communication lost after 3 failures: %s", self.entry.title, err
+                "%s: Communication lost after %d failures: %s",
+                self.entry.title,
+                FETCH_STRIKE_LIMIT,
+                _err_text(err),
             )
             if not self.data:
                 raise ConfigEntryNotReady(f"Communication error: {err}") from err
@@ -2505,14 +2603,15 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                     _LOGGER.warning if self.consecutive_failures == 1 else _LOGGER.debug
                 )
                 log(
-                    "%s: Unexpected error (failure %d/3), holding last values: %s",
+                    "%s: Unexpected error (failure %d/%d), holding last values: %s",
                     self.entry.title,
                     self.consecutive_failures,
-                    err,
+                    FETCH_STRIKE_LIMIT,
+                    _err_text(err),
                 )
                 return self.data
             self._was_available = False
-            _LOGGER.error("%s: Unexpected error: %s", self.entry.title, err)
+            _LOGGER.error("%s: Unexpected error: %s", self.entry.title, _err_text(err))
             if not self.data:
                 raise ConfigEntryNotReady(f"Unexpected error: {err}") from err
             raise UpdateFailed(f"Unexpected error: {err}") from err

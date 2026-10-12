@@ -252,6 +252,20 @@ BSSID-keyed `Store` (`{DOMAIN}.{entry_id}.rogue_history`), loaded in `coordinato
 
 `add_rogue_ignore` / `remove_rogue_ignore` / `set_rogue_ignore` (each with `target: ssids|aps`) mutate `entry.options[rogue_ignore_ssids|rogue_ignore_aps]` via `async_update_entry`; since those keys aren't live-tunable, the reload listener re-applies them immediately. `set` returns `{target, old, new}` (undo); `add`/`remove` return the resulting list. They affect the **passive Security view only** — the `get_rogue_aps` action deliberately ignores the ignore-lists.
 
+### Diagnostics Captures and the Hardware Diagnostics Check (v1.1.0-dev14)
+
+The download carries four blocks beside `data`, following `improve_diagnostics_on_bad_payload_data.md` with `zte_router_5g` as the reference. `endpoints` holds each endpoint's latest outcome from the coordinator (`answered` with record and populated counts, `failed` with the error class and strike count, or `not_asked` with `disabled` or `v3_unavailable`) and each route's HTTP status and `meta.rc` from the API client. `last_rejection` holds the latest refused or unparsable response, captured before it is raised, with only the key names of its records, and is cleared by a poll on which no fetch failed. `login` holds the shape of the last login response in password mode. `gateway` holds the selection reason and candidates by token and model, `stored_mac_absent`, the gateway's `startup_timestamp` beside the published boot time and the cached boot-time latch, and the controller's timezone. Each block is built on its own, and a failure is recorded as `section_error` rather than raised, since Home Assistant does not wrap the download. The capture fields are partitioned into `DISCOVERY_METADATA_PUBLISHED` and `DISCOVERY_METADATA_GATED`; gated fields pass the scrubber.
+
+The controller reports a read error as a non-2xx status carrying `meta.rc: "error"` (`404` `api.err.NotFound`; `401` `api.err.NoSiteContext` for an unknown site), and a missing object as `200` with empty data; measured on the UDM Pro, 2026-10-12.
+
+`scripts/diag_check.py` checks the real download on hardware (see `AGENTS.md`). Its leak scan matches whole words, so a default port name such as `Port 1` does not match `port 10`, and it skips route fields, whose paths are fixed.
+
+**Known limits:**
+
+- Recovery of a download pass from a lost password-mode session is unmeasured: the development entry authenticates by API key, so `--sabotage` prints a not-applicable line rather than taking a session away.
+- In password mode every `diag_check.py` run logs in once and logs out at the end, alongside the integration's own session. Whether that logout ends the integration's session is unmeasured; the development entry uses an API key, which logs nothing in or out.
+- The WAN name in an alert's free text is covered three times over on the UDM Pro (the alert-name literal, the WAN interface names and the ISP name), so reverting one cover does not show a leak on that controller; the unit tests prove each cover on its own.
+
 ### Gateway Selection & Identity Correction (v1.1.0-dev12)
 
 Issue #23: on a Cloud Gateway Ultra (`UDRULT`), which the model list lacked, the config flow adopted the first device in `stat/device`, a switch, as the gateway and stored its MAC as the entry identity. Detection is now one function, `select_gateway` in `gateway.py`, used by `validate_connection()`, the coordinator's device loop and `scripts/hardware_check.py`. The module has no Home Assistant imports, so the standalone script imports it without a cycle.
