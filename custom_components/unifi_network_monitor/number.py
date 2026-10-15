@@ -18,7 +18,7 @@ from homeassistant.const import (
     EntityCategory,
     UnitOfTime,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -104,7 +104,7 @@ class _DebouncedWriteEntity:
 
     Both controls here debounce: a drag produces a stream of values and only the
     last one is worth writing. The subtlety is what happens when the entity goes
-    away mid-window. Cancelling the buffer — which is what both did — discards
+    away mid-window. Canceling the buffer — which is what both did — discards
     the write silently: the UI shows the new number, the controller never hears
     about it, and nothing reports the discrepancy. **A reload is enough to
     trigger it, and an options change is enough to trigger a reload**, so this is
@@ -151,6 +151,10 @@ class _DebouncedWriteEntity:
             pass
         except (UnifiError, ValueError, HomeAssistantError) as err:
             _LOGGER.error(self._error_message, err)
+            self._on_apply_failed()
+
+    def _on_apply_failed(self) -> None:
+        """React to a write that raised. Nothing to do by default."""
 
     async def async_will_remove_from_hass(self) -> None:
         """Flush a buffered write rather than dropping it."""
@@ -239,6 +243,8 @@ class WanLoadBalanceNumber(
         _DebouncedWriteEntity.__init__(self)
         self._entry = entry
         self._attr_unique_id = f"{entry.unique_id}_wan1_load_balance_weight"
+        # The value just set, published until the controller's read-back arrives.
+        self._hold: float | None = None
 
     @property
     def device_info(self) -> DeviceInfo:
@@ -260,7 +266,14 @@ class WanLoadBalanceNumber(
 
     @property
     def native_value(self) -> float | None:
-        """Return current WAN1 weight from coordinator data."""
+        """Return the WAN1 weight: the value just set, else the payload's.
+
+        The write's refresh is requested, not awaited, so the payload carries the
+        pre-write weight until the next update; publishing it would show the old
+        value for several seconds after a set (C-019).
+        """
+        if self._hold is not None:
+            return self._hold
         if not self.coordinator.data:
             return None
         val = self.coordinator.data.get("gateway", {}).get("wan1_weight")
@@ -275,9 +288,25 @@ class WanLoadBalanceNumber(
                 translation_domain=DOMAIN,
                 translation_key="wan_config_not_loaded",
             )
-        self._attr_native_value = value
+        self._hold = value
         self.async_write_ha_state()
         self._schedule_debounced_apply(value)
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Release the held value once no write is pending or running.
+
+        An update that lands while a later set is still debouncing, or while its
+        write runs, keeps the hold, so that set's value is not dropped.
+        """
+        if self._debounce_task is None or self._debounce_task.done():
+            self._hold = None
+        super()._handle_coordinator_update()
+
+    def _on_apply_failed(self) -> None:
+        """A raised write requests no refresh, so release the hold now."""
+        self._hold = None
+        self.async_write_ha_state()
 
     async def _apply(self, value: float) -> None:
         """Write the weight pair and report the outcome.

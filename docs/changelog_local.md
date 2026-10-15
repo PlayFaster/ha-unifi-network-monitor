@@ -17,6 +17,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: UniFi Network Monitor](#internal-detailed-changelog-unifi-network-monitor)
+  - [\[1.1.1-dev2\] - 2026-10-15 - Uptime: Device Boot Times From the Controller, Link Latch Reconciles; WAN Totals and Weight Fixed; Health Severity Values](#111-dev2---2026-10-15---uptime-device-boot-times-from-the-controller-link-latch-reconciles-wan-totals-and-weight-fixed-health-severity-values)
   - [\[1.1.1-dev1\] - 2026-10-15 - Manifest Bump 1.1.0 → 1.1.1 - Diagnostics Redaction: State-Map Keys, Alert Blocks, Whole-Word Substitution; Leak Check Walks Keys](#111-dev1---2026-10-15---manifest-bump-110--111---diagnostics-redaction-state-map-keys-alert-blocks-whole-word-substitution-leak-check-walks-keys)
   - [\[1.1.0\] - 2026-10-12 - Release: Gateway Detection, Projected Data Usage, Diagnostics Hardening, and WAN Weight Controls](#110---2026-10-12---release-gateway-detection-projected-data-usage-diagnostics-hardening-and-wan-weight-controls)
   - [\[1.1.0-dev14\] - 2026-10-12 - Diagnostics Download: Rejection, Endpoint and Gateway Captures; Scrubber Hardened; Hardware Diagnostics Check](#110-dev14---2026-10-12---diagnostics-download-rejection-endpoint-and-gateway-captures-scrubber-hardened-hardware-diagnostics-check)
@@ -54,6 +55,55 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.1-dev1\] - 2026-07-26 - Documentation and Tooling: Health Automation Example, AGENTS Structure, and CI Bumps](#101-dev1---2026-07-26---documentation-and-tooling-health-automation-example-agents-structure-and-ci-bumps)
   - [\[1.0.0\] - 2026-07-22 - Initial Public Release](#100---2026-07-22---initial-public-release)
   - [Document Audit Status](#document-audit-status)
+
+---
+
+## [1.1.1-dev2] - 2026-10-15 - Uptime: Device Boot Times From the Controller, Link Latch Reconciles; WAN Totals and Weight Fixed; Health Severity Values
+
+### Summary
+
+Focused on the defects found in v1.1.0. Device boot times now come from the controller's own start time, and the gateway's no longer sits weeks stale; the three link uptimes reconcile with the shared latch design. The combined monthly total and the speedtest split work on a single-WAN gateway, the WAN weight control shows the value just set, Integration Health uses the standard severity values, and logins are serialized.
+
+### Changed
+
+- **Integration Health severity values**: `severity` reads `ok`, `degraded` or `error`, never `None`; it was `None`, `moderate` and `serious`. `problem` is `severity != "ok"`, so the binary sensor's state is unchanged. A user automation testing `moderate` or `serious` must test `degraded` or `error`.
+- **Logins serialized**: `login()` takes `_login_lock`, as `zte_router_5g` does, so concurrent endpoints on an expired password-mode session log in one at a time.
+- **README automation triggers**: the Pause Polling and Integration Health examples carry `from: "off"`, so a return from `unavailable` does not fire them.
+- **Spelling and cleanup wording**: US spelling across the component, and the `cleanup.py` docstring and comments say emptied devices are removed, as the code does.
+
+### Fixed
+
+- **Gateway uptime 63 days stale**: device boot times, the gateway's included, are published from each device's `startup_timestamp`; the per-device latch that froze is gone.
+- **Link uptime latch could freeze**: the `wan1`, `wan2` and `www` boot times run the shared latch (`uptime.py`), with a store record saved on unload and the drift-corrected anchor. The `last_uptime` counter in each stored record is dropped at the first latch.
+- **Internet Month Total unavailable on a single-WAN gateway (issue #23)**: the total counts a `None` monthly field as zero and reads `None` only when all four are `None`.
+- **WAN1 speedtest published as WAN2 on a single-WAN gateway**: two close results without interface names pair as WAN1 and WAN2 only when the gateway reports a WAN2 port.
+- **Stale diagnostics field (found by the independent review)**: the `gateway` block's `boot_times_cache` read a record no latch writes any more; removed.
+- **v1.1.0 device records kept indefinitely (found by the independent review)**: the gateway and per-MAC `boot_times` records are dropped at the first link latch.
+- **Startup reconciliation waited for an absent WAN2 (found by the independent review)**: a link that never reports is not waited for.
+- **WAN weight showed the old value for about 7 s after a set**: the entity publishes the value just set until the controller's read-back arrives, keeps a later set's value across an update, and returns to the controller's value at once when the write fails.
+
+### Added
+
+- **Drift attributes on Integration Health**: `drift_rate_pct`, `drift_rate_min_pct`, `drift_rate_max_pct`, `drift_intervals`, `drift_measured_seconds` and `drift_deficit_seconds` for the `www` latch, named as in the sibling projects.
+- **Diagnostics `uptime` section**: each link latch's anchor, counters and drift.
+
+### Tests
+
+- **`tests/test_uptime_latch.py`** (new): the shared cases of `uptime_drift_analyzed.md` §8 under the shared names, the store failure cases, the upgrade from the v1.1.0 record shape, the store saved on unload, and device boot times from `startup_timestamp`; the simultaneous cold start and offline gap cases fail against the previous coordinator.
+- **`tests/test_api_lock_concurrency.py`** (new): `test_two_logins_take_turns` with a positive control.
+- **`tests/test_number.py`**: the five `patch.object` publish stubs are publish-moment captures, with four tests of the WAN weight hold.
+- **`tests/test_usage_total_value_fn.py`**, **`tests/test_coordinator_branches.py`**, **`tests/test_coordinator.py`**, **`tests/test_integration_health.py`**, **`tests/test_binary_sensor.py`**: the month total cases, the single-WAN pairing, the severity values; a fixture gained the WAN2 port name a UDM Pro reports, and the tests of the removed per-device latch were replaced.
+- **Mutation proofs**: each fix disabled in turn; each named test failed, then passed once restored.
+- **Coverage**: 100% line and branch coverage, 0 partial branches.
+
+### Verified
+
+- **Live on the UDM Pro**: Internet Month Total equals the sum of the WAN1 and WAN2 totals; the gateway uptime sensor reads the controller's `startup_timestamp`; Integration Health reads `off` with `severity: ok`; a WAN weight set from 60 to 40 published `40.0` within 0.1 s, then restored to 60; the diagnostics check `PASSED` with 0 leaks.
+
+### Known
+
+- **Concurrent logins unmeasured**: the development entry authenticates by API key, so the controller's handling of concurrent logins is not measured.
+- **Two manifest rows not mapped by `Sensor: Verify HA`**: the per-AP `score` and the dynamic `vpn_tunnel_name` rows, which predate this build.
 
 ---
 

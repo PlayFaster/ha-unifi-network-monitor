@@ -197,7 +197,6 @@ async def test_gateway_context_reaches_the_file_without_identities(hass: Any) ->
     entry.data = {**entry.data, "boot_times": {"gateway": cache}}
     result = await async_get_config_entry_diagnostics(hass, entry)
     block = result["gateway"]
-    assert block["boot_times_cache"] == cache
     assert block["selection_reason"] == "ambiguous"
     assert block["selected"] is None
     assert [c["model"] for c in block["candidates"]] == ["UDMPRO", "USM8P210"]
@@ -292,6 +291,7 @@ async def test_every_section_and_rewrite_survives_the_decomposition(
         "login",
         "endpoints",
         "gateway",
+        "uptime",
     }
     assert set(result["entry"]) == {"title", "data", "options"}
     assert set(result["coordinator"]) == {

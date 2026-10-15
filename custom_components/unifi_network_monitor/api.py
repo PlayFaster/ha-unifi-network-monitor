@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 import json
 import logging
@@ -96,6 +97,9 @@ class UnifiNetworkAPI:
         self.site = site
         self._token: str | None = None
         self._csrf: str | None = None
+        # Serializes logins, as zte_router_5g does: concurrent endpoints on an
+        # expired password-mode session log in one at a time.
+        self._login_lock = asyncio.Lock()
         # Diagnostics captures (improve_diagnostics_on_bad_payload_data.md §2):
         # the most recent rejected response, the shape of the last login
         # response, and the last outcome of every route. Names and counts only,
@@ -327,6 +331,16 @@ class UnifiNetworkAPI:
     # ------------------------------------------------------------------
 
     async def login(self) -> None:
+        """Authenticate with username / password, one login at a time.
+
+        A caller that waited logs in again rather than reusing the session just
+        made, as in zte_router_5g; whether the controller refuses or rate-limits
+        concurrent logins is unmeasured (docs/DEVELOPMENT.md).
+        """
+        async with self._login_lock:
+            await self._login_unlocked()
+
+    async def _login_unlocked(self) -> None:
         """Authenticate with username / password and store TOKEN + CSRF."""
         if not self.username or not self.password:
             raise UnifiAuthError("Username and password are required for session auth")

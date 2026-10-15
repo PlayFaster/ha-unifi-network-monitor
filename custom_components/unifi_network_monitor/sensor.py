@@ -591,11 +591,13 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
             "Combined WAN internet usage (upload + download) for the current "
             "calendar month; includes WAN2 when Dual-WAN is enabled."
         ),
+        # The coordinator writes each key, as None where a bucket lacked it; a
+        # single-WAN gateway carries both WAN2 keys as None (issue #23).
         value_fn=lambda d: (
-            d.get("wan1_month_rx", 0)
-            + d.get("wan1_month_tx", 0)
-            + d.get("wan2_month_rx", 0)
-            + d.get("wan2_month_tx", 0)
+            (d.get("wan1_month_rx") or 0)
+            + (d.get("wan1_month_tx") or 0)
+            + (d.get("wan2_month_rx") or 0)
+            + (d.get("wan2_month_tx") or 0)
             if any(
                 d.get(k) is not None
                 for k in (
@@ -987,7 +989,7 @@ HEALTH_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         value_fn=lambda d: d.get("wan_isp_name"),
         about=(
             "The ISP as UniFi identifies it from the WAN address. ISP "
-            "Organisation is the registered owner of the address block, which "
+            "Organization is the registered owner of the address block, which "
             "is often a parent company or a wholesale carrier rather than the "
             "company billing you."
         ),

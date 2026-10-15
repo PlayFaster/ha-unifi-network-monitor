@@ -129,7 +129,7 @@ def select_gateway(
     Online WAN carriers are considered first, then online devices by type or
     model, then offline WAN carriers, then any device by type or model, so an
     offline gateway is still identified but never preferred over an online
-    candidate. A tie is broken in favour of the stored MAC before ``ambiguous``
+    candidate. A tie is broken in favor of the stored MAC before ``ambiguous``
     is returned.
     """
     stored = mac_key(stored_mac)

@@ -104,7 +104,7 @@ async def test_watermark_survives_a_reload(hass: Any) -> None:
     the controller's slightly-lower open-bucket value — which must be clamped to
     the persisted maximum rather than reported as a decrease.
     """
-    from unittest.mock import patch
+    from unittest.mock import AsyncMock, patch
 
     from custom_components.unifi_network_monitor.coordinator import (
         UnifiNetworkDataUpdateCoordinator,
@@ -114,6 +114,8 @@ async def test_watermark_survives_a_reload(hass: Any) -> None:
 
     with patch.object(UnifiNetworkDataUpdateCoordinator, "__init__", return_value=None):
         coord = UnifiNetworkDataUpdateCoordinator()
+        coord._store = None  # the uptime latch store; not under test here
+        coord.async_load_stored_uptime = AsyncMock()
         coord.rogue_history = {}
         coord.usage_watermark = {}
 
@@ -151,6 +153,7 @@ async def test_flush_stores_forces_immediate_save(hass: Any) -> None:
 
     with patch.object(UnifiNetworkDataUpdateCoordinator, "__init__", return_value=None):
         coord = UnifiNetworkDataUpdateCoordinator()
+        coord._store = None  # the uptime latch store; not under test here
         coord.usage_watermark = {KEY: {"period": P2, "value": 256_719_487_164}}
         coord.rogue_history = {"aa:bb:cc:dd:ee:ff": {"appearances": 3}}
         coord._usage_store = type("S", (), {"async_save": AsyncMock()})()

@@ -1,0 +1,290 @@
+{
+  "anchors": [
+    {
+      "observed_utc": "2026-08-24T16:52:10+00:00",
+      "boot_time": "2026-08-07T21:53:48+00:00"
+    },
+    {
+      "observed_utc": "2026-08-31T21:10:40+00:00",
+      "boot_time": "2026-08-27T13:58:07+00:00"
+    },
+    {
+      "observed_utc": "2026-09-01T10:53:28+00:00",
+      "boot_time": "2026-09-01T02:56:10+00:00"
+    }
+  ],
+  "caveats": [
+    "Counters are reconstructed from the sensor, which stores hours as a float and rounds; they carry sub-second quantization noise.",
+    "null counter marks an unknown or unavailable state, which is a Home Assistant restart rather than a router event.",
+    "Intervals shorter than about 1000 s are dominated by that rounding and should not be used to derive a rate."
+  ],
+  "description": "Real recorder samples from sensor.zte_5g_system_uptime_duration and the boot-time anchor it was reconciled against, captured 2026-09-01 from the devcontainer's home-assistant_v2.db before the ten-day purge removed them. The counter on this device runs slow, so the derived boot instant walks forward while the router runs. The series carries that drift, one genuine router reboot, and several gaps where Home Assistant was not running.",
+  "known_events": {
+    "router_reboot_utc": "2026-09-01T02:56:10+00:00",
+    "observed_on_first_poll_after_gap_utc": "2026-09-01T10:53:28+00:00",
+    "ha_offline_gap": ["2026-08-31T21:17:01+00:00", "2026-09-01T10:53:28+00:00"]
+  },
+  "measured": {
+    "aggregate_drift_rate": 0.04337,
+    "intervals_used": 15,
+    "wall_seconds_covered": 378494.23990893364
+  },
+  "samples": [
+    {
+      "utc": "2026-08-27T15:46:02+00:00",
+      "ts": 1787845562.622731,
+      "counter": null
+    },
+    {
+      "utc": "2026-08-27T15:46:02+00:00",
+      "ts": 1787845562.932022,
+      "counter": 22290
+    },
+    {
+      "utc": "2026-08-27T15:54:23+00:00",
+      "ts": 1787846063.1158047,
+      "counter": 22769
+    },
+    {
+      "utc": "2026-08-30T15:13:28+00:00",
+      "ts": 1788102808.6594276,
+      "counter": null
+    },
+    {
+      "utc": "2026-08-30T15:13:28+00:00",
+      "ts": 1788102808.9078014,
+      "counter": 268462
+    },
+    {
+      "utc": "2026-08-30T16:52:29+00:00",
+      "ts": 1788108749.5184822,
+      "counter": null
+    },
+    {
+      "utc": "2026-08-30T16:52:29+00:00",
+      "ts": 1788108749.9999106,
+      "counter": 274139
+    },
+    {
+      "utc": "2026-08-30T17:06:27+00:00",
+      "ts": 1788109587.7956145,
+      "counter": null
+    },
+    {
+      "utc": "2026-08-30T17:06:28+00:00",
+      "ts": 1788109588.1654825,
+      "counter": 274949
+    },
+    {
+      "utc": "2026-08-30T18:41:13+00:00",
+      "ts": 1788115273.1144075,
+      "counter": null
+    },
+    {
+      "utc": "2026-08-30T18:41:13+00:00",
+      "ts": 1788115273.445229,
+      "counter": 280385
+    },
+    {
+      "utc": "2026-08-30T19:27:47+00:00",
+      "ts": 1788118067.4211879,
+      "counter": null
+    },
+    {
+      "utc": "2026-08-30T19:27:47+00:00",
+      "ts": 1788118067.7126482,
+      "counter": 283051
+    },
+    {
+      "utc": "2026-08-30T19:28:22+00:00",
+      "ts": 1788118102.8329291,
+      "counter": null
+    },
+    {
+      "utc": "2026-08-30T19:28:23+00:00",
+      "ts": 1788118103.326956,
+      "counter": 283085
+    },
+    {
+      "utc": "2026-08-30T21:49:01+00:00",
+      "ts": 1788126541.4424913,
+      "counter": null
+    },
+    {
+      "utc": "2026-08-30T21:49:02+00:00",
+      "ts": 1788126542.0202134,
+      "counter": 291134
+    },
+    {
+      "utc": "2026-08-30T23:40:50+00:00",
+      "ts": 1788133250.076304,
+      "counter": null
+    },
+    {
+      "utc": "2026-08-30T23:40:50+00:00",
+      "ts": 1788133250.5441961,
+      "counter": 297558
+    },
+    {
+      "utc": "2026-08-31T00:23:54+00:00",
+      "ts": 1788135834.0693843,
+      "counter": null
+    },
+    {
+      "utc": "2026-08-31T00:23:54+00:00",
+      "ts": 1788135834.846104,
+      "counter": 300020
+    },
+    {
+      "utc": "2026-08-31T10:38:17+00:00",
+      "ts": 1788172697.406375,
+      "counter": null
+    },
+    {
+      "utc": "2026-08-31T10:38:17+00:00",
+      "ts": 1788172697.9702537,
+      "counter": 335287
+    },
+    {
+      "utc": "2026-08-31T10:59:40+00:00",
+      "ts": 1788173980.6940217,
+      "counter": null
+    },
+    {
+      "utc": "2026-08-31T10:59:41+00:00",
+      "ts": 1788173981.3020575,
+      "counter": 336513
+    },
+    {
+      "utc": "2026-08-31T12:43:12+00:00",
+      "ts": 1788180192.3081706,
+      "counter": null
+    },
+    {
+      "utc": "2026-08-31T12:43:12+00:00",
+      "ts": 1788180192.8494635,
+      "counter": 342456
+    },
+    {
+      "utc": "2026-08-31T20:33:09+00:00",
+      "ts": 1788208389.8527105,
+      "counter": null
+    },
+    {
+      "utc": "2026-08-31T20:33:10+00:00",
+      "ts": 1788208390.5006359,
+      "counter": 369400
+    },
+    {
+      "utc": "2026-08-31T20:36:41+00:00",
+      "ts": 1788208601.302058,
+      "counter": null
+    },
+    {
+      "utc": "2026-08-31T20:36:43+00:00",
+      "ts": 1788208603.186425,
+      "counter": 369607
+    },
+    {
+      "utc": "2026-08-31T21:07:13+00:00",
+      "ts": 1788210433.998504,
+      "counter": null
+    },
+    {
+      "utc": "2026-08-31T21:07:14+00:00",
+      "ts": 1788210434.4616249,
+      "counter": 371355
+    },
+    {
+      "utc": "2026-08-31T21:10:40+00:00",
+      "ts": 1788210640.6879761,
+      "counter": 371553
+    },
+    {
+      "utc": "2026-08-31T21:13:16+00:00",
+      "ts": 1788210796.672626,
+      "counter": 371699
+    },
+    {
+      "utc": "2026-08-31T21:17:00+00:00",
+      "ts": 1788211020.9059997,
+      "counter": null
+    },
+    {
+      "utc": "2026-08-31T21:17:01+00:00",
+      "ts": 1788211021.1585274,
+      "counter": 371909
+    },
+    {
+      "utc": "2026-09-01T10:53:28+00:00",
+      "ts": 1788260008.2386582,
+      "counter": null
+    },
+    {
+      "utc": "2026-09-01T10:53:28+00:00",
+      "ts": 1788260008.7073653,
+      "counter": 28638
+    },
+    {
+      "utc": "2026-09-01T10:54:18+00:00",
+      "ts": 1788260058.1559174,
+      "counter": 28687
+    },
+    {
+      "utc": "2026-09-01T10:54:49+00:00",
+      "ts": 1788260089.61325,
+      "counter": null
+    },
+    {
+      "utc": "2026-09-01T10:54:49+00:00",
+      "ts": 1788260089.884357,
+      "counter": 28718
+    },
+    {
+      "utc": "2026-09-01T10:56:30+00:00",
+      "ts": 1788260190.384558,
+      "counter": null
+    },
+    {
+      "utc": "2026-09-01T10:56:30+00:00",
+      "ts": 1788260190.9004393,
+      "counter": 28816
+    },
+    {
+      "utc": "2026-09-01T11:28:38+00:00",
+      "ts": 1788262118.9638805,
+      "counter": null
+    },
+    {
+      "utc": "2026-09-01T11:28:39+00:00",
+      "ts": 1788262119.563585,
+      "counter": 30658
+    },
+    {
+      "utc": "2026-09-01T13:02:53+00:00",
+      "ts": 1788267773.769037,
+      "counter": null
+    },
+    {
+      "utc": "2026-09-01T13:02:54+00:00",
+      "ts": 1788267774.13101,
+      "counter": 36063
+    },
+    {
+      "utc": "2026-09-01T15:09:59+00:00",
+      "ts": 1788275399.9882472,
+      "counter": null
+    },
+    {
+      "utc": "2026-09-01T15:10:00+00:00",
+      "ts": 1788275400.260197,
+      "counter": 43359
+    }
+  ],
+  "source": {
+    "device": "ZTE MC7010",
+    "firmware": "xx_xxx_MC7010DV1.0.0B03",
+    "captured_utc": "2026-09-01T16:58:38+00:00",
+    "entity": "sensor.zte_5g_system_uptime_duration"
+  }
+}

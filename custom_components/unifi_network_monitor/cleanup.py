@@ -4,7 +4,7 @@ Cleanup is always explicit (a button press or the ``cleanup_unused_entities``
 action) —
 never an automatic side effect of a reconfigure — so a debug/reconfig session is
 never disrupted. It only touches per-physical-device (AP/switch) entities that
-the current ``unifi_device_mode`` excludes, and detaches devices that end up with
+the current ``unifi_device_mode`` excludes, and removes devices that end up with
 no Monitor entities (which leaves a core-owned device card intact).
 """
 
@@ -108,7 +108,7 @@ def plan_device_cleanup(
             if reg_entry.unique_id[len(prefix) :] not in desired:
                 plan.entity_ids.append(reg_entry.entity_id)
 
-        # If Monitor keeps nothing for this device, detach its device entry too.
+        # If Monitor keeps nothing for this device, remove its device entry too.
         if not desired:
             device = device_by_identifier(dev_reg, DOMAIN, mac, entry.entry_id)
             if device is not None and entry.entry_id in owning_entry_ids(device):
@@ -141,7 +141,7 @@ def plan_device_cleanup(
 
     # Card-owned sub-devices whose feature toggle is off: remove EVERY entity on
     # the card (regardless of source — catches health-fed entities that the
-    # endpoint branch misses) and detach the now-empty card device.
+    # endpoint branch misses) and remove the now-empty card device.
     gateway_mac = coordinator.gateway_mac
     if gateway_mac:
         already = set(plan.entity_ids)
@@ -157,7 +157,7 @@ def plan_device_cleanup(
                 if reg_entry.device_id == device.id:
                     plan.entity_ids.append(reg_entry.entity_id)
                     already.add(reg_entry.entity_id)
-            # The card is Monitor-only; once emptied, detach it.
+            # The card is Monitor-only; once emptied, remove it.
             if entry.entry_id in owning_entry_ids(device):
                 plan.device_ids.append(device.id)
 

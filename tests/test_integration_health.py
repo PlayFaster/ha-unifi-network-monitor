@@ -29,7 +29,7 @@ def _coordinator() -> Any:
     c.api.api_key = "test-key"
     c.health_snapshot = {
         "problem": False,
-        "severity": None,
+        "severity": "ok",
         "issues": [],
         "degraded_capabilities": [],
         "drift": [],
@@ -48,7 +48,7 @@ def test_cold_start_failure_flags_on_first_strike() -> None:
     c._record_fetch_failure_health(OSError("no route to host"))
 
     assert c.health_snapshot["problem"] is True
-    assert c.health_snapshot["severity"] == "serious"
+    assert c.health_snapshot["severity"] == "error"
     assert "since startup" in c.health_snapshot["issues"][0]
 
 
@@ -78,7 +78,7 @@ def test_success_clears_the_verdict_immediately() -> None:
     # The success path assigns the freshly computed snapshot wholesale.
     c.health_snapshot = {
         "problem": False,
-        "severity": None,
+        "severity": "ok",
         "issues": [],
         "degraded_capabilities": [],
         "drift": [],
@@ -119,7 +119,7 @@ def test_sensor_reads_snapshot_not_stale_data() -> None:
     coord.last_update_success = False
     # Stale payload from before the outage still says everything was fine.
     coord.data = {"integration_health": {"problem": False}}
-    coord.health_snapshot = {"problem": True, "severity": "serious"}
+    coord.health_snapshot = {"problem": True, "severity": "error"}
     s.coordinator = coord
 
     assert s.is_on is True

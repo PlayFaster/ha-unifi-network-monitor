@@ -128,6 +128,7 @@ def _coordinator_data() -> dict[str, Any]:
 
 def _make_coordinator() -> MagicMock:
     coord = MagicMock()
+    coord.uptime_state = {}
     coord.data = _coordinator_data()
     coord.gateway_mac = FAKE_GATEWAY_MAC
     coord.gateway_model = "UDMPRO"

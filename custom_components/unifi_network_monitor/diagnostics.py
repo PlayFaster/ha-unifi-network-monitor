@@ -191,7 +191,7 @@ _GATEWAY_BLANK_KEYS = (
 
 # Gateway maps keyed by the user's own names: SSIDs and site-to-site tunnel
 # names (coordinator.py, ``wifi_states`` and ``vpn_states``). The keys are the
-# identifiers and are tokenised by kind; the booleans are kept.
+# identifiers and are tokenized by kind; the booleans are kept.
 _NAMED_STATE_MAPS = (("wifi_states", "wlan"), ("vpn_states", "vpn"))
 
 # Fields on the rogue-AP list that describe *other people's* networks.
@@ -329,7 +329,7 @@ _IDENTITY_KEYS = ("previous_unique_id", "previous_mac", "identity_blocked_mac")
 
 
 def _scrub_identity_value(scrub: _Scrubber, value: Any) -> Any:
-    """Tokenise a MAC as a device MAC; redact anything else, such as a host."""
+    """Tokenize a MAC as a device MAC; redact anything else, such as a host."""
     if not value:
         return value
     return scrub.device_token(value) if _is_mac(value) else REDACTED
@@ -422,9 +422,6 @@ def _gateway_block(
     startup = getattr(coordinator, "gateway_startup_timestamp", None)
     absent = getattr(coordinator, "stored_mac_absent", None)
     timezone = getattr(coordinator, "controller_timezone", None)
-    # The gateway's latched boot time is cached under the label "gateway"
-    # (coordinator.get_stable_boot_time), not under its MAC.
-    cached = boot_times.get("gateway") if isinstance(boot_times, dict) else None
     return {
         "selection_reason": reason if isinstance(reason, str) else None,
         "selected": scrub.device_token(selected.get("mac"))
@@ -438,7 +435,6 @@ def _gateway_block(
         "startup_time": _iso(startup),
         "published_boot_time": gateway.get("boot_time"),
         "uptime_secs": gateway.get("uptime_secs"),
-        "boot_times_cache": cached,
         "controller_timezone": timezone if isinstance(timezone, str) else None,
     }
 
@@ -590,7 +586,7 @@ def _learn_gateway_and_devices(scrub: _Scrubber, data: Any) -> None:
 def _learn_entry(scrub: _Scrubber, entry_data: dict[str, Any], boot_times: Any) -> None:
     """Pass 1: learn the MACs held in the config entry's data."""
     # ``boot_times`` is keyed by MAC for physical devices, but also carries
-    # plain labels such as "wan1" for interface uptime. Tokenising those would
+    # plain labels such as "wan1" for interface uptime. Tokenizing those would
     # protect nothing and would corrupt any alert text mentioning "WAN1".
     if isinstance(boot_times, dict):
         for key in boot_times:
@@ -650,7 +646,7 @@ def _scrub_gateway(scrub: _Scrubber, gateway: dict[str, Any]) -> None:
     for key, kind in _NAMED_STATE_MAPS:
         states = gateway.get(key)
         if isinstance(states, dict):
-            gateway[key] = _tokenised_keys(scrub, states, kind)
+            gateway[key] = _tokenized_keys(scrub, states, kind)
     if isinstance(gateway.get(_ROGUE_SSID_KEY), str):
         gateway[_ROGUE_SSID_KEY] = scrub.text(gateway[_ROGUE_SSID_KEY])
     if isinstance(gateway.get(_ROGUE_LIST_KEY), list):
@@ -662,10 +658,10 @@ def _scrub_gateway(scrub: _Scrubber, gateway: dict[str, Any]) -> None:
             gateway[key] = _scrub_alert(scrub, gateway[key])
 
 
-def _tokenised_keys(
+def _tokenized_keys(
     scrub: _Scrubber, states: dict[Any, Any], kind: str
 ) -> dict[str, Any]:
-    """Return a map with its keys tokenised and its key count kept.
+    """Return a map with its keys tokenized and its key count kept.
 
     Names differing only in case or spacing, or blank, share a token; each later
     one gets a numbered suffix, so no state is lost.
@@ -682,7 +678,7 @@ def _tokenised_keys(
 
 
 def _rogue_history(scrub: _Scrubber, coordinator: Any) -> list[dict[str, Any]]:
-    """Return the rogue history as a list of records with labels tokenised.
+    """Return the rogue history as a list of records with labels tokenized.
 
     A list, not a BSSID-keyed dict, so the ``bssid`` entry in TO_REDACT masks the
     MAC - async_redact_data redacts values, not keys.
@@ -789,4 +785,5 @@ async def async_get_config_entry_diagnostics(
         "gateway": _section(
             "gateway", lambda: _gateway_block(scrub, coordinator, data, boot_times)
         ),
+        "uptime": _section("uptime", lambda: coordinator.uptime_state),
     }

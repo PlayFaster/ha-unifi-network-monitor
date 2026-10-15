@@ -55,7 +55,7 @@ The `about` attribute is a plain-language note attached to key entities to provi
 | WAN2 Availability | Sensor | `wan2_availability` | As WAN1 Availability, for the second WAN. Only meaningful when a second WAN is actually connected. |
 | WAN2 Latency | Sensor | `wan2_latency_avg` | As WAN1 Latency, for the second WAN. |
 | WAN2 Projected Usage | Sensor | `wan2_month_projected` | Projected WAN2 usage by the end of the calendar month, from usage so far. Check the confidence attribute — it is weak early in the month. |
-| ISP Name | Sensor | `wan_isp_name` | The ISP as UniFi identifies it from the WAN address. ISP Organisation is the registered owner of the address block, which is often a parent company or a wholesale carrier rather than the company billing you. |
+| ISP Name | Sensor | `wan_isp_name` | The ISP as UniFi identifies it from the WAN address. ISP Organization is the registered owner of the address block, which is often a parent company or a wholesale carrier rather than the company billing you. |
 | ISP Organization | Sensor | `wan_isp_org` | Registered owner of the WAN address block. Frequently differs from ISP Name — a reseller's customers show the wholesaler here. |
 | Internet Drops | Sensor | `www_drops` | Count of dropped connectivity checks in UniFi's monitoring window. A handful is normal; a rising count during good latency usually means packet loss rather than a slow link. |
 | Internet Latency | Sensor | `www_latency` | Current internet latency as the controller last measured it. Differs from WAN1/WAN2 Latency, which are averages over UniFi's longer window. |
