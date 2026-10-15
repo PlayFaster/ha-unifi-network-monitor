@@ -27,6 +27,7 @@ coverage.xml
 .coverage
 .coverage.*
 .reports/
+.hypothesis/
 mutants/
 
 # Home Assistant

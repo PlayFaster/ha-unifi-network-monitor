@@ -80,31 +80,91 @@ TO_REDACT = {
 # payload. No real identifier is ever hard-coded: every literal is learned from
 # the payload being scrubbed, so this works identically for any install.
 
-_MAC_RE = re.compile(r"\b[0-9a-f]{2}(?::[0-9a-f]{2}){5}\b", re.IGNORECASE)
-_IP_RE = re.compile(
-    r"\b(?:"
-    r"10\.\d{1,3}\.\d{1,3}\.\d{1,3}"
-    r"|192\.168\.\d{1,3}\.\d{1,3}"
-    r"|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}"
-    r"|100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.\d{1,3}\.\d{1,3}"
-    r")(?:/\d{1,2})?\b"
+# The address patterns are those of ``huawei_router_5g`` (and, for the MAC,
+# ``zte_router_5g``), so the suite scrubs the same shapes the same way. Every
+# IPv4 address is matched, public as well as private. Each octet is bounded to
+# 0-255 and not adjacent to a word character or ``(``, nor followed by ``.`` and a
+# word character, so a dotted version string carrying a suffix is not mistaken for
+# an address while an address ending a sentence is still matched.
+_OCTET = r"(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)"
+_IPV4_RE = re.compile(
+    rf"(?<![\w.])(?:{_OCTET}\.){{3}}{_OCTET}(?![\w(]|\.\w)",
 )
-
-# UniFi alert ``parameters`` block names. These are vendor schema constants,
-# not user data. DEVICE blocks are pseudonymised so cross-references survive;
-# the rest are blanked outright.
-_ALERT_DEVICE_BLOCKS = frozenset({"DEVICE", "DEVICE_WITH_PORT"})
-_ALERT_BLANK_BLOCKS = frozenset(
+_MAC_RE = re.compile(r"\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b")
+# Requires either a ``::`` elision or the full eight-group form. Anything looser
+# matches a ``HH:MM:SS`` timestamp, which has three hex-looking colon groups.
+_IPV6_RE = re.compile(
+    r"\b(?:[0-9A-Fa-f]{1,4}:){1,7}:(?:[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4})*)?"
+    r"|\b(?:[0-9A-Fa-f]{1,4}:){7}[0-9A-Fa-f]{1,4}\b"
+)
+# Addresses that identify no install: loopback, unspecified, and the public
+# resolvers a gateway is commonly set to use. They are kept where they appear.
+_ALLOWED_ADDRESSES = frozenset(
     {
-        "ISP_NAME",
-        "ISP_ASN",
-        "WAN_SUBNET",
-        "WAN_NAME",
-        "CONSOLE_NAME",
-        "AP_NAME",
-        "CLIENT",
+        "0.0.0.0",  # noqa: S104 - a value compared against, never bound to
+        "127.0.0.1",
+        "1.1.1.1",
+        "1.0.0.1",
+        "8.8.8.8",
+        "8.8.4.4",
+        "9.9.9.9",
+        "::",
+        "::1",
     }
 )
+
+
+def _redact_address(match: re.Match[str]) -> str:
+    """Return the marker for a matched address, unless it is on the allowed set."""
+    found = match.group(0)
+    return found if found.lower() in _ALLOWED_ADDRESSES else REDACTED
+
+
+# UniFi alert ``parameters`` block names. These are vendor schema constants,
+# not user data. Device-shaped blocks are pseudonymised so cross-references
+# survive. Blocks whose fields are radio, traffic or timing measures, or a fixed
+# setting, are kept and pass the text backstop. Every other block, including one
+# UniFi adds later, has every string redacted at any depth: an allow-list fails
+# closed. The safe set was classed by block name and field type
+# (docs/DEVELOPMENT.md).
+_ALERT_DEVICE_BLOCKS = frozenset(
+    {
+        "DEVICE",
+        "DEVICE_WITH_PORT",
+        "DEVICE_FROM",
+        "DEVICE_TO",
+        "DST_DEVICE",
+        "SRC_DEVICE",
+    }
+)
+_ALERT_SAFE_BLOCKS = frozenset(
+    {
+        "AUTH_METHOD",
+        "AVG_INTERFERENCE",
+        "AVG_UTILIZATION",
+        "CHANNEL",
+        "CHANNEL_WIDTH",
+        "DATA_DOWN",
+        "DATA_UP",
+        "DURATION",
+        "LEARN_MORE",
+        "PORT",
+        "PREVIOUS_CHANNEL",
+        "PREVIOUS_CHANNEL_WIDTH",
+        "PREVIOUS_RADIO_BAND",
+        "PREVIOUS_SIGNAL_STRENGTH",
+        "RADIO_BAND",
+        "SIGNAL_STRENGTH",
+        "TRIGGER",
+        "WAN_ID",
+        "WAN_SLA",
+        "WIFI_STATS",
+    }
+)
+# Fields of a redacted block whose value the alert's prose repeats; they are
+# learned so the message loses them too. An ``id`` is a generic code, such as
+# "WAN", and is not learned.
+_ALERT_LEARNED_FIELDS = frozenset({"name", "hostname"})
 _ALERT_ATTR_KEYS = ("last_high_attrs", "last_very_high_attrs")
 _ALERT_TEXT_KEYS = ("message", "title")
 
@@ -129,6 +189,11 @@ _GATEWAY_BLANK_KEYS = (
     "wan2_sfp_serial",
 )
 
+# Gateway maps keyed by the user's own names: SSIDs and site-to-site tunnel
+# names (coordinator.py, ``wifi_states`` and ``vpn_states``). The keys are the
+# identifiers and are tokenised by kind; the booleans are kept.
+_NAMED_STATE_MAPS = (("wifi_states", "wlan"), ("vpn_states", "vpn"))
+
 # Fields on the rogue-AP list that describe *other people's* networks.
 _ROGUE_LIST_KEY = "rogue_aps_list"
 _ROGUE_SSID_KEY = "strongest_rogue_ssid"
@@ -152,6 +217,8 @@ class _Scrubber:
         self._literals: set[str] = set()
         self._devices = 0
         self._rogues = 0
+        self._named: dict[str, int] = {}
+        self._pattern: re.Pattern[str] | None = None
 
     def device_token(self, value: Any, label: str | None = None) -> str:
         """Return a stable token for a device MAC, allocating one if needed."""
@@ -182,6 +249,19 @@ class _Scrubber:
         self._remember(key)
         return token
 
+    def named_token(self, value: Any, kind: str) -> str:
+        """Return a stable token for one of the user's own names, such as an SSID."""
+        key = str(value or "").strip().lower()
+        if not key:
+            return REDACTED
+        token = self._tokens.get(key)
+        if token is None:
+            self._named[kind] = self._named.get(kind, 0) + 1
+            token = f"{kind}-{self._named[kind]}"
+            self._tokens[key] = token
+        self._remember(key)
+        return token
+
     def alias(self, value: Any, token: str) -> None:
         """Point a second identifier (e.g. a device name) at an existing token."""
         key = str(value or "").strip().lower()
@@ -196,18 +276,46 @@ class _Scrubber:
             self._remember(key)
 
     def text(self, value: str) -> str:
-        """Scrub every known identifier, MAC and private IP from a string."""
-        out = value
-        for literal in sorted(self._literals, key=len, reverse=True):
-            replacement = self._tokens.get(literal, REDACTED)
-            out = re.sub(re.escape(literal), replacement, out, flags=re.IGNORECASE)
+        """Scrub every known identifier, MAC and IP address from a string.
+
+        A learned literal is replaced only as a whole word, in one pass, so a
+        replacement is never scanned again and the redaction marker is never
+        entered: a rogue SSID ``RED`` leaves ``**REDACTED**`` and ``Redmond`` alone.
+        """
+        out = self._literal_pattern().sub(self._replace, value)
+        # MACs are swept before IPv6 because the two shapes overlap.
         out = _MAC_RE.sub(REDACTED, out)
-        return _IP_RE.sub(REDACTED, out)
+        out = _IPV4_RE.sub(_redact_address, out)
+        return _IPV6_RE.sub(_redact_address, out)
+
+    def _literal_pattern(self) -> re.Pattern[str]:
+        """Return the marker and every literal as one alternation, longest first.
+
+        A literal takes a word boundary only on an edge that is a word character,
+        so ``[Guest] WiFi`` and ``IoT-Guest.5G`` match between spaces or
+        punctuation (the form ``scripts/diag_check.py`` uses for its leak scan).
+        """
+        if self._pattern is None:
+            parts = [re.escape(REDACTED)]
+            for literal in sorted(self._literals, key=len, reverse=True):
+                head = r"(?<!\w)" if re.match(r"\w", literal) else ""
+                tail = r"(?!\w)" if re.match(r"\w", literal[-1]) else ""
+                parts.append(f"{head}{re.escape(literal)}{tail}")
+            self._pattern = re.compile("|".join(parts), re.IGNORECASE)
+        return self._pattern
+
+    def _replace(self, match: re.Match[str]) -> str:
+        """Return the token for a matched literal; the marker is kept as it is."""
+        found = match.group(0)
+        if found == REDACTED:
+            return found
+        return self._tokens.get(found.lower(), REDACTED)
 
     def _remember(self, key: str) -> None:
         """Record a literal for free-text scrubbing if it is long enough to be safe."""
-        if len(key) >= _MIN_LITERAL_LEN:
+        if len(key) >= _MIN_LITERAL_LEN and key not in self._literals:
             self._literals.add(key)
+            self._pattern = None
 
 
 def _is_mac(value: Any) -> bool:
@@ -384,33 +492,48 @@ def _scrub_rogue_entry(scrub: _Scrubber, entry: Any) -> Any:
     return out
 
 
+def _map_strings(value: Any, fn: Callable[[str], Any]) -> Any:
+    """Apply ``fn`` to every string inside a value, at any depth."""
+    if isinstance(value, str):
+        return fn(value)
+    if isinstance(value, dict):
+        return {key: _map_strings(item, fn) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_map_strings(item, fn) for item in value]
+    return value
+
+
+def _learn_alert_fields(scrub: _Scrubber, value: Any) -> None:
+    """Learn the names a redacted block carries, at any depth."""
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if key in _ALERT_LEARNED_FIELDS and isinstance(item, str):
+                scrub.literal(item)
+            else:
+                _learn_alert_fields(scrub, item)
+    elif isinstance(value, list):
+        for item in value:
+            _learn_alert_fields(scrub, item)
+
+
 def _scrub_alert_block(scrub: _Scrubber, name: str, block: Any) -> Any:
     """Scrub one block of a UniFi alert ``parameters`` payload."""
-    if not isinstance(block, dict):
-        return scrub.text(block) if isinstance(block, str) else block
-
-    out = dict(block)
-    if name in _ALERT_DEVICE_BLOCKS:
+    if name in _ALERT_SAFE_BLOCKS:
+        return _map_strings(block, scrub.text)
+    if name in _ALERT_DEVICE_BLOCKS and isinstance(block, dict):
+        out = dict(block)
         if out.get("id"):
             out["id"] = scrub.device_token(out["id"])
+            # The device's name resolves to its token wherever it appears.
+            scrub.alias(out.get("name"), out["id"])
         if out.get("ip"):
             out["ip"] = REDACTED
-    elif name in _ALERT_BLANK_BLOCKS:
-        for key in ("id", "name"):
-            if isinstance(out.get(key), str):
-                # The alert's message repeats the name in prose; learning it
-                # first removes it there too. The id is a generic code, such as
-                # "WAN", and is not learned.
-                if key == "name":
-                    scrub.literal(out[key])
-                out[key] = REDACTED
-
-    # Backstop: UniFi can add parameter types we have not mapped, so every
-    # remaining string goes through shape-based scrubbing regardless.
-    for key, value in out.items():
-        if isinstance(value, str):
-            out[key] = scrub.text(value)
-    return out
+        return {
+            key: (value if key == "id" else _map_strings(value, scrub.text))
+            for key, value in out.items()
+        }
+    _learn_alert_fields(scrub, block)
+    return _map_strings(block, lambda _: REDACTED)
 
 
 def _scrub_alert(scrub: _Scrubber, attrs: Any) -> Any:
@@ -430,22 +553,10 @@ def _scrub_alert(scrub: _Scrubber, attrs: Any) -> Any:
     return out
 
 
-async def async_get_config_entry_diagnostics(  # noqa: C901
-    hass: HomeAssistant, entry: ConfigEntry
-) -> dict[str, Any]:
-    """Return diagnostics for a config entry."""
-    coordinator: UnifiNetworkDataUpdateCoordinator = entry.runtime_data
-    scrub = _Scrubber()
-
-    # Copy before touching anything - diagnostics must never mutate live data.
-    entry_data = deepcopy(dict(entry.data))
-    entry_options = dict(entry.options)
-    data = deepcopy(coordinator.data or {})
-
+def _learn_gateway_and_devices(scrub: _Scrubber, data: Any) -> None:
+    """Pass 1: learn the gateway, health and device identifiers."""
     gateway = data.get("gateway") if isinstance(data, dict) else None
     devices = data.get("devices") if isinstance(data, dict) else None
-
-    # --- Pass 1: learn every identifier before rewriting anything ----------
     if isinstance(gateway, dict):
         if gateway.get("mac"):
             scrub.device_token(gateway["mac"], label="gateway")
@@ -459,10 +570,28 @@ async def async_get_config_entry_diagnostics(  # noqa: C901
                 scrub.alias(record.get("name"), token)
                 scrub.alias(record.get("mac"), token)
 
+    if isinstance(gateway, dict):
+        for key, kind in _NAMED_STATE_MAPS:
+            states = gateway.get(key)
+            if isinstance(states, dict):
+                for name in states:
+                    scrub.named_token(name, kind)
+        # Names in redacted alert blocks are learned before any text is scrubbed,
+        # so the other alert's message, scrubbed first, loses them too.
+        for key in _ALERT_ATTR_KEYS:
+            attrs = gateway.get(key)
+            params = attrs.get("parameters") if isinstance(attrs, dict) else None
+            if isinstance(params, dict):
+                for name, block in params.items():
+                    if name not in _ALERT_SAFE_BLOCKS | _ALERT_DEVICE_BLOCKS:
+                        _learn_alert_fields(scrub, block)
+
+
+def _learn_entry(scrub: _Scrubber, entry_data: dict[str, Any], boot_times: Any) -> None:
+    """Pass 1: learn the MACs held in the config entry's data."""
     # ``boot_times`` is keyed by MAC for physical devices, but also carries
     # plain labels such as "wan1" for interface uptime. Tokenising those would
     # protect nothing and would corrupt any alert text mentioning "WAN1".
-    boot_times = entry_data.get("boot_times")
     if isinstance(boot_times, dict):
         for key in boot_times:
             if _is_mac(key):
@@ -470,9 +599,13 @@ async def async_get_config_entry_diagnostics(  # noqa: C901
     if entry_data.get("mac"):
         scrub.device_token(entry_data["mac"], label="gateway")
 
-    # Learn nearby-network names before any free text is scrubbed, so a real
-    # SSID resolves to its token wherever it appears while a sentinel value
-    # such as "None Detected" passes through untouched - no special-casing.
+
+def _learn_rogues(scrub: _Scrubber, coordinator: Any, gateway: Any) -> None:
+    """Pass 1: learn nearby-network names before any free text is scrubbed.
+
+    A real SSID then resolves to its token wherever it appears, while a sentinel
+    value such as "None Detected" passes through untouched - no special-casing.
+    """
     for record in (coordinator.rogue_history or {}).values():
         if isinstance(record, dict) and record.get("last_label"):
             scrub.rogue_token(record["last_label"])
@@ -481,7 +614,14 @@ async def async_get_config_entry_diagnostics(  # noqa: C901
             if isinstance(record, dict) and record.get("essid"):
                 scrub.rogue_token(record["essid"])
 
-    # --- Pass 2: rewrite ---------------------------------------------------
+
+def _scrub_entry(
+    scrub: _Scrubber,
+    entry_data: dict[str, Any],
+    entry_options: dict[str, Any],
+    boot_times: Any,
+) -> None:
+    """Pass 2: rewrite the config entry's data and options in place."""
     _scrub_identity_keys(scrub, entry_data)
     if isinstance(boot_times, dict):
         entry_data["boot_times"] = {
@@ -499,30 +639,54 @@ async def async_get_config_entry_diagnostics(  # noqa: C901
             count = len([part for part in raw.split(",") if part.strip()])
             entry_options[key] = f"{REDACTED} ({count} entries)"
 
-    if isinstance(devices, dict):
-        data["devices"] = {
-            scrub.device_token(mac): _scrub_device(scrub, record)
-            for mac, record in devices.items()
-        }
 
-    if isinstance(gateway, dict):
-        if isinstance(gateway.get("name"), str) and gateway["name"]:
-            gateway["name"] = scrub.text(gateway["name"])
-        for key in _GATEWAY_BLANK_KEYS:
-            if isinstance(gateway.get(key), str) and gateway[key]:
-                gateway[key] = REDACTED
-        if isinstance(gateway.get(_ROGUE_SSID_KEY), str):
-            gateway[_ROGUE_SSID_KEY] = scrub.text(gateway[_ROGUE_SSID_KEY])
-        if isinstance(gateway.get(_ROGUE_LIST_KEY), list):
-            gateway[_ROGUE_LIST_KEY] = [
-                _scrub_rogue_entry(scrub, record) for record in gateway[_ROGUE_LIST_KEY]
-            ]
-        for key in _ALERT_ATTR_KEYS:
-            if key in gateway:
-                gateway[key] = _scrub_alert(scrub, gateway[key])
+def _scrub_gateway(scrub: _Scrubber, gateway: dict[str, Any]) -> None:
+    """Pass 2: rewrite the gateway record in place."""
+    if isinstance(gateway.get("name"), str) and gateway["name"]:
+        gateway["name"] = scrub.text(gateway["name"])
+    for key in _GATEWAY_BLANK_KEYS:
+        if isinstance(gateway.get(key), str) and gateway[key]:
+            gateway[key] = REDACTED
+    for key, kind in _NAMED_STATE_MAPS:
+        states = gateway.get(key)
+        if isinstance(states, dict):
+            gateway[key] = _tokenised_keys(scrub, states, kind)
+    if isinstance(gateway.get(_ROGUE_SSID_KEY), str):
+        gateway[_ROGUE_SSID_KEY] = scrub.text(gateway[_ROGUE_SSID_KEY])
+    if isinstance(gateway.get(_ROGUE_LIST_KEY), list):
+        gateway[_ROGUE_LIST_KEY] = [
+            _scrub_rogue_entry(scrub, record) for record in gateway[_ROGUE_LIST_KEY]
+        ]
+    for key in _ALERT_ATTR_KEYS:
+        if key in gateway:
+            gateway[key] = _scrub_alert(scrub, gateway[key])
 
-    # Emit history as a list of records (not a BSSID-keyed dict) so the ``bssid``
-    # entry in TO_REDACT masks the MAC - async_redact_data redacts values, not keys.
+
+def _tokenised_keys(
+    scrub: _Scrubber, states: dict[Any, Any], kind: str
+) -> dict[str, Any]:
+    """Return a map with its keys tokenised and its key count kept.
+
+    Names differing only in case or spacing, or blank, share a token; each later
+    one gets a numbered suffix, so no state is lost.
+    """
+    out: dict[str, Any] = {}
+    for name, state in states.items():
+        token = scrub.named_token(name, kind)
+        unique, n = token, 1
+        while unique in out:
+            n += 1
+            unique = f"{token}#{n}"
+        out[unique] = state
+    return out
+
+
+def _rogue_history(scrub: _Scrubber, coordinator: Any) -> list[dict[str, Any]]:
+    """Return the rogue history as a list of records with labels tokenised.
+
+    A list, not a BSSID-keyed dict, so the ``bssid`` entry in TO_REDACT masks the
+    MAC - async_redact_data redacts values, not keys.
+    """
     rogue_history = []
     for bssid, record in (coordinator.rogue_history or {}).items():
         item: dict[str, Any] = {"bssid": bssid}
@@ -534,6 +698,63 @@ async def async_get_config_entry_diagnostics(  # noqa: C901
         if item.get("last_label"):
             item["last_label"] = scrub.rogue_token(item["last_label"])
         rogue_history.append(item)
+    return rogue_history
+
+
+def _coordinator_block(coordinator: Any) -> dict[str, Any]:
+    """Return the coordinator's run state."""
+    return {
+        "consecutive_failures": coordinator.consecutive_failures,
+        "last_update_success": coordinator.last_update_success,
+        "last_update_success_time": (
+            coordinator.last_update_success_time.isoformat()
+            if coordinator.last_update_success_time
+            else None
+        ),
+        "data_available": coordinator.data is not None,
+        "gateway_mac": async_redact_data(
+            {"mac": coordinator.gateway_mac}, TO_REDACT
+        ).get("mac"),
+        "gateway_model": coordinator.gateway_model,
+        "sw_version": coordinator.sw_version,
+        "integration_health": (coordinator.data or {}).get("integration_health"),
+    }
+
+
+async def async_get_config_entry_diagnostics(
+    hass: HomeAssistant, entry: ConfigEntry
+) -> dict[str, Any]:
+    """Return diagnostics for a config entry."""
+    coordinator: UnifiNetworkDataUpdateCoordinator = entry.runtime_data
+    scrub = _Scrubber()
+
+    # Copy before touching anything - diagnostics must never mutate live data.
+    entry_data = deepcopy(dict(entry.data))
+    entry_options = dict(entry.options)
+    data = deepcopy(coordinator.data or {})
+
+    gateway = data.get("gateway") if isinstance(data, dict) else None
+    devices = data.get("devices") if isinstance(data, dict) else None
+    boot_times = entry_data.get("boot_times")
+
+    # --- Pass 1: learn every identifier before rewriting anything ----------
+    _learn_gateway_and_devices(scrub, data)
+    _learn_entry(scrub, entry_data, boot_times)
+    _learn_rogues(scrub, coordinator, gateway)
+
+    # --- Pass 2: rewrite ---------------------------------------------------
+    _scrub_entry(scrub, entry_data, entry_options, boot_times)
+
+    if isinstance(devices, dict):
+        data["devices"] = {
+            scrub.device_token(mac): _scrub_device(scrub, record)
+            for mac, record in devices.items()
+        }
+
+    if isinstance(gateway, dict):
+        _scrub_gateway(scrub, gateway)
+
+    rogue_history = _rogue_history(scrub, coordinator)
 
     # The default title carries nothing, but a user may have renamed the entry
     # to something identifying - scrub it like any other free text.
@@ -548,22 +769,7 @@ async def async_get_config_entry_diagnostics(  # noqa: C901
             "options": async_redact_data(entry_options, TO_REDACT),
         },
         "rogue_history": async_redact_data(rogue_history, TO_REDACT),
-        "coordinator": {
-            "consecutive_failures": coordinator.consecutive_failures,
-            "last_update_success": coordinator.last_update_success,
-            "last_update_success_time": (
-                coordinator.last_update_success_time.isoformat()
-                if coordinator.last_update_success_time
-                else None
-            ),
-            "data_available": coordinator.data is not None,
-            "gateway_mac": async_redact_data(
-                {"mac": coordinator.gateway_mac}, TO_REDACT
-            ).get("mac"),
-            "gateway_model": coordinator.gateway_model,
-            "sw_version": coordinator.sw_version,
-            "integration_health": (coordinator.data or {}).get("integration_health"),
-        },
+        "coordinator": _coordinator_block(coordinator),
         "data": async_redact_data(data, TO_REDACT),
         "last_rejection": _section(
             "last_rejection",

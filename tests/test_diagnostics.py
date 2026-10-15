@@ -172,13 +172,21 @@ def test_scrub_device_non_dict_returns_input() -> None:
 
 
 def test_scrub_alert_block_non_dict_returns_input() -> None:
-    """_scrub_alert_block handles non-dict block (line 174)."""
-    from custom_components.unifi_network_monitor.diagnostics import _scrub_alert_block
+    """_scrub_alert_block handles a non-dict block.
+
+    Updated in 1.1.1-dev1: a block on no list is redacted, so a string block under
+    an unknown name now reads REDACTED where it was passed through the backstop.
+    """
+    from custom_components.unifi_network_monitor.diagnostics import (
+        REDACTED,
+        _scrub_alert_block,
+    )
 
     scrub = MagicMock()
     scrub.text = MagicMock(side_effect=lambda x: f"scrubbed:{x}")
     result = _scrub_alert_block(scrub, "NAME", "free text")
-    assert result == "scrubbed:free text"
+    assert result == REDACTED
+    assert _scrub_alert_block(scrub, "TRIGGER", "free text") == "scrubbed:free text"
     result = _scrub_alert_block(scrub, "NAME", None)
     assert result is None
     result = _scrub_alert_block(scrub, "NAME", 42)

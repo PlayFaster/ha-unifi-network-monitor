@@ -191,8 +191,12 @@ def test_scrub_alert_block_passes_through_a_non_string_scalar() -> None:
 
 
 def test_scrub_alert_block_device_block_without_id_or_ip() -> None:
-    """A device block can arrive with neither field populated."""
-    out = _scrub_alert_block(_Scrubber(), "ap", {"model": "U6-Pro"})
+    """A device block can arrive with neither field populated.
+
+    Updated in 1.1.1-dev1: the block name was ``ap``, which is on no list and is now
+    redacted; ``DEVICE`` keeps the case this test is about.
+    """
+    out = _scrub_alert_block(_Scrubber(), "DEVICE", {"model": "U6-Pro"})
     assert out == {"model": "U6-Pro"}
 
 

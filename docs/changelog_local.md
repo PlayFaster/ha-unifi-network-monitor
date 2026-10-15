@@ -17,6 +17,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: UniFi Network Monitor](#internal-detailed-changelog-unifi-network-monitor)
+  - [\[1.1.1-dev1\] - 2026-10-15 - Manifest Bump 1.1.0 → 1.1.1 - Diagnostics Redaction: State-Map Keys, Alert Blocks, Whole-Word Substitution; Leak Check Walks Keys](#111-dev1---2026-10-15---manifest-bump-110--111---diagnostics-redaction-state-map-keys-alert-blocks-whole-word-substitution-leak-check-walks-keys)
   - [\[1.1.0\] - 2026-10-12 - Release: Gateway Detection, Projected Data Usage, Diagnostics Hardening, and WAN Weight Controls](#110---2026-10-12---release-gateway-detection-projected-data-usage-diagnostics-hardening-and-wan-weight-controls)
   - [\[1.1.0-dev14\] - 2026-10-12 - Diagnostics Download: Rejection, Endpoint and Gateway Captures; Scrubber Hardened; Hardware Diagnostics Check](#110-dev14---2026-10-12---diagnostics-download-rejection-endpoint-and-gateway-captures-scrubber-hardened-hardware-diagnostics-check)
   - [\[1.1.0-dev12\] - 2026-10-12 - Gateway Detection: Signature-First Selection; Unrecognized-Gateway Repair; Automatic Identity Correction](#110-dev12---2026-10-12---gateway-detection-signature-first-selection-unrecognized-gateway-repair-automatic-identity-correction)
@@ -53,6 +54,56 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.1-dev1\] - 2026-07-26 - Documentation and Tooling: Health Automation Example, AGENTS Structure, and CI Bumps](#101-dev1---2026-07-26---documentation-and-tooling-health-automation-example-agents-structure-and-ci-bumps)
   - [\[1.0.0\] - 2026-07-22 - Initial Public Release](#100---2026-07-22---initial-public-release)
   - [Document Audit Status](#document-audit-status)
+
+---
+
+## [1.1.1-dev1] - 2026-10-15 - Manifest Bump 1.1.0 → 1.1.1 - Diagnostics Redaction: State-Map Keys, Alert Blocks, Whole-Word Substitution; Leak Check Walks Keys
+
+### Summary
+
+Focused on the diagnostics download leaks reported in issue #23. SSIDs and tunnel names used as dictionary keys, nested client and network names in alert parameters, and public and IPv6 addresses no longer reach the download, and redacted values are no longer garbled. The hardware leak check now scans keys, and failed on the development download before the scrubber changed.
+
+### Changed
+
+- **Leak check walks keys**: `scripts/diag_check.py` `leaves()` yields every dictionary key as well as every string value, so an identifier used as a key is scanned. Keys that are string literals in the integration's own source, such as `data` and the endpoint labels, and the keys of a `routes` table are not scanned. VPN tunnel names are a scanned category, and a printed path has any found value masked.
+- **Diagnostics entry point decomposed**: `async_get_config_entry_diagnostics` (complexity 32) is split into `_learn_gateway_and_devices`, `_learn_entry`, `_learn_rogues`, `_scrub_entry`, `_scrub_gateway`, `_rogue_history` and `_coordinator_block`, each block moved verbatim in its original order. Every function in `diagnostics.py` measures under 20, and its `# noqa: C901` is removed.
+- **Alert blocks redacted unless known safe**: every string in an alert `parameters` block, at any depth, is redacted unless the block is device-shaped or on a safe set of radio, traffic, timing and setting blocks. Device-shaped blocks now include `DEVICE_FROM`, `DEVICE_TO`, `DST_DEVICE` and `SRC_DEVICE`, and a block's `name` resolves to its device token. A redacted block's `name` and `hostname` values are learned, so the alert's prose loses them too.
+- **Address backstop**: the free-text backstop uses the `huawei_router_5g` patterns: `_MAC_RE` matches colon and dash forms, `_IPV4_RE` matches every IPv4 address, public included, and `_IPV6_RE` is added. Loopback, unspecified and common public resolver addresses are kept. A dash-form MAC used as a key is tokenized.
+- **Example values**: aligned with `example_values.md`.
+
+### Fixed
+
+- **SSID and tunnel names published as keys**: the gateway's `wifi_states` and `vpn_states` keys are tokenized (`wlan-1`, `vpn-1`); the booleans are kept.
+- **Nested client and network names published**: a `CLIENTS.clients[]` list and a `NETWORK` block, as in the issue #23 download, carried client names, hostnames and the network name.
+- **Redacted values garbled**: free-text substitution replaced a learned literal inside the redaction marker, so a rogue SSID such as `RED` turned `**REDACTED**` into `**rogue-1ACTED**`. A literal is now replaced only as a whole word, in one pass that never enters the marker or re-scans a replacement.
+- **Leak check passed a download carrying SSID keys**: the check read values only, so the 2026-10-12 pass missed the three SSIDs used as `wifi_states` keys.
+- **Address before a full stop not redacted (found by the independent review)**: the adopted `_IPV4_RE` lookahead rejected a trailing full stop, so `203.0.113.7.` passed; the lookahead now rejects only a word character, `(` or a full stop followed by a word character.
+- **Dotted key printed unmasked (found by the independent review)**: `diag_check.py` masked a path segment by segment, so an SSID key such as `IoT-Guest.5G` printed in full; the whole path is now masked.
+- **Docstrings exempted keys from the leak check (found by the independent review)**: the integration's own names now exclude docstrings.
+- **SSID keys differing only in case merged (found by the independent review)**: each later colliding or blank key takes a numbered suffix (`wlan-1#2`), so no state is lost.
+- **Alert names missed in the other alert's text (found by the independent review)**: names in redacted alert blocks are learned in pass 1, before any text is scrubbed.
+- **Leak check reported the integration's own key names (found during the live check)**: with keys walked, the top-level `data` key, an endpoint label and a route key each matched a controller port or network name; the integration's own names and route keys are now excluded.
+
+### Tests
+
+- **`tests/test_diag_check.py`**: an SSID used as a key is found with its path masked; the integration's own names and route keys are skipped; a MAC-shaped key is masked; tunnel names are read as a category.
+- **`tests/test_diagnostics_sanitization.py`**: SSID and tunnel keys tokenized with their prose; nested `CLIENTS` and `NETWORK` blocks redacted with `LEARN_MORE.url` kept; `WLAN` and unseen blocks redacted and `SRC_DEVICE` tokenized; the marker and `Redmond` untouched by a literal `RED`; punctuation-edged names replaced; public IPv4, IPv6, bracketed IPv6 and dash MACs redacted while a version, an object ID, a time and a resolver are kept; a dash-form MAC key tokenized; a blank name redacted.
+- **`tests/test_diagnostics_artefact.py`**: `test_every_section_and_rewrite_survives_the_decomposition`, written against the undivided function and passing on both.
+- **`tests/test_standards_guards.py`**: `test_local_time_field_is_never_read_as_utc` fails if a function reads `last_successful_config_application_time` without `controller_timezone`, with a test that the guard sees an unguarded read.
+- **Updated for the alert-block rule**: `tests/test_diagnostics.py`, `tests/test_diagnostics_branches.py` and `tests/test_diagnostics_mutation.py` asserted that a block on no list kept its strings; each now asserts the redaction and states why.
+- **Mutation proofs**: the key walk, the state-map key rewrite, the alert depth walk, the alert inversion, the single-pass substitution and each of the three address patterns disabled in turn; each named test failed, then passed once restored.
+- **Review corrections**: `test_an_address_ending_a_sentence_is_redacted`, `test_a_dotted_key_is_masked_whole`, `test_own_names_leave_out_docstrings`, `test_state_map_keys_keep_their_count` and `test_a_name_in_one_alert_leaves_the_other_alerts_prose`; the last three failed with their fix disabled.
+- **Coverage**: 100% line and branch coverage, 0 partial branches.
+
+### Verified
+
+- **Leak check before the scrubber change**: on the development UDM Pro the check reported `FAILED` with the SSID key at `data.gateway.wifi_states`.
+- **Decomposition**: a rich fixture rendered byte-identical before and after; two live downloads before and after carried 895 paths each with structure drift 0.
+- **Leak check after the scrubber change**: `PASSED` with 0 leaks and 0 shape findings, with alerts of both severities present and `wifi_states` keyed `wlan-1` to `wlan-3`; repeated after the review corrections, `PASSED` with 0 leaks over 1191 controller values.
+
+### Known
+
+- **Alert blocks seen after the plan's sample**: `COUNT`, `UPLINK` and `CONSOLE_WITH_DEVICE_NAME` appeared in the live download and are redacted by the default rule.
 
 ---
 
@@ -161,7 +212,7 @@ Focussed on diagnostics download. The download now records what the integration 
 
 ### Verified
 
-- **Live download on the development UDM Pro**: after a restart onto this build, the four blocks present; 18 endpoints `answered`; 18 routes with status and `meta.rc`; `selection_reason` `wan_signature`; gateway start 2026-09-19 beside the published boot time 2026-07-18; timezone `Europe/Dublin`.
+- **Live download on the development UDM Pro**: after a restart onto this build, the four blocks present; 18 endpoints `answered`; 18 routes with status and `meta.rc`; `selection_reason` `wan_signature`; gateway start 2026-09-19 beside the published boot time 2026-07-18; the controller timezone present.
 - **Leak scan**: 0 of 1194 controller values in 21 categories found in the download, and no MAC-shaped or IPv6-shaped value; `diag_check.py` reports `PASSED`, and `FAILED` with the device-name scrub reverted.
 - **Rejection capture against the controller**: an unknown site recorded `401` `api.err.NoSiteContext`; a missing v2 route recorded an `unparsable` HTML `404`.
 

@@ -191,7 +191,7 @@ async def test_gateway_context_reaches_the_file_without_identities(hass: Any) ->
     coord.gateway_selection = GatewaySelection(None, "ambiguous", (gateway, switch))
     coord.stored_mac_absent = True
     coord.gateway_startup_timestamp = 1789810718
-    coord.controller_timezone = "Europe/Dublin"
+    coord.controller_timezone = "WET"
     entry = _entry(coord)
     cache = {"boot_time": "2026-07-18T16:27:00+00:00", "last_uptime": 1992807}
     entry.data = {**entry.data, "boot_times": {"gateway": cache}}
@@ -205,7 +205,7 @@ async def test_gateway_context_reaches_the_file_without_identities(hass: Any) ->
     assert block["stored_mac_absent"] is True
     assert block["startup_timestamp"] == 1789810718
     assert block["startup_time"] == "2026-09-19T09:38:38+00:00"
-    assert block["controller_timezone"] == "Europe/Dublin"
+    assert block["controller_timezone"] == "WET"
     text = json.dumps(block)
     assert SWITCH_MAC not in text
     assert "Garage Switch" not in text
@@ -269,6 +269,61 @@ async def test_a_failing_section_is_recorded_not_raised(hass: Any) -> None:
         diagnostics._endpoints_block = original  # type: ignore[assignment]
     assert result["endpoints"] == {"section_error": "RuntimeError"}
     assert "data" in result
+
+
+async def test_every_section_and_rewrite_survives_the_decomposition(
+    hass: Any,
+) -> None:
+    """Each section, and the rewrite each helper owns, is in the download.
+
+    Characterization for the decomposition of the entry point
+    (mccabe_complexity_reduction.md): written against the undivided function, it
+    fails if a helper is dropped or its section goes missing.
+    """
+    from .test_diagnostics_sanitization import FAKE_AP_MAC, _make_entry
+
+    result = await async_get_config_entry_diagnostics(hass, _make_entry())
+    assert set(result) == {
+        "entry",
+        "rogue_history",
+        "coordinator",
+        "data",
+        "last_rejection",
+        "login",
+        "endpoints",
+        "gateway",
+    }
+    assert set(result["entry"]) == {"title", "data", "options"}
+    assert set(result["coordinator"]) == {
+        "consecutive_failures",
+        "last_update_success",
+        "last_update_success_time",
+        "data_available",
+        "gateway_mac",
+        "gateway_model",
+        "sw_version",
+        "integration_health",
+    }
+    # Pass 1 and the entry rewrite: MAC keys tokenised, labels kept.
+    boot_keys = set(result["entry"]["data"]["boot_times"])
+    assert "wan1" in boot_keys
+    assert FAKE_AP_MAC not in boot_keys
+    assert result["entry"]["options"]["rogue_ignore_ssids"] == (
+        f"{REDACTED} (2 entries)"
+    )
+    # Devices, gateway and rogue history rewrites.
+    assert all(key.startswith("device-") for key in result["data"]["devices"])
+    gateway = result["data"]["gateway"]
+    assert gateway["wan1_interface_name"] == REDACTED
+    assert gateway["last_very_high_attrs"]["parameters"]["ISP_NAME"]["name"] == (
+        REDACTED
+    )
+    assert [r["last_label"] for r in result["rogue_history"]] == [
+        "rogue-1",
+        "rogue-2",
+        "rogue-3",
+    ]
+    assert result["coordinator"]["gateway_mac"] == REDACTED
 
 
 def _producer_fields() -> set[str]:

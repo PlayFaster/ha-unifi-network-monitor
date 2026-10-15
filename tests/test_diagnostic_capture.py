@@ -374,13 +374,13 @@ async def test_gateway_startup_timestamp_and_timezone_are_kept(
     }
     api = _poll_api(
         get_devices=[gateway],
-        get_sysinfo=[{"version": "1", "timezone": "Europe/Dublin"}],
+        get_sysinfo=[{"version": "1", "timezone": "WET"}],
     )
     coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
     coordinator.site_uuid = "failed"
     await coordinator._async_update_data()
     assert coordinator.gateway_startup_timestamp == 1789810718
-    assert coordinator.controller_timezone == "Europe/Dublin"
+    assert coordinator.controller_timezone == "WET"
 
     del gateway["startup_timestamp"]
     api.get_sysinfo = AsyncMock(return_value=[{"version": "1", "timezone": 5}])

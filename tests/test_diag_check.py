@@ -25,7 +25,7 @@ def _healthy() -> dict[str, Any]:
         "gateway": {
             "selection_reason": "wan_signature",
             "startup_timestamp": 1,
-            "controller_timezone": "Europe/Dublin",
+            "controller_timezone": "WET",
             "published_boot_time": "2026-01-01T00:00:00+00:00",
         },
         "last_rejection": None,
@@ -191,6 +191,66 @@ def test_leak_scan_matches_a_mac_in_another_separator_form() -> None:
     secrets = {"client_mac": {"aa:bb:cc:dd:ee:ff", "aa-bb-cc-dd-ee-ff", "aabbccddeeff"}}
     hits = leak_hits(download, secrets)
     assert sorted(hits["client_mac"]) == ["x", "y"]
+
+
+def test_leak_scan_finds_an_identifier_used_as_a_key() -> None:
+    """An SSID published as a ``wifi_states`` key is found, and never printed."""
+    download = _healthy()
+    download["data"]["gateway"]["wifi_states"] = {"Attic Mesh": True}
+    hits = leak_hits(download, {"ssid": {"Attic Mesh"}})
+    assert hits == {"ssid": ["data.gateway.wifi_states.<value> (key)"]}
+
+
+def test_a_dotted_key_is_masked_whole() -> None:
+    """An SSID key containing a dot is masked, not split at the dot."""
+    hits = leak_hits({"data": {"IoT-Guest.5G": True}}, {"ssid": {"IoT-Guest.5G"}})
+    assert hits == {"ssid": ["data.<value> (key)"]}
+
+
+def test_own_names_leave_out_docstrings() -> None:
+    """A docstring names nothing, so it does not exempt a key from the scan."""
+    from scripts.diag_check import _OWN_NAMES
+
+    assert "Diagnostics support for UniFi Network Monitor." not in _OWN_NAMES
+    assert "guest list" in _OWN_NAMES
+
+
+def test_leak_scan_skips_the_integrations_own_names_and_route_keys() -> None:
+    """``data``, an endpoint label and a route key are not identifiers."""
+    download = _healthy()
+    download["endpoints"]["routes"] = {"GET /stat/guest": {"calls": 1}}
+    secrets = {"port_name": {"data"}, "network_name": {"guest list", "guest"}}
+    assert leak_hits(download, secrets) == {}
+
+
+def test_shape_scan_masks_an_address_used_as_a_key() -> None:
+    """A MAC-shaped key is reported with the address masked in its path."""
+    from scripts.diag_check import shape_hits
+
+    hits = shape_hits({"clients": {"aa:bb:cc:dd:ee:01": True}})
+    assert hits == {"mac_shape": ["clients.<mac> (key)"]}
+
+
+async def test_tunnel_names_are_read_as_a_category() -> None:
+    """Site-to-site tunnel names join the scanned values as ``vpn_tunnel``."""
+    api = AsyncMock()
+    api.host = "h"
+    for method in (
+        "get_devices",
+        "get_wlanconf",
+        "get_networkconf",
+        "get_rogueaps",
+        "get_health",
+        "get_sysinfo",
+        "get_wan_interfaces",
+        "get_clients",
+    ):
+        getattr(api, method).return_value = []
+    api.get_sites.return_value = [{"id": "site-1"}]
+    api.get_vpn_tunnels.return_value = [{"name": "Branch Link"}]
+    values = await diag_check._controller_values(api, "default")
+    assert values["vpn_tunnel"] == {"Branch Link"}
+    api.get_vpn_tunnels.assert_awaited_once_with("site-1")
 
 
 def test_banners_are_coloured_unless_no_color(monkeypatch: pytest.MonkeyPatch) -> None:

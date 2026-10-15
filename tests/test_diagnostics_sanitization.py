@@ -419,3 +419,204 @@ async def test_live_coordinator_data_is_not_mutated(hass: Any) -> None:
 
     assert json.dumps(coordinator.data, sort_keys=True) == before
     assert coordinator.data["devices"][FAKE_AP_MAC]["name"] == FAKE_AP_NAME
+
+
+async def test_ssid_and_tunnel_keys_are_tokenised(hass: Any) -> None:
+    """SSIDs and tunnel names used as keys survive nowhere; the states are kept."""
+    from custom_components.unifi_network_monitor.diagnostics import (
+        async_get_config_entry_diagnostics,
+    )
+
+    entry = _make_entry()
+    gateway = entry.runtime_data.data["gateway"]
+    gateway["wifi_states"] = {"Attic-Mesh": True, "Garden Guest": False}
+    gateway["vpn_states"] = {"Branch-Tunnel": True}
+    gateway["last_very_high_attrs"]["message"] += " Clients left Attic-Mesh."
+
+    result = await async_get_config_entry_diagnostics(hass, entry)
+    text = json.dumps(result)
+    for name in ("Attic-Mesh", "Garden Guest", "Branch-Tunnel"):
+        assert name.lower() not in text.lower()
+    out = result["data"]["gateway"]
+    assert out["wifi_states"] == {"wlan-1": True, "wlan-2": False}
+    assert out["vpn_states"] == {"vpn-1": True}
+    assert "Clients left wlan-1." in out["last_very_high_attrs"]["message"]
+
+
+def _alert_with(parameters: dict[str, Any], message: str = "") -> MagicMock:
+    """Return an entry whose gateway carries one high alert with these blocks."""
+    entry = _make_entry()
+    entry.runtime_data.data["gateway"]["last_high_attrs"] = {
+        "title": "Alert",
+        "message": message,
+        "parameters": parameters,
+    }
+    return entry
+
+
+async def test_nested_client_and_network_blocks_are_redacted(hass: Any) -> None:
+    """A ``CLIENTS`` list and a ``NETWORK`` block, as in issue #23, leak nothing."""
+    from custom_components.unifi_network_monitor.diagnostics import (
+        REDACTED,
+        async_get_config_entry_diagnostics,
+    )
+
+    entry = _alert_with(
+        {
+            "CLIENTS": {
+                "clients": [
+                    {
+                        "name": "Kitchen Tablet",
+                        "hostname": "kitchen-tab",
+                        "ip": "203.0.113.40",
+                        "mac": "aa:bb:cc:33:00:01",
+                    }
+                ]
+            },
+            "NETWORK": {"name": "Upstairs LAN", "subnet": "198.51.100.0/24"},
+            "LEARN_MORE": {"url": "https://help.example.com/alerts"},
+        },
+        message="Kitchen Tablet on Upstairs LAN is offline.",
+    )
+    result = await async_get_config_entry_diagnostics(hass, entry)
+    text = json.dumps(result)
+    for value in ("Kitchen Tablet", "kitchen-tab", "Upstairs LAN", "198.51.100.0"):
+        assert value not in text
+    params = result["data"]["gateway"]["last_high_attrs"]["parameters"]
+    assert params["CLIENTS"]["clients"][0]["hostname"] == REDACTED
+    assert params["LEARN_MORE"]["url"] == "https://help.example.com/alerts"
+
+
+async def test_wlan_and_unseen_blocks_are_redacted_and_devices_tokenised(
+    hass: Any,
+) -> None:
+    """An SSID block and a block on no list are redacted; a device keeps a token."""
+    from custom_components.unifi_network_monitor.diagnostics import (
+        REDACTED,
+        async_get_config_entry_diagnostics,
+    )
+
+    entry = _alert_with(
+        {
+            "WLAN": {"id": "64f0c0ffee", "name": "Attic-Mesh"},
+            "SRC_DEVICE": {
+                "id": FAKE_AP_MAC,
+                "ip": FAKE_LAN_IP,
+                "name": FAKE_AP_NAME,
+                "model": "U6-LR",
+            },
+            "NEVER_SEEN_BLOCK": {"label": "Something Personal"},
+            "SIGNAL_STRENGTH": {"name": "-67"},
+        }
+    )
+    result = await async_get_config_entry_diagnostics(hass, entry)
+    params = result["data"]["gateway"]["last_high_attrs"]["parameters"]
+    assert params["WLAN"] == {"id": REDACTED, "name": REDACTED}
+    assert params["NEVER_SEEN_BLOCK"] == {"label": REDACTED}
+    assert params["SRC_DEVICE"]["id"].startswith("device-")
+    assert params["SRC_DEVICE"]["ip"] == REDACTED
+    assert params["SRC_DEVICE"]["name"] == params["SRC_DEVICE"]["id"]
+    assert params["SRC_DEVICE"]["model"] == "U6-LR"
+    assert params["SIGNAL_STRENGTH"] == {"name": "-67"}
+
+
+def test_substitution_never_enters_the_marker_or_a_longer_word() -> None:
+    """A rogue SSID ``RED`` leaves ``**REDACTED**`` and ``Redmond`` alone."""
+    from custom_components.unifi_network_monitor.diagnostics import REDACTED, _Scrubber
+
+    scrub = _Scrubber()
+    token = scrub.rogue_token("RED")
+    assert scrub.text(REDACTED) == REDACTED
+    assert scrub.text("Office in Redmond") == "Office in Redmond"
+    assert scrub.text(f"{REDACTED} near red.") == f"{REDACTED} near {token}."
+
+
+def test_literals_with_punctuation_edges_are_replaced() -> None:
+    """Names beginning or ending in punctuation match between spaces or punctuation."""
+    from custom_components.unifi_network_monitor.diagnostics import _Scrubber
+
+    scrub = _Scrubber()
+    first = scrub.named_token("IoT-Guest.5G", "wlan")
+    second = scrub.named_token("[Guest] WiFi", "wlan")
+    assert scrub.text("Join IoT-Guest.5G, not [Guest] WiFi.") == (
+        f"Join {first}, not {second}."
+    )
+    assert scrub.text("(IoT-Guest.5G)") == f"({first})"
+
+
+def test_backstop_redacts_public_ipv4_ipv6_and_dash_macs() -> None:
+    """Public and IPv6 addresses and dash-form MACs go; versions and ids stay."""
+    from custom_components.unifi_network_monitor.diagnostics import REDACTED, _Scrubber
+
+    scrub = _Scrubber()
+    out = scrub.text(
+        "from 203.0.113.7 and 2001:db8::1 via [2001:db8::1]:8443 and fe80::1%eth8, "
+        "client AA-BB-CC-DD-EE-FF on 4.0.21, alert 64f0c0ffee0123456789abcd, "
+        "at 12:30:45, resolver 1.1.1.1"
+    )
+    for address in ("203.0.113.7", "2001:db8::1", "fe80::1", "AA-BB-CC-DD-EE-FF"):
+        assert address not in out
+    assert f"[{REDACTED}]:8443" in out
+    for kept in ("4.0.21", "64f0c0ffee0123456789abcd", "12:30:45", "1.1.1.1"):
+        assert kept in out
+
+
+async def test_a_dash_form_mac_key_is_tokenised(hass: Any) -> None:
+    """``_is_mac`` uses the dash-aware pattern, so a dash-form key becomes a token."""
+    from custom_components.unifi_network_monitor.diagnostics import (
+        async_get_config_entry_diagnostics,
+    )
+
+    entry = _make_entry()
+    entry.data = {**entry.data, "boot_times": {"AA-BB-CC-00-00-07": {"t": 1}}}
+    result = await async_get_config_entry_diagnostics(hass, entry)
+    (key,) = result["entry"]["data"]["boot_times"]
+    assert key.startswith("device-")
+
+
+def test_an_empty_name_has_no_token() -> None:
+    """A blank SSID or tunnel name is redacted rather than given a token."""
+    from custom_components.unifi_network_monitor.diagnostics import REDACTED, _Scrubber
+
+    assert _Scrubber().named_token("  ", "wlan") == REDACTED
+
+
+def test_an_address_ending_a_sentence_is_redacted() -> None:
+    """A trailing full stop does not shield an address; a suffixed version stays."""
+    from custom_components.unifi_network_monitor.diagnostics import REDACTED, _Scrubber
+
+    out = _Scrubber().text("Changed to 203.0.113.7. Then 10.0.0.1. Build 4.1.2.3.rc1")
+    assert out == f"Changed to {REDACTED}. Then {REDACTED}. Build 4.1.2.3.rc1"
+
+
+async def test_state_map_keys_keep_their_count(hass: Any) -> None:
+    """Names differing only in case, or blank, keep separate keys and states."""
+    from custom_components.unifi_network_monitor.diagnostics import (
+        async_get_config_entry_diagnostics,
+    )
+
+    entry = _make_entry()
+    gateway = entry.runtime_data.data["gateway"]
+    gateway["wifi_states"] = {"Attic-Mesh": True, "attic-mesh": False, "": True}
+    result = await async_get_config_entry_diagnostics(hass, entry)
+    states = result["data"]["gateway"]["wifi_states"]
+    assert len(states) == 3
+    assert sorted(states.values()) == [False, True, True]
+
+
+async def test_a_name_in_one_alert_leaves_the_other_alerts_prose(hass: Any) -> None:
+    """A client named only in the very-high alert's blocks leaves the high alert's text."""
+    from custom_components.unifi_network_monitor.diagnostics import (
+        async_get_config_entry_diagnostics,
+    )
+
+    entry = _make_entry()
+    gateway = entry.runtime_data.data["gateway"]
+    gateway["last_high_attrs"] = {
+        "title": "Alert",
+        "message": "Kitchen Tablet disconnected.",
+        "parameters": {},
+    }
+    gateway["last_very_high_attrs"]["parameters"]["CLIENT"] = {"name": "Kitchen Tablet"}
+    result = await async_get_config_entry_diagnostics(hass, entry)
+    assert "Kitchen Tablet" not in json.dumps(result)

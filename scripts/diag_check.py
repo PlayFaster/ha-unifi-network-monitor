@@ -13,10 +13,11 @@ code that builds it (improve_diagnostics_on_bad_payload_data.md §5.6):
     for every endpoint; ``gateway`` carries a selection reason and the uptime and
     timezone keys; ``last_rejection`` is present and ``null``; ``login`` is
     present, and empty in API-key mode, where ``login()`` never runs.
-  * **Leak scan.** The controller's own client, device, WLAN, network and rogue
-    lists are read read-only, and any of their values found as a whole word in
-    either download fails the check. The script prints counts and paths, never a
-    value.
+  * **Leak scan.** The controller's own client, device, WLAN, network, rogue and
+    VPN tunnel lists are read read-only, and any of their values found as a whole
+    word in either download, in a value or in a dictionary key, fails the check.
+    The script prints counts and paths, with any found value in a path masked,
+    never a value.
 
 ``--sabotage`` (run by ``Hardware: Check Diagnostics Recovery``) is not
 applicable to this integration: an API-key install holds no session to take
@@ -33,6 +34,7 @@ Usage, inside the devcontainer, with Home Assistant running:
 from __future__ import annotations
 
 import argparse
+import ast
 import asyncio
 import json
 import os
@@ -92,8 +94,40 @@ _VOLATILE_PREFIXES = (
 )
 
 # Fields built from fixed request paths with placeholders; a word in them is the
-# integration's own route, never user data.
+# integration's own route, never user data. The keys of a ``routes`` table are
+# built the same way.
 _ROUTE_FIELDS = frozenset({"route"})
+_ROUTE_TABLES = frozenset({"routes"})
+
+
+def _own_names() -> frozenset[str]:
+    """Return every string literal in the integration's source.
+
+    A dictionary key equal to one of these, such as ``data`` or the endpoint label
+    ``guest list``, is the integration's own name and not scanned as a key, even
+    where it matches a controller value such as a port or network name.
+    """
+    names: set[str] = set()
+    for source in (_PROJECT / "custom_components" / DOMAIN).glob("*.py"):
+        tree = ast.parse(source.read_text(encoding="utf-8"))
+        # A docstring is an expression statement holding only a string; it names
+        # nothing, so it is left out.
+        docstrings = {
+            id(node.value)
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant)
+        }
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Constant)
+                and isinstance(node.value, str)
+                and id(node) not in docstrings
+            ):
+                names.add(node.value)
+    return frozenset(names)
+
+
+_OWN_NAMES = _own_names()
 
 
 def _load_options() -> dict[str, Any]:
@@ -154,13 +188,23 @@ def block_problems(download: dict[str, Any], api_key_mode: bool) -> list[str]:
 
 
 def leaves(value: Any, prefix: str = "") -> list[tuple[str, str]]:
-    """Return every string leaf with its path, route fields excluded."""
+    """Return every string leaf and dictionary key with its path.
+
+    Keys are scanned as well as values: the download keys ``wifi_states`` by SSID
+    and ``vpn_states`` by tunnel name, and a scan of values alone passes them.
+    A key's own entry carries the suffix ``(key)``. Route fields are excluded, and
+    a key is not scanned when it is one of the integration's own names or a route.
+    """
     out: list[tuple[str, str]] = []
     if isinstance(value, dict):
+        routes = prefix.rsplit(".", 1)[-1] in _ROUTE_TABLES
         for key, item in value.items():
             if key in _ROUTE_FIELDS:
                 continue
-            out += leaves(item, f"{prefix}.{key}" if prefix else str(key))
+            path = f"{prefix}.{key}" if prefix else str(key)
+            if not routes and key not in _OWN_NAMES:
+                out.append((f"{path} (key)", str(key)))
+            out += leaves(item, path)
     elif isinstance(value, list):
         for item in value:
             out += leaves(item, f"{prefix}[]")
@@ -175,15 +219,32 @@ def leak_hits(
     """Return, per category, the paths where a listed value appears as a word."""
     found: dict[str, list[str]] = {}
     strings = leaves(download)
-    for category, values in secrets.items():
-        for value in values:
-            if len(value) < _MIN_VALUE_LEN:
-                continue
-            pattern = re.compile(rf"(?<!\w){re.escape(value)}(?!\w)", re.IGNORECASE)
-            for path, text in strings:
-                if pattern.search(text):
-                    found.setdefault(category, []).append(path)
+    patterns = [
+        (category, re.compile(rf"(?<!\w){re.escape(value)}(?!\w)", re.IGNORECASE))
+        for category, values in secrets.items()
+        for value in values
+        if len(value) >= _MIN_VALUE_LEN
+    ]
+    for category, pattern in patterns:
+        for path, text in strings:
+            if pattern.search(text):
+                found.setdefault(category, []).append(_mask(path, patterns))
     return found
+
+
+def _mask(path: str, patterns: list[tuple[str, re.Pattern[str]]]) -> str:
+    """Return a path with every listed value in it replaced by ``<value>``.
+
+    A path is built from keys, and a key can be the identifier found, so the path
+    is masked before it is printed. A match that is one of the integration's own
+    names is kept, so the path stays readable. The whole path is matched, not its
+    dot-separated parts, since a value such as an SSID can contain a dot.
+    """
+    for _, pattern in patterns:
+        path = pattern.sub(
+            lambda m: m.group(0) if m.group(0) in _OWN_NAMES else "<value>", path
+        )
+    return path
 
 
 async def _controller_values(api: UnifiNetworkAPI, site: str) -> dict[str, set[str]]:
@@ -228,6 +289,8 @@ async def _controller_values(api: UnifiNetworkAPI, site: str) -> dict[str, set[s
         if isinstance(site_id, str) and site_id:
             for wan in await api.get_wan_interfaces(site_id):
                 add("wan_name", wan.get("name"))
+            for tunnel in await api.get_vpn_tunnels(site_id):
+                add("vpn_tunnel", tunnel.get("name"))
     for client in await api.get_clients():
         for key in ("name", "hostname", "mac", "ip"):
             add(f"client_{key}", client.get(key))
@@ -259,11 +322,13 @@ def shape_hits(download: dict[str, Any]) -> dict[str, list[str]]:
     """Return paths of MAC-shaped (any separator) and IPv6-shaped values."""
     found: dict[str, list[str]] = {}
     for path, text in leaves(download):
+        # A key can be the address found, so the path is masked before printing.
+        shown = _IPV6_SHAPE.sub("<ipv6>", _MAC_SHAPES.sub("<mac>", path))
         if _MAC_SHAPES.search(text):
-            found.setdefault("mac_shape", []).append(path)
+            found.setdefault("mac_shape", []).append(shown)
         # A colon-form MAC also reads as IPv6 groups; it is reported above.
         if _IPV6_SHAPE.search(_MAC_SHAPES.sub("", text)):
-            found.setdefault("ipv6_shape", []).append(path)
+            found.setdefault("ipv6_shape", []).append(shown)
     return found
 
 
