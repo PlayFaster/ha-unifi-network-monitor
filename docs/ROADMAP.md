@@ -77,12 +77,15 @@ Today that suppression is invisible: the sensor reads `unknown` and nothing dist
 
 ### Cross-model verification beyond the UDM Pro
 
-Confirm the gateway parse against a second gateway model, such as a UCG-Ultra, UDR or UXG. Detection is signature-first and `GATEWAY_MODELS` lists 27 codes, but only the UDM Pro has been exercised; the parser is tested on variant payloads (v1.1.0-dev12).
+Confirm the gateway parse against gateway models other than the UDM Pro. Detection is signature-first and `GATEWAY_MODELS` lists 27 codes; the parser is tested on variant payloads (v1.1.0-dev12).
 
-**Blocked by:** having one gateway. Every non-UDM-Pro path in `_parse_gateway` is inferred from the API documentation and from what a UDM Pro returns.
+- **UCG Ultra (`UDRULT`), read paths verified** from one user download on issue #23 (v1.1.0, Network 10.6.106): gateway selected by WAN signature with one candidate, all 18 endpoints answered, WAN1 data and port name (`eth4`) parsed, single-WAN WAN2 fields `None`, CPU temperature parsed and board temperature absent, WAN1 speedtest mapped. The same download exposed the combined month total failing on a single WAN (`.notes/tasks/wan_calc_month_total_none.md`).
+- **Not verified:** any other model, such as UDR, UXG, UCG Max or Cloud Gateway Fiber; and the write paths (speedtest buttons, WAN weights, alert and rogue actions) on any model but the UDM Pro.
+
+**Blocked by:** no way to generate downloads from other models. The project has one gateway, and evidence from another model arrives only when a user posts a diagnostics download, which since v1.1.0 carries the gateway, endpoint and route records needed to check the parse.
 
 - **Value:** ⭐⭐⭐
-- **Effort:** Low once unblocked.
+- **Effort:** Low per model, once a download arrives.
 
 ---
 
@@ -128,6 +131,26 @@ Monitor stays core-**aware** at the entity level, which is the part that actuall
 
 **Detail.** A ceiling on a total is a data-loss bug, not a safety net: the first time real usage crossed the invented number the sensor would go `unknown` and stay there for the remainder of the cycle. The static sweep in `tests/test_standards_guards.py` asserts the _absence_ of a `max_limit` on every `TOTAL_INCREASING` sensor, so this decision is enforced rather than merely recorded. The upper-bound requirement is scoped to percentages, which are the only quantity here with a real ceiling.
 
+### Renaming entities that repeat their sub-device word
+
+**Not doing it. All nine are keeps.**
+
+**Detail.** Nine entities restate their sub-device in their name, so the full entity name, which Home Assistant builds from the device name and the entity name, repeats the word. The list is the complete scan, taken on 2026-10-12 across the 141 translated entity names against the six sub-device labels in `helpers.py` `build_sub_device_info`, and re-checked against source on 2026-10-15.
+
+| Entity key | Platform | Sub-device | Name |
+| :-- | :-- | :-- | :-- |
+| `health_www_latency` | Sensor | Internet | Internet Latency |
+| `health_www_drops` | Sensor | Internet | Internet Drops |
+| `health_www_boot_time` | Sensor | Internet | Internet Online Since |
+| `health_www_uptime` | Sensor | Internet | Internet Uptime Duration |
+| `gateway_internet` | Binary sensor | Internet | Internet Connected |
+| `health_www_ok` | Binary sensor | Internet | Internet OK |
+| `health_vpn_status` | Sensor | Status | VPN Status |
+| `gateway_wifi_ssid_status` | Binary sensor | Status | WiFi Status |
+| `gateway_vpn_tunnel_status` | Binary sensor | Status | VPN Tunnel Status |
+
+Home Assistant never renames an existing `entity_id`, so a rename benefits only a new install, while an automation or dashboard that references the current friendly name breaks without warning. `huawei_router_5g` and `zte_router_5g` kept theirs for the same reason. The convention applies to new entities from here on. Recorded against cross-project chore `C-030`, whose requirement is the scan and the recorded keeps, not a rename.
+
 ---
 
 ## Summary
@@ -136,7 +159,7 @@ Forward work only, ordered by Value.
 
 | Item | Group | Value | Effort |
 | :-- | :-- | :-- | :-- |
-| Cross-model verification beyond the UDM Pro | Blocked | ⭐⭐⭐ | Low once unblocked |
+| Cross-model verification beyond the UDM Pro | Blocked | ⭐⭐⭐ | Low per model, once a download arrives |
 | Prior-cycle blending for the Projected Usage sensors | To Be Done | ⭐⭐ | Medium |
 | Formal child devices (#1414) | Maybe | ⭐⭐ | Medium |
 | A `problem` binary sensor for guard-band suppression | Maybe | ⭐ | Low |
@@ -149,6 +172,8 @@ Three items left this table on 2026-08-08 and are now in **Done** — `about` no
 
 | Version | Date | Change |
 | :-- | :-- | :-- |
+| v1.1.3 | 2026-10-15 | Declined records the nine entity names that repeat their sub-device word as keeps (`C-030`); no entity is renamed. |
+| v1.1.2 | 2026-10-15 | Cross-model verification entry records the UCG Ultra read paths verified from the issue #23 download, and names what is not verified; it stays **Blocked**, with the blocker restated as having no way to generate downloads from other models. |
 | v1.1.1 | 2026-10-12 | Cross-model verification entry rewritten for the `1.1.0-dev12` signature-first gateway detection and the 27-code model list; it stays **Blocked** on having one gateway. |
 | v1.1.0 | 2026-08-08 | **First three items met, and the Done group opened.** The August 2026 update cycle closed at `[1.1.0]`, meeting `about` note coverage (23 → 46 declared / 48 live, with the Internet distribution problem fixed at 1 → 18), mutation testing (module list decided by measurement; three runs ending 840 killed / 205 survived of 1045), and the **§20 diagnostics verification**, which moved out of **Blocked** when the owner supplied a populated capture — 0 raw MACs and 0 private IPs across the whole file, with the alert free text scrubbed inline. Removed a stale precondition from the mutation entry: it warned that the project had no `setup.cfg`, which stopped being true when the module list was written. The summary table drops to four forward items, one of them blocked. |
 | v1.0.0 | 2026-08-08 | Initial, per `roadmap_format.md` v1.2.0. Records three forward items, two Maybes with stated triggers, two Blocked items with the obstacle named and the note that nothing is queued behind the diagnostics one, two Revisit decisions with observable reopening triggers, and three Declines. **No Done group**, because membership there is by provenance and this is the first roadmap this project has had — the group will populate as the items above are met rather than being backfilled from the changelog. Created as item 27 of the August 2026 update plan. |

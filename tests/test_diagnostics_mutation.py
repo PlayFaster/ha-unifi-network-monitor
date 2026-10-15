@@ -183,18 +183,19 @@ def test_a_named_alert_block_is_blanked_outright() -> None:
     """Blank blocks carry no cross-reference value, so they are erased.
 
     Erased means ``REDACTED``, not ``None``: a null is indistinguishable from a
-    field UniFi never sent, and unmapped keys must survive untouched so the
-    block stays diagnosable.
+    field UniFi never sent. Updated in 1.1.1-dev1: every string in a block off the
+    safe set is redacted, so ``state`` is too; the keys and non-string values
+    survive, so the block stays diagnosable.
     """
     scrub = _Scrubber()
 
     out = _scrub_alert_block(
         scrub,
         "AP_NAME",
-        {"id": "Study-AP", "name": "Study-AP", "state": "keep"},
+        {"id": "Study-AP", "name": "Study-AP", "state": "keep", "count": 3},
     )
 
-    assert out == {"id": REDACTED, "name": REDACTED, "state": "keep"}
+    assert out == {"id": REDACTED, "name": REDACTED, "state": REDACTED, "count": 3}
 
 
 # ---------------------------------------------------------------------------

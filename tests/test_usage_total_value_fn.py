@@ -53,3 +53,24 @@ def test_both_none_reports_unknown(total_key: str, rx_key: str, tx_key: str) -> 
 def test_zero_is_a_real_value(total_key: str, rx_key: str, tx_key: str) -> None:
     """A genuine zero-byte side is summed as 0, not treated as absent."""
     assert _value_fn(total_key)({rx_key: 0, tx_key: 250}) == 250
+
+
+_MONTH = ("wan1_month_rx", "wan1_month_tx", "wan2_month_rx", "wan2_month_tx")
+
+
+@pytest.mark.parametrize(
+    ("values", "expected"),
+    [
+        ((100, 200, 300, 400), 1000),
+        ((100, 200, None, None), 300),
+        ((None, 200, 300, 400), 900),
+        ((None, None, None, None), None),
+        ((0, 0, 0, 0), 0),
+    ],
+    ids=["all", "wan2_none", "wan1_rx_none", "all_none", "zeros"],
+)
+def test_month_total_tolerates_a_missing_wan(
+    values: tuple[int | None, ...], expected: int | None
+) -> None:
+    """A single-WAN gateway's ``None`` WAN2 fields count as zero (issue #23)."""
+    assert _value_fn("month_total")(dict(zip(_MONTH, values, strict=True))) == expected

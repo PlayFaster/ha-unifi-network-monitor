@@ -109,3 +109,29 @@ The health sensor's detail churns with every failure. Kept as a cheap static ass
 ### `test_gateway_sensor_records_nothing`
 
 Version/build/type were recorded because the set was never extended.
+
+---
+
+## Guards Added in `1.1.1-dev3` (2026-10-15)
+
+Each was verified to fail by breaking what it guards before it was recorded (v1.1.1 plan E28).
+
+### Every entity has a device
+
+`test_every_live_entity_belongs_to_a_device` sweeps the constructed entities, because `device_info` is a property on the entity class and no description can carry it. An entity without a device is not rejected by Home Assistant; it registers and belongs to no device card. `test_device_info_is_declared_once` takes this project's form of the family rule: two device shapes, the entry sub-devices and the monitored network devices, each built once in `helpers.py` (`every_entity_must_have_a_device.md`).
+
+### Icons on live entities and actions
+
+`test_every_live_entity_has_an_icon_or_a_device_class` looks each live entity's key up under its own platform, so a key filed under another platform fails rather than passes; the static key check does not see that. `test_action_icons_use_the_current_nested_form` holds the `{"service": ...}` form Home Assistant documents, which the family shares (`C-031`).
+
+### Suppressions
+
+A suppression hides what a tool would have said. `RUF100` and mypy's `warn_unused_ignores` report one that is unnecessary and say nothing about one that is doing work. In `huawei_router_5g` two such suppressions hid calls to methods the library did not have (`C-004`). The allow-list is keyed on file and directive, so a second identical directive in a listed file passes unseen; that is the family design.
+
+### Device-registry surfaces only in `_compat`
+
+`async_get_device(`, `DeviceEntry.config_entries` and `via_device` are deprecated in Home Assistant 2026.8 and removed in 2027.8 and 2027.10. `1.1.0-dev12` shipped a direct call in `identity.py` that passed every check (`C-038`). The guard reads the syntax tree, so the config-entry manager and comments are not flagged.
+
+### Repair text, firing fixtures and severity vocabulary
+
+The repair text sweeps catch a card that renders its raw key, a translation that drops a placeholder, and text left for a key nothing raises. `test_every_check_has_a_firing_fixture` requires the real code to raise each repair from a fixture, three of them through the HTTP seam in `tests/transport.py`. The severity sweep asserts the published strings, not the constants, because a rename would pass a comparison with the constant while user automations matching on `severity` broke (`C-022` step 8).

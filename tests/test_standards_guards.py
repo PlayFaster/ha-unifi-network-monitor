@@ -12,6 +12,8 @@ That asymmetry is the whole point.
 
 from __future__ import annotations
 
+import ast
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -290,3 +292,62 @@ def test_secret_sweep_actually_sees_the_secret_fields() -> None:
     """Guard the guard: a schema that stopped offering credentials passes vacuously."""
     found = {m.schema for m in _markers(_build("edit")) if m.schema in _SECRET_KEYS}
     assert found == _SECRET_KEYS, f"edit schema no longer offers {_SECRET_KEYS - found}"
+
+
+# ---------------------------------------------------------------------------
+# local-time controller field (ZTE techniques row 20)
+# ---------------------------------------------------------------------------
+
+# The one controller string field carrying local time with no UTC offset: read
+# as ``2026-10-12T16:11:04`` at 15:11:04 UTC on the development controller. Read
+# as UTC it is wrong by the controller's offset, so any function that reads it
+# must also use ``controller_timezone`` (docs/DEVELOPMENT.md).
+_LOCAL_TIME_FIELD = "last_successful_config_application_time"
+_COMPONENT_DIR = (
+    Path(__file__).resolve().parent.parent
+    / "custom_components"
+    / "unifi_network_monitor"
+)
+
+
+def _unguarded_local_time_reads(source: str, filename: str) -> list[str]:
+    """Return each function reading the local-time field without the timezone."""
+    offenders: list[str] = []
+    for node in ast.walk(ast.parse(source)):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        names = {
+            getattr(child, "value", None)
+            if isinstance(child, ast.Constant)
+            else getattr(child, "attr", getattr(child, "id", None))
+            for child in ast.walk(node)
+        }
+        if _LOCAL_TIME_FIELD in names and "controller_timezone" not in names:
+            offenders.append(f"{filename}:{node.lineno} {node.name}")
+    return offenders
+
+
+def test_local_time_field_is_never_read_as_utc() -> None:
+    """A function reading the local-time field also reads the controller timezone."""
+    offenders = [
+        hit
+        for path in sorted(_COMPONENT_DIR.glob("*.py"))
+        for hit in _unguarded_local_time_reads(
+            path.read_text(encoding="utf-8"), path.name
+        )
+    ]
+    assert not offenders, (
+        f"{_LOCAL_TIME_FIELD} is local time with no offset; read it with "
+        "controller_timezone:\n" + "\n".join(offenders)
+    )
+
+
+def test_local_time_guard_sees_an_unguarded_read() -> None:
+    """The guard is not vacuous: a read without the timezone is reported."""
+    bad = f"def parse(d):\n    return d.get({_LOCAL_TIME_FIELD!r})\n"
+    good = (
+        "def parse(self, d):\n"
+        f"    return (d.get({_LOCAL_TIME_FIELD!r}), self.controller_timezone)\n"
+    )
+    assert _unguarded_local_time_reads(bad, "x.py") == ["x.py:1 parse"]
+    assert _unguarded_local_time_reads(good, "x.py") == []

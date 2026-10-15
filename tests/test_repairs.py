@@ -15,9 +15,13 @@ Two defects from the August 2026 plan (§M Phase 1):
 from __future__ import annotations
 
 import ast
+import json
 from pathlib import Path
+import re
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from custom_components.unifi_network_monitor.const import (
     DOMAIN,
@@ -405,3 +409,255 @@ async def test_unlisted_gateway_by_signature_raises_nothing_and_health_stays_off
     for snapshot in (unlisted, listed):
         snapshot.pop("last_good_update", None)
     assert unlisted == listed
+
+
+# ---------------------------------------------------------------------------
+# Real polls through the HTTP seam (C-021): `api.py` runs for real over
+# `aioclient_mock`, so each outcome below is produced by what the controller
+# answered, not by a mock that hands the coordinator its conclusion.
+# ---------------------------------------------------------------------------
+
+
+async def _seam_coordinator(hass: Any, entry: Any) -> UnifiNetworkDataUpdateCoordinator:
+    from .transport import real_api
+
+    if hass.config_entries.async_get_entry(entry.entry_id) is None:
+        entry.add_to_hass(hass)
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, entry, real_api(hass))
+    await coordinator.async_initialize()
+    return coordinator
+
+
+async def _seam_polls(
+    coordinator: UnifiNetworkDataUpdateCoordinator, times: int
+) -> None:
+    for _ in range(times):
+        coordinator.data = await coordinator._async_update_data()
+
+
+def _issue(hass: Any, entry: Any, name: str) -> Any:
+    return ir.async_get(hass).async_get_issue(
+        DOMAIN, repair_issue_id(entry.entry_id, name)
+    )
+
+
+async def test_a_good_controller_raises_neither_repair(
+    hass: Any, mock_config_entry: Any, aioclient_mock: Any
+) -> None:
+    """The fake's baseline: a resolved site and a readable gateway raise nothing."""
+    from .transport import SITE_UUID, ControllerFake
+
+    ControllerFake(aioclient_mock).serve()
+    coordinator = await _seam_coordinator(hass, mock_config_entry)
+    await _seam_polls(coordinator, 3)
+    assert coordinator.site_uuid == SITE_UUID
+    assert coordinator.data["gateway"]["cpu"] == 12.5
+    assert _issue(hass, mock_config_entry, "site_resolution_failed") is None
+    assert _issue(hass, mock_config_entry, "schema_drift_detected") is None
+
+
+async def test_an_unlisted_site_raises_site_resolution_failed(
+    hass: Any, mock_config_entry: Any, aioclient_mock: Any
+) -> None:
+    """The v1 sites list lacks the configured site, so the repair is raised."""
+    from .transport import ControllerFake
+
+    ControllerFake(aioclient_mock).serve(
+        sites=[{"id": "other-uuid", "internalReference": "branch_office"}]
+    )
+    coordinator = await _seam_coordinator(hass, mock_config_entry)
+    await _seam_polls(coordinator, 1)
+    assert coordinator.site_uuid == "failed"
+    assert _issue(hass, mock_config_entry, "site_resolution_failed") is not None
+    assert coordinator.health_snapshot["v3_available"] is False
+
+
+async def test_a_renamed_stats_block_raises_schema_drift_detected(
+    hass: Any, mock_config_entry: Any, aioclient_mock: Any
+) -> None:
+    """A gateway whose stats no longer parse raises drift after the strike limit."""
+    from custom_components.unifi_network_monitor.const import HEALTH_DRIFT_STRIKE_LIMIT
+
+    from .transport import DRIFTED_GATEWAY, ControllerFake
+
+    fake = ControllerFake(aioclient_mock)
+    fake.serve(DRIFTED_GATEWAY)
+    coordinator = await _seam_coordinator(hass, mock_config_entry)
+    await _seam_polls(coordinator, HEALTH_DRIFT_STRIKE_LIMIT - 1)
+    assert _issue(hass, mock_config_entry, "schema_drift_detected") is None
+    await _seam_polls(coordinator, 1)
+    issue = _issue(hass, mock_config_entry, "schema_drift_detected")
+    assert issue is not None
+    assert coordinator.health_snapshot["severity"] == "error"
+
+    fake.serve()
+    await _seam_polls(coordinator, 1)
+    assert _issue(hass, mock_config_entry, "schema_drift_detected") is None
+
+
+# ---------------------------------------------------------------------------
+# Contract sweeps over the repair set (C-022 step 8, C-035). Each asserts a
+# property of every member of `REPAIR_ISSUE_NAMES`, the set `__init__.py`
+# clears on removal, rather than of one mechanism.
+# ---------------------------------------------------------------------------
+
+
+def _load_text(name: str) -> dict[str, Any]:
+    return json.loads((_COMPONENT / name).read_text(encoding="utf-8"))
+
+
+def _text_files() -> list[str]:
+    """Every file that must carry the rendered text, `strings.json` included."""
+    return ["strings.json"] + [
+        f"translations/{p.name}"
+        for p in sorted((_COMPONENT / "translations").glob("*.json"))
+    ]
+
+
+def test_every_repair_issue_has_title_and_rendered_text() -> None:
+    """A missing entry shows the raw key, or a card with an empty body.
+
+    `hassfest` requires a `title` and exactly one of `description` or
+    `fix_flow`, so the sweep asserts that form rather than both.
+    """
+    for name in _text_files():
+        issues = _load_text(name).get("issues", {})
+        for key in REPAIR_ISSUE_NAMES:
+            assert key in issues, f"{name}: no text for repair '{key}'"
+            text = issues[key]
+            assert text.get("title"), f"{name}: '{key}' has no title"
+            assert bool(text.get("description")) != bool(text.get("fix_flow")), (
+                f"{name}: '{key}' must carry exactly one of description or fix_flow"
+            )
+
+
+def test_every_repair_issue_has_translated_text() -> None:
+    """Each translation renders the same placeholders `strings.json` declares.
+
+    A translation that drops `{capabilities}` or `{models}` renders a card
+    that no longer says what failed; one that adds a placeholder the code never
+    supplies renders it literally.
+    """
+    source = _load_text("strings.json")["issues"]
+    for name in _text_files()[1:]:
+        issues = _load_text(name)["issues"]
+        for key in REPAIR_ISSUE_NAMES:
+            for part in ("title", "description"):
+                expected = set(re.findall(r"\{(\w+)\}", source[key][part]))
+                rendered = issues[key][part]
+                assert rendered.strip(), f"{name}: '{key}' {part} is blank"
+                assert set(re.findall(r"\{(\w+)\}", rendered)) == expected, (
+                    f"{name}: '{key}' {part} placeholders differ from strings.json"
+                )
+
+
+def test_no_orphan_issue_translations() -> None:
+    """Text left behind for a key nothing raises any more."""
+    for name in _text_files():
+        orphans = set(_load_text(name).get("issues", {})) - set(REPAIR_ISSUE_NAMES)
+        assert not orphans, f"{name}: issue text for keys nothing raises: {orphans}"
+
+
+def test_the_repair_text_sweep_is_not_vacuous() -> None:
+    """The text sweeps pass trivially if the key set or the file set is empty."""
+    assert set(REPAIR_ISSUE_NAMES) == {
+        "site_resolution_failed",
+        "schema_drift_detected",
+        "gateway_not_recognized",
+        "gateway_identity_blocked",
+    }
+    assert len(_text_files()) >= 2, "expected strings.json plus a translation"
+
+
+async def _fire_site_resolution_failed(hass: Any, entry: Any, mock: Any) -> None:
+    from .transport import ControllerFake
+
+    ControllerFake(mock).serve(sites=[])
+    await _seam_polls(await _seam_coordinator(hass, entry), 1)
+
+
+async def _fire_schema_drift_detected(hass: Any, entry: Any, mock: Any) -> None:
+    from custom_components.unifi_network_monitor.const import HEALTH_DRIFT_STRIKE_LIMIT
+
+    from .transport import DRIFTED_GATEWAY, ControllerFake
+
+    ControllerFake(mock).serve(DRIFTED_GATEWAY)
+    await _seam_polls(await _seam_coordinator(hass, entry), HEALTH_DRIFT_STRIKE_LIMIT)
+
+
+async def _fire_gateway_not_recognized(hass: Any, entry: Any, mock: Any) -> None:
+    from custom_components.unifi_network_monitor.const import HEALTH_DRIFT_STRIKE_LIMIT
+
+    from .transport import ControllerFake
+
+    ControllerFake(mock).serve(dict(_UNKNOWN))
+    await _seam_polls(await _seam_coordinator(hass, entry), HEALTH_DRIFT_STRIKE_LIMIT)
+
+
+async def _fire_gateway_identity_blocked(hass: Any, entry: Any, mock: Any) -> None:
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    from custom_components.unifi_network_monitor.identity import (
+        IDENTITY_BLOCKED_MAC,
+        async_apply_identity,
+    )
+
+    holder = "aa:00:00:00:00:10"
+    MockConfigEntry(domain=DOMAIN, unique_id=holder).add_to_hass(hass)
+    if hass.config_entries.async_get_entry(entry.entry_id) is None:
+        entry.add_to_hass(hass)
+    hass.config_entries.async_update_entry(
+        entry, data={**entry.data, IDENTITY_BLOCKED_MAC: holder}
+    )
+    async_apply_identity(hass, entry)
+
+
+_FIRING = {
+    "site_resolution_failed": _fire_site_resolution_failed,
+    "schema_drift_detected": _fire_schema_drift_detected,
+    "gateway_not_recognized": _fire_gateway_not_recognized,
+    "gateway_identity_blocked": _fire_gateway_identity_blocked,
+}
+
+
+@pytest.mark.parametrize("name", REPAIR_ISSUE_NAMES)
+async def test_every_check_has_a_firing_fixture(
+    hass: Any, mock_config_entry: Any, aioclient_mock: Any, name: str
+) -> None:
+    """Every repair has a fixture that makes the real code raise it.
+
+    The poll-raised three are fired through the HTTP seam; the identity block
+    is raised at setup, so its fixture is the conflicting entry it detects.
+    """
+    assert set(_FIRING) == set(REPAIR_ISSUE_NAMES)
+    await _FIRING[name](hass, mock_config_entry, aioclient_mock)
+    issue = _issue(hass, mock_config_entry, name)
+    assert issue is not None, f"no fixture fires '{name}'"
+    assert issue.translation_key == name
+
+
+async def test_a_stale_repair_is_cleared_by_a_fresh_coordinator(
+    hass: Any, mock_config_entry: Any, aioclient_mock: Any
+) -> None:
+    """The issue registry survives a reload; the strike counts do not.
+
+    Models the reload without driving one: a fresh coordinator is what a
+    reload builds: no drift strikes and no
+    resolved site in memory, while the card raised before it is still in the
+    registry. Its first good poll must clear the card.
+    """
+    from custom_components.unifi_network_monitor.const import HEALTH_DRIFT_STRIKE_LIMIT
+
+    from .transport import DRIFTED_GATEWAY, ControllerFake
+
+    ControllerFake(aioclient_mock).serve(DRIFTED_GATEWAY, sites=[])
+    before = await _seam_coordinator(hass, mock_config_entry)
+    await _seam_polls(before, HEALTH_DRIFT_STRIKE_LIMIT)
+    assert _issue(hass, mock_config_entry, "schema_drift_detected") is not None
+    assert _issue(hass, mock_config_entry, "site_resolution_failed") is not None
+
+    ControllerFake(aioclient_mock).serve()
+    reloaded = await _seam_coordinator(hass, mock_config_entry)
+    await _seam_polls(reloaded, 1)
+    assert _issue(hass, mock_config_entry, "schema_drift_detected") is None
+    assert _issue(hass, mock_config_entry, "site_resolution_failed") is None

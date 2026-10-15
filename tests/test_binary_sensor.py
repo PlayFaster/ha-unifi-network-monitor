@@ -821,7 +821,7 @@ def test_integration_health_on_with_attributes() -> None:
 
     health = {
         "problem": True,
-        "severity": "serious",
+        "severity": "error",
         "issues": ["Rogue APs data looks malformed (possible controller update)"],
         "degraded_capabilities": [],
         "drift": ["Rogue APs"],
@@ -833,7 +833,7 @@ def test_integration_health_on_with_attributes() -> None:
     sensor = UnifiIntegrationHealthBinarySensor(coordinator, _make_entry())
     assert sensor.is_on is True
     attrs = sensor.extra_state_attributes or {}
-    assert attrs["severity"] == "serious"
+    assert attrs["severity"] == "error"
     assert attrs["drift"] == ["Rogue APs"]
     assert "about" in attrs  # About note included
 

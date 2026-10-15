@@ -1,6 +1,7 @@
 """Constants for the UniFi Network Monitor integration."""
 
 from collections.abc import Mapping
+from datetime import timedelta
 from typing import Any
 
 DOMAIN = "unifi_network_monitor"
@@ -402,3 +403,35 @@ def gateway_display_model(model: str | None) -> str | None:
     if model is None:
         return None
     return GATEWAY_MODELS.get(model, model)
+
+
+# --- Link uptime latch (fix_uptime_timestamp_gets_stuck.md §3) ------------
+#
+# Names and values identical across the suite; the reasoning for each is in
+# `zte_router_5g` `coordinator.py` and in
+# `.shared/info/uptime_timestamp/uptime_drift_analyzed.md`.
+
+# Minimum drop in an uptime counter (seconds) treated as a genuine reset.
+UPTIME_REBOOT_MARGIN = 30
+# Outer limit on how far a counter may run from wall-clock time and still be
+# believable; not a device's measured drift rate.
+MAX_DRIFT = 0.20
+# Below this year the host clock is treated as unset rather than wrong.
+CLOCK_FLOOR_YEAR = 2024
+# An uptime beyond this is rejected as a bad reading.
+MAX_PLAUSIBLE_UPTIME = 10 * 365 * 24 * 3600
+# Drift rate estimation: shortest interval counted, wall time before the rate
+# is used, and the cap that lets newer evidence move it.
+DRIFT_MIN_INTERVAL = 60
+DRIFT_MIN_ACCUMULATED = 3600
+DRIFT_ACCUMULATOR_CAP = 30 * 24 * 3600
+# Startup shortfall test margin: a floor, and a share of the gap.
+SHORTFALL_MARGIN_FLOOR = 300
+SHORTFALL_MARGIN_RATE = 0.02
+# How far the observed counter/elapsed ratio may sit from the measured rate
+# before the anchor is judged implausible.
+PLAUSIBILITY_TOLERANCE = 0.05
+# The latch store: version, write interval and debounce.
+UPTIME_STORAGE_VERSION = 1
+UPTIME_WRITE_INTERVAL = timedelta(minutes=20)
+UPTIME_SAVE_DELAY = 60

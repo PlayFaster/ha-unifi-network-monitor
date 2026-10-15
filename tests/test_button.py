@@ -53,18 +53,16 @@ async def test_async_setup_entry_creates_button(hass: Any) -> None:
     entry = _make_entry()
     async_add_entities = MagicMock()
 
-    with patch(
-        "custom_components.unifi_network_monitor.button.UnifiRefreshButton"
-    ) as mock_cls:
-        from custom_components.unifi_network_monitor.button import async_setup_entry
+    from custom_components.unifi_network_monitor.button import (
+        UnifiRefreshButton,
+        async_setup_entry,
+    )
 
-        mock_button = MagicMock()
-        mock_cls.return_value = mock_button
-        await async_setup_entry(hass, entry, async_add_entities)
-        async_add_entities.assert_called_once()
-        called_entities = async_add_entities.call_args[0][0]
-        assert mock_button in called_entities
-        assert len(called_entities) == 4
+    await async_setup_entry(hass, entry, async_add_entities)
+    async_add_entities.assert_called_once()
+    called_entities = async_add_entities.call_args[0][0]
+    assert sum(isinstance(e, UnifiRefreshButton) for e in called_entities) == 1
+    assert len(called_entities) == 4
 
 
 async def test_button_press_calls_refresh() -> None:

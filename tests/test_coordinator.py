@@ -589,35 +589,6 @@ async def test_coordinator_unexpected_error_holds_data(
     assert coordinator.consecutive_failures == 1
 
 
-async def test_get_stable_boot_time_latch(hass: Any, mock_config_entry: Any) -> None:
-    """Test get_stable_boot_time reboot latch behavior."""
-    mock_config_entry.add_to_hass(hass)
-    api = MagicMock()
-    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
-
-    now = dt_util.now().replace(microsecond=0)
-
-    # 1. First calculation latches the boot time
-    boot1 = coordinator.get_stable_boot_time("gateway", 3600, now)
-    assert boot1 is not None
-    assert (now - boot1).total_seconds() == 3600
-
-    # 2. Slight update (e.g. 10s elapsed on both clocks, no reboot)
-    now_later = now + timedelta(seconds=10)
-    boot2 = coordinator.get_stable_boot_time("gateway", 3610, now_later)
-    # The boot timestamp MUST stay exactly the same (no drift)
-    assert boot2 == boot1
-
-    # 3. Garbage/Negative reading is ignored
-    boot3 = coordinator.get_stable_boot_time("gateway", -10, now_later)
-    assert boot3 == boot1
-
-    # 4. Genuine Reboot (uptime drops by more than 30s)
-    boot4 = coordinator.get_stable_boot_time("gateway", 10, now_later)
-    assert boot4 != boot1
-    assert (now_later - boot4).total_seconds() == 10
-
-
 async def test_coordinator_parses_wan_and_security_configs(
     hass: Any, mock_config_entry: Any
 ) -> None:
@@ -633,7 +604,7 @@ async def test_coordinator_parses_wan_and_security_configs(
                 "uptime": 1000,
                 "system-stats": {"cpu": "10.0", "mem": "50.0"},
                 "wan1": {"is_uplink": True, "up": True},
-                "wan2": {"is_uplink": False, "up": True},
+                "wan2": {"is_uplink": False, "up": True, "ifname": "eth9"},
             },
             {
                 "mac": "11:22:33:44:55:66",
@@ -989,6 +960,9 @@ async def test_coordinator_device_parse_error_skipped(
                 "model": "UAP-AC-M",
                 "state": 1,
                 "is_access_point": True,
+                # A stats block that is not a mapping: the real `_parse_ap`
+                # raises on it, which is the except branch under test.
+                "system-stats": "unavailable",
             },
         ]
     )
@@ -1004,12 +978,7 @@ async def test_coordinator_device_parse_error_skipped(
     api.get_speedtest_results = AsyncMock(return_value=[])
 
     coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
-    # Override _parse_ap to raise - this tests the except branch
-    with patch(
-        "custom_components.unifi_network_monitor.coordinator._parse_ap",
-        side_effect=ValueError("bad data"),
-    ):
-        result = await coordinator._async_update_data()
+    result = await coordinator._async_update_data()
     # Gateway should still be parsed successfully
     assert result["gateway"] is not None
     # Failed AP should not appear in devices
@@ -1153,39 +1122,29 @@ async def test_coordinator_config_entry_associated(
 async def test_coordinator_loads_boot_times_from_entry_data(
     hass: Any, mock_config_entry: Any
 ) -> None:
-    """Boot times are loaded from entry.data when present (line 345)."""
+    """A link latch is anchored at its stored boot time; its counter is not read.
+
+    Updated in 1.1.1-dev2: the legacy ``last_uptime`` was the frozen counter the
+    stuck-timestamp defect compared against, and the latch no longer reads it.
+    A naive anchor is treated as absent.
+    """
     mock_config_entry.add_to_hass(hass)
     data = {
         **mock_config_entry.data,
         "boot_times": {
             "gateway": {"boot_time": "2026-01-01T00:00:00", "last_uptime": 1000},
-            "wan1": {"boot_time": "2026-01-01T01:00:00", "last_uptime": 500},
+            "wan1": {"boot_time": "2026-01-01T01:00:00+00:00", "last_uptime": 500},
+            "www": {"boot_time": "2026-01-01T01:00:00", "last_uptime": 500},
         },
     }
     hass.config_entries.async_update_entry(mock_config_entry, data=data)
     api = MagicMock()
     coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
-    assert "gateway" in coordinator._boot_times
-    assert coordinator._boot_times["gateway"]["last_uptime"] == 1000
-    assert coordinator._boot_times["wan1"]["last_uptime"] == 500
-
-
-def test_get_stable_boot_time_keeps_existing_on_bad_reading(
-    hass: Any, mock_config_entry: Any
-) -> None:
-    """get_stable_boot_time keeps existing boot time on bad uptime read (line 364)."""
-    mock_config_entry.add_to_hass(hass)
-    api = MagicMock()
-    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
-    now = dt_util.now().replace(microsecond=0)
-
-    # Latch first
-    coordinator.get_stable_boot_time("gateway", 3600, now)
-
-    # Bad reading (None uptime) should keep latched value
-    boot = coordinator.get_stable_boot_time("gateway", None, now)
-    assert boot is not None
-    assert (now - boot).total_seconds() == pytest.approx(3600, abs=1)
+    wan1 = coordinator._latches_by_key["wan1"]
+    assert wan1.boot_time is not None
+    assert wan1.boot_time.isoformat() == "2026-01-01T01:00:00+00:00"
+    assert wan1.stored_counter is None
+    assert coordinator._latches_by_key["www"].boot_time is None
 
 
 async def test_coordinator_site_uuid_not_found(
@@ -3325,25 +3284,25 @@ def _health_coord(hass: Any, entry: Any, *, api_key: str | None = "key") -> Any:
 
 
 async def test_health_ok_when_clean(hass: Any, mock_config_entry: Any) -> None:
-    """No stale endpoints and no drift → no problem."""
+    """No stale endpoints and no drift → ``ok``, and no problem (§19)."""
     coord = _health_coord(hass, mock_config_entry)
     health = coord._compute_integration_health({}, {})
     assert health["problem"] is False
-    assert health["severity"] is None
+    assert health["severity"] == "ok"
     assert health["degraded_capabilities"] == []
 
 
-async def test_health_moderate_on_stale_endpoint(
+async def test_health_degraded_on_stale_endpoint(
     hass: Any, mock_config_entry: Any
 ) -> None:
-    """A failed endpoint the user did NOT disable → moderate problem."""
+    """A failed endpoint the user did NOT disable → degraded problem."""
     from custom_components.unifi_network_monitor.const import EP_ROGUE
 
     coord = _health_coord(hass, mock_config_entry)
     coord._stale_endpoints = {EP_ROGUE}
     health = coord._compute_integration_health({}, {})
     assert health["problem"] is True
-    assert health["severity"] == "moderate"
+    assert health["severity"] == "degraded"
     assert "Security / Rogue APs" in health["degraded_capabilities"]
 
 
@@ -3386,7 +3345,7 @@ async def test_health_drift_needs_persistence(
         assert health["drift"] == []  # not yet
     health = coord._compute_integration_health({}, {"rogue": True})
     assert "Rogue APs" in health["drift"]
-    assert health["severity"] == "serious"
+    assert health["severity"] == "error"
     # A clean cycle resets the counter.
     health = coord._compute_integration_health({}, {"rogue": False})
     assert health["drift"] == []

@@ -520,6 +520,12 @@ class UnifiIntegrationHealthBinarySensor(
             "auth_mode",
             "v3_available",
             "last_good_update",
+            "drift_rate_pct",
+            "drift_rate_min_pct",
+            "drift_rate_max_pct",
+            "drift_intervals",
+            "drift_measured_seconds",
+            "drift_deficit_seconds",
         }
     )
 
@@ -574,6 +580,9 @@ class UnifiIntegrationHealthBinarySensor(
                 "auth_mode": health.get("auth_mode"),
                 "v3_available": health.get("v3_available"),
                 "last_good_update": health.get("last_good_update"),
+                # The link latch's drift picture, named as in the sibling
+                # projects (fix_uptime_timestamp_gets_stuck.md §3).
+                **self.coordinator.uptime_diagnostics,
             }
         )
 

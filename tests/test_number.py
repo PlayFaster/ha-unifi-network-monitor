@@ -27,6 +27,18 @@ def _make_coordinator(data: dict[str, Any] | None) -> MagicMock:
     return coord
 
 
+def _capture_side(number: Any) -> MagicMock:
+    """Return a publish stand-in that records the value at the publish moment."""
+    number.published = []
+    return MagicMock(side_effect=lambda: number.published.append(number.native_value))
+
+
+def _capture(number: Any) -> list[Any]:
+    """Record ``native_value`` each time the entity publishes (stubbed_publish_tests)."""
+    number.async_write_ha_state = _capture_side(number)
+    return number.published
+
+
 def _make_entry(unique_id: str = MOCK_MAC) -> MagicMock:
     entry = MagicMock()
     entry.unique_id = unique_id
@@ -100,11 +112,10 @@ async def test_number_set_native_value_updates_state(hass: Any) -> None:
     number = UnifiScanIntervalNumber(coordinator, entry, 30)
     number.hass = hass
 
-    with patch.object(number, "async_write_ha_state") as mock_write:
-        await number.async_set_native_value(60)
+    published = _capture(number)
+    await number.async_set_native_value(60)
 
-    assert number.native_value == 60
-    mock_write.assert_called_once()
+    assert published == [60]
 
 
 def test_number_device_info() -> None:
@@ -191,7 +202,7 @@ async def test_async_set_native_value_cancels_prior_debounce(hass: Any) -> None:
 
     with (
         patch.object(number, "_apply_after_debounce", MagicMock()),
-        patch.object(number, "async_write_ha_state"),
+        patch.object(number, "async_write_ha_state", _capture_side(number)),
         patch.object(hass, "async_create_task"),
     ):
         await number.async_set_native_value(60)
@@ -283,10 +294,10 @@ async def test_wan_load_balance_set_native_value(hass: Any) -> None:
     number = WanLoadBalanceNumber(coordinator, entry)
     number.hass = hass
 
-    with patch.object(number, "async_write_ha_state") as mock_write:
-        await number.async_set_native_value(70.0)
+    published = _capture(number)
+    await number.async_set_native_value(70.0)
 
-    mock_write.assert_called_once()
+    assert published == [70.0]
     assert number._debounce_task is not None
 
 
@@ -306,7 +317,7 @@ async def test_wan_load_balance_set_native_value_cancels_prior(hass: Any) -> Non
 
     with (
         patch.object(number, "_apply_after_debounce", MagicMock()),
-        patch.object(number, "async_write_ha_state"),
+        patch.object(number, "async_write_ha_state", _capture_side(number)),
         patch.object(hass, "async_create_task"),
     ):
         await number.async_set_native_value(60)
@@ -341,6 +352,7 @@ async def test_wan_load_balance_apply_after_debounce_logs_error(
     coordinator.async_set_wan_weights = AsyncMock(
         side_effect=UnifiConnectionError("API error")
     )
+    _capture(number)
 
     with caplog.at_level(logging.ERROR):
         await number._apply_after_debounce(80)
@@ -438,11 +450,10 @@ async def test_rogue_threshold_set_value_persists_and_refreshes(hass: Any) -> No
     number.hass = hass
     hass.config_entries.async_update_entry = MagicMock()
 
-    with patch.object(number, "async_write_ha_state") as mock_write:
-        await number.async_set_native_value(-75)
+    published = _capture(number)
+    await number.async_set_native_value(-75)
 
-    assert number.native_value == -75
-    mock_write.assert_called_once()
+    assert published == [-75]
     _, kwargs = hass.config_entries.async_update_entry.call_args
     assert kwargs["options"][CONF_ROGUE_PROXIMITY_RSSI_THRESHOLD] == -75
     coordinator.async_force_refresh.assert_awaited_once()
@@ -459,3 +470,73 @@ def test_rogue_threshold_device_info() -> None:
 
     number = UnifiRogueProximityThresholdNumber(coordinator, entry, -60)
     assert number.device_info is not None
+
+
+# ---------------------------------------------------------------------------
+# WAN weight publishes the written value (C-019)
+# ---------------------------------------------------------------------------
+
+
+def _wlb(hass: Any, weight: int = 55) -> Any:
+    from custom_components.unifi_network_monitor.number import WanLoadBalanceNumber
+
+    data = {**MOCK_COORDINATOR_DATA, "gateway": {"wan1_weight": weight}}
+    coordinator = _make_wlb_coordinator(data)
+    number = WanLoadBalanceNumber(coordinator, _make_entry())
+    number.hass = hass
+    return number
+
+
+async def test_wan_weight_publishes_the_set_value(hass: Any) -> None:
+    """A set of 70 on a payload weight of 55 publishes 70, not 55."""
+    number = _wlb(hass)
+    published = _capture(number)
+    await number.async_set_native_value(70.0)
+    number._debounce_task.cancel()
+    assert published == [70.0]
+
+
+async def test_wan_weight_holds_until_the_next_update_after_the_write(
+    hass: Any,
+) -> None:
+    """After the write the entity reads 70 until an update, then the payload."""
+    number = _wlb(hass)
+    _capture(number)
+    await number.async_set_native_value(70.0)
+    number._debounce_task.cancel()
+    number._debounce_task = None
+    await number._apply_after_debounce(70.0)
+    assert number.native_value == 70.0
+    with patch(
+        "homeassistant.helpers.update_coordinator.CoordinatorEntity._handle_coordinator_update"
+    ):
+        number._handle_coordinator_update()
+    assert number.native_value == 55.0
+
+
+async def test_an_update_during_a_later_set_keeps_that_value(hass: Any) -> None:
+    """An update while a set of 80 still debounces leaves the entity at 80."""
+    number = _wlb(hass)
+    _capture(number)
+    await number.async_set_native_value(70.0)
+    await number.async_set_native_value(80.0)
+    with patch(
+        "homeassistant.helpers.update_coordinator.CoordinatorEntity._handle_coordinator_update"
+    ):
+        number._handle_coordinator_update()
+    assert number.native_value == 80.0
+    number._debounce_task.cancel()
+
+
+async def test_a_raised_write_releases_the_hold_at_once(hass: Any) -> None:
+    """A write that raises publishes the payload weight with no update."""
+    number = _wlb(hass)
+    published = _capture(number)
+    await number.async_set_native_value(70.0)
+    number._debounce_task.cancel()
+    number.coordinator.async_set_wan_weights = AsyncMock(
+        side_effect=UnifiConnectionError("down")
+    )
+    await number._apply_after_debounce(70.0)
+    assert number.native_value == 55.0
+    assert published == [70.0, 55.0]

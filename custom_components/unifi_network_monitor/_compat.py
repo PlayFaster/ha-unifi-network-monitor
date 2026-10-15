@@ -68,7 +68,7 @@ def via_device_link(
 ) -> dict[str, Any]:
     """Return the ``DeviceInfo`` kwarg linking a child device to its parent.
 
-    2026.8+ deprecates the ``via_device`` identifier tuple in favour of
+    2026.8+ deprecates the ``via_device`` identifier tuple in favor of
     ``via_device_id`` (a resolved device id), because identifiers are no longer
     globally unique — so resolve the parent's id from its identifier. Older HA
     gets the ``via_device`` tuple unchanged. An unresolved parent yields no link

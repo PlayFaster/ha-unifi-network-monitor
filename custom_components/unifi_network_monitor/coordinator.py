@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable, Mapping
-import contextlib
 from datetime import UTC, datetime, timedelta
 from fnmatch import fnmatchcase
 import logging
@@ -91,6 +90,7 @@ from .const import (
 )
 from .gateway import GatewaySelection, select_gateway
 from .helpers import calendar_cycle_bounds, project_cycle_usage
+from .uptime import UptimeLatchMixin
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -513,6 +513,21 @@ def build_usage_projection(
     }
 
 
+def _device_boot_time(
+    device: dict[str, Any], uptime_secs: int | None, reference: datetime
+) -> datetime | None:
+    """Return a device's boot instant from its own ``startup_timestamp``.
+
+    Every device record carries it, and it agrees with ``now - uptime`` to
+    within the report's age (v1.1.1 plan E13), so a device needs no latch. A
+    record without it falls back to ``now - uptime``.
+    """
+    startup = device.get("startup_timestamp")
+    if isinstance(startup, int) and not isinstance(startup, bool) and startup > 0:
+        return datetime.fromtimestamp(startup, UTC)
+    return _derive_boot_time(uptime_secs, reference)
+
+
 def _derive_boot_time(uptime_secs: int | None, reference: datetime) -> datetime | None:
     """Derive a boot timestamp from uptime seconds, anchored to reference time."""
     if uptime_secs is None or uptime_secs < 0:
@@ -585,11 +600,7 @@ def _parse_gateway(
         "cpu": cpu,
         "ram": ram,
         "uptime_secs": uptime_secs,
-        "boot_time": (
-            coordinator.get_stable_boot_time("gateway", uptime_secs, update_time)
-            if coordinator
-            else _derive_boot_time(uptime_secs, update_time)
-        ),
+        "boot_time": (_device_boot_time(device, uptime_secs, update_time)),
         "internet": internet,
         "speedtest_status": speedtest_status,
         "storage_used": storage_used,
@@ -651,11 +662,7 @@ def _parse_ap(
         "cpu": _safe_float(system_stats.get("cpu")),
         "ram": _safe_float(system_stats.get("mem")),
         "uptime_secs": uptime_secs,
-        "boot_time": (
-            coordinator.get_stable_boot_time(mac, uptime_secs, update_time)
-            if coordinator
-            else _derive_boot_time(uptime_secs, update_time)
-        ),
+        "boot_time": (_device_boot_time(device, uptime_secs, update_time)),
         "update_available": bool(device.get("upgradable")),
         "clients": _safe_int(device.get("user-wlan-num_sta"), 0),
         "guests": _safe_int(device.get("guest-wlan-num_sta"), 0),
@@ -686,11 +693,7 @@ def _parse_switch(
         "cpu": _safe_float(system_stats.get("cpu")),
         "ram": _safe_float(system_stats.get("mem")),
         "uptime_secs": uptime_secs,
-        "boot_time": (
-            coordinator.get_stable_boot_time(mac, uptime_secs, update_time)
-            if coordinator
-            else _derive_boot_time(uptime_secs, update_time)
-        ),
+        "boot_time": (_device_boot_time(device, uptime_secs, update_time)),
         "update_available": bool(device.get("upgradable")),
         "ports_used": _safe_int(device.get("num_sta"), 0),
         "ports_user": _safe_int(device.get("user-num_sta"), 0),
@@ -733,7 +736,7 @@ def _parse_health(
                 health["wan1_time_period"] = _safe_int(wan1.get("time_period"), 0)
                 health["wan1_uptime"] = wan1_uptime
                 health["wan1_boot_time"] = (
-                    coordinator.get_stable_boot_time("wan1", wan1_uptime, update_time)
+                    coordinator.link_boot_time("wan1", wan1_uptime)
                     if coordinator
                     else _derive_boot_time(wan1_uptime, update_time)
                 )
@@ -748,7 +751,7 @@ def _parse_health(
                 health["wan2_time_period"] = _safe_int(wan2.get("time_period"), 0)
                 health["wan2_uptime"] = wan2_uptime
                 health["wan2_boot_time"] = (
-                    coordinator.get_stable_boot_time("wan2", wan2_uptime, update_time)
+                    coordinator.link_boot_time("wan2", wan2_uptime)
                     if coordinator
                     else _derive_boot_time(wan2_uptime, update_time)
                 )
@@ -759,7 +762,7 @@ def _parse_health(
             www_uptime = _safe_int(h.get("uptime"), 0)
             health["www_uptime"] = www_uptime
             health["www_boot_time"] = (
-                coordinator.get_stable_boot_time("www", www_uptime, update_time)
+                coordinator.link_boot_time("www", www_uptime)
                 if coordinator
                 else _derive_boot_time(www_uptime, update_time)
             )
@@ -786,7 +789,9 @@ def _parse_health(
     return health
 
 
-class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
+class UnifiNetworkDataUpdateCoordinator(
+    UptimeLatchMixin, DataUpdateCoordinator[dict[str, Any]]
+):
     """Coordinator that fetches and structures all UniFi Network data."""
 
     def __init__(
@@ -809,7 +814,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         # every other entity has correctly gone unavailable (§19).
         self.health_snapshot: dict[str, Any] = {
             "problem": False,
-            "severity": None,
+            "severity": "ok",
             "issues": [],
             "degraded_capabilities": [],
             "drift": [],
@@ -903,13 +908,21 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._networkconf_wan: dict[str, Any] | None = None
         self._networkconf_wan2: dict[str, Any] | None = None
 
-        # Load persisted boot times for reboot-detection latch
-        self._boot_times: dict[str, dict[str, Any]] = {}
+        # The link latches, anchored at the boot times persisted in entry.data.
+        # The `last_uptime` counter in each record is deliberately NOT read: it
+        # was written only on a latch, so it froze at whatever the counter read
+        # after the previous reset. The counter comes from the store instead,
+        # and the legacy key is dropped at the next latch.
         boot_times_raw = entry.data.get("boot_times")
-        if isinstance(boot_times_raw, dict):
-            self._boot_times = {
-                k: dict(v) for k, v in boot_times_raw.items() if isinstance(v, dict)
+        self._init_uptime_latches(
+            {
+                k: dict(v)
+                for k, v in (
+                    boot_times_raw if isinstance(boot_times_raw, dict) else {}
+                ).items()
+                if isinstance(v, dict)
             }
+        )
 
         scan_interval = entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
         super().__init__(
@@ -919,62 +932,6 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
             name=f"{entry.title} Data",
             update_interval=timedelta(seconds=scan_interval),
         )
-
-    def get_stable_boot_time(
-        self, key: str, uptime_secs: int | None, reference: datetime
-    ) -> datetime | None:
-        """Derive and stabilize a boot timestamp using a reboot-detection latch."""
-        if uptime_secs is None or uptime_secs < 0:
-            # Bad-reading guard: keep the existing boot time if there is one
-            if key in self._boot_times:
-                boot_time_str = self._boot_times[key].get("boot_time")
-                if boot_time_str:
-                    with contextlib.suppress(Exception):
-                        return dt_util.parse_datetime(boot_time_str)
-            return None
-
-        # Retrieve cached boot time and last uptime
-        cached = self._boot_times.get(key) or {}
-        cached_boot_time: datetime | None = None
-        cached_boot_time_str = cached.get("boot_time")
-        if cached_boot_time_str:
-            with contextlib.suppress(Exception):
-                cached_boot_time = dt_util.parse_datetime(cached_boot_time_str)
-        cached_last_uptime = cached.get("last_uptime")
-
-        # Check if we need to (re-)latch
-        is_reboot = cached_boot_time is None or (
-            cached_last_uptime is not None and uptime_secs < cached_last_uptime - 30
-        )
-
-        if is_reboot:
-            calc_time = reference - timedelta(seconds=uptime_secs)
-            stable_boot = calc_time.replace(microsecond=0)
-            self._boot_times[key] = {
-                "boot_time": stable_boot.isoformat(),
-                "last_uptime": uptime_secs,
-            }
-            # Copy and persist
-            new_data = {
-                **self.entry.data,
-                "boot_times": {k: dict(v) for k, v in self._boot_times.items()},
-            }
-            self.hass.config_entries.async_update_entry(self.entry, data=new_data)
-            return stable_boot
-
-        # Update last_uptime in-memory only (avoid config entry write on every poll)
-        if key in self._boot_times:
-            self._boot_times[key]["last_uptime"] = uptime_secs
-        else:  # pragma: no cover - defensive; unreachable while cached_boot_time is set
-            self._boot_times[key] = {
-                "boot_time": (
-                    cached_boot_time.isoformat()
-                    if cached_boot_time
-                    else reference.isoformat()
-                ),
-                "last_uptime": uptime_secs,
-            }
-        return cached_boot_time
 
     @property
     def wan_weights_writable(self) -> bool:
@@ -994,10 +951,10 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         - **The pair is non-interruptible once the first PUT has gone out.** The
           caller is a debounce task that cancels itself on the next slider move,
           and the cancellation lands wherever the task is suspended — which,
-          after the debounce sleep, is *between* the two writes. Cancelling
+          after the debounce sleep, is *between* the two writes. Canceling
           there used to write WAN1 and not WAN2, leaving a pair that no longer
           summed to 100 with nothing reporting it. ``asyncio.shield`` lets the
-          caller be cancelled while the pair still completes.
+          caller be canceled while the pair still completes.
         - **The write is read back, and the three outcomes stay distinct.**
           Returns ``"confirmed"``, ``"unverified"`` or ``"failed"``.
           **Unverified is not failed** — a read-back that could not be taken
@@ -1165,7 +1122,8 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
     @callback
     async def async_initialize(self) -> None:
-        """Load persisted rogue-AP history and usage watermarks from storage."""
+        """Load persisted rogue-AP history, usage watermarks and uptime latches."""
+        await self.async_load_stored_uptime()
         stored = await self._rogue_history_store.async_load()
         if isinstance(stored, dict):
             self.rogue_history = {
@@ -1190,6 +1148,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         """
         await self._usage_store.async_save(self.usage_watermark)
         await self._rogue_history_store.async_save(self.rogue_history)
+        await self.async_flush_uptime_store()
 
     def _clamp_usage(
         self, key: str, period: int | None, raw: float | None
@@ -1381,7 +1340,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.health_snapshot = {
             **self.health_snapshot,
             "problem": True,
-            "severity": "serious",
+            "severity": "error",
             "issues": [f"{reason}: {err}"],
             "degraded_capabilities": ["All — gateway unreachable"],
             "auth_mode": "api_key" if self.api.api_key else "password",
@@ -1431,11 +1390,12 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 "(VPN, firewall and WAN-name sensors unavailable)"
             )
 
+        # dev_standards §19 values: ok, degraded, warning, error, unknown.
         serious = bool(drift_caps) or site_failed
-        severity = "serious" if serious else ("moderate" if degraded_caps else None)
+        severity = "error" if serious else ("degraded" if degraded_caps else "ok")
 
         return {
-            "problem": severity is not None,
+            "problem": severity != "ok",
             "severity": severity,
             "issues": issues,
             "degraded_capabilities": degraded_caps,
@@ -1683,6 +1643,8 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                         err,
                     )
                     self.site_uuid = "failed"
+                # Broad on purpose: the site lookup must not fail the poll, and
+                # the classifier below decides what a failure means.
                 except Exception as err:  # noqa: BLE001
                     _LOGGER.debug("Failed to fetch sites for UUID resolution: %s", err)
                     if (
@@ -2223,8 +2185,11 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                                     w2 = item
                                 if w1 is not None and w2 is not None:
                                     break
-                        # 2. Fallback to proximity-based ordering for compatibility
-                        elif len(sorted_speedtest) >= 2:
+                        # 2. Fallback to proximity-based ordering for compatibility.
+                        # Two close results pair as WAN1 and WAN2 only when the
+                        # gateway reports a WAN2 port; on a single-WAN gateway
+                        # they are two WAN1 runs.
+                        elif len(sorted_speedtest) >= 2 and wan2_ifname is not None:
                             t0 = sorted_speedtest[0].get("time") or 0
                             t1 = sorted_speedtest[1].get("time") or 0
                             if abs(t0 - t1) <= 600 * 1000:
@@ -2234,9 +2199,9 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                                 w1 = sorted_speedtest[0]
                                 w2 = None
                         else:
-                            # Exactly one result: the enclosing `if
-                            # speedtest_raw:` guarantees at least one and the
-                            # branch above took >= 2.
+                            # One result, or a gateway with no WAN2 port: the
+                            # newest result is WAN1 (the enclosing `if
+                            # speedtest_raw:` guarantees at least one).
                             w1 = sorted_speedtest[0]
                             w2 = None
 
@@ -2491,7 +2456,7 @@ class UnifiNetworkDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
                 # payload can never break the update it's diagnosing.
                 integration_health: dict[str, Any] = {
                     "problem": False,
-                    "severity": None,
+                    "severity": "ok",
                 }
                 try:
                     raw_drift: dict[str, bool] = {}

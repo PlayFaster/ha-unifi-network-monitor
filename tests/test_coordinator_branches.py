@@ -212,40 +212,6 @@ def test_parse_health_skips_an_unknown_subsystem_and_keeps_going() -> None:
 # ---------------------------------------------------------------------------
 
 
-async def test_bad_uptime_with_a_cached_entry_missing_its_boot_time(
-    hass: Any, mock_config_entry: Any
-) -> None:
-    """A cached record without a ``boot_time`` yields None, not a crash.
-
-    Reachable from a store written by an older version, or from a record whose
-    write was interrupted. The guard reads its own persisted state, so per the
-    plan's rule it is never a candidate for deletion.
-    """
-    mock_config_entry.add_to_hass(hass)
-    coordinator = UnifiNetworkDataUpdateCoordinator(
-        hass, mock_config_entry, MagicMock()
-    )
-    coordinator._boot_times = {MOCK_MAC: {"last_uptime": 100}}
-
-    assert coordinator.get_stable_boot_time(MOCK_MAC, None, _now()) is None
-
-
-async def test_bad_uptime_returns_the_cached_boot_time_when_present(
-    hass: Any, mock_config_entry: Any
-) -> None:
-    """The other half — a good cached value survives a bad uptime reading."""
-    mock_config_entry.add_to_hass(hass)
-    coordinator = UnifiNetworkDataUpdateCoordinator(
-        hass, mock_config_entry, MagicMock()
-    )
-    cached = "2026-08-01T00:00:00+00:00"
-    coordinator._boot_times = {MOCK_MAC: {"boot_time": cached}}
-
-    result = coordinator.get_stable_boot_time(MOCK_MAC, -1, _now())
-
-    assert result == dt_util.parse_datetime(cached)
-
-
 # ---------------------------------------------------------------------------
 # Site resolution — an error that matches none of the known signatures
 # ---------------------------------------------------------------------------
@@ -431,6 +397,57 @@ async def test_two_speedtests_far_apart_are_not_treated_as_a_pair(
                 {"time": 1_000_000, "download_mbps": 100},
             ]
         )
+    )
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+
+    result = await coordinator._async_update_data()
+
+    assert result["gateway"]["wan1_speedtest_download"] == 500
+    assert result["gateway"]["wan2_speedtest_download"] is None
+
+
+async def test_close_speedtests_on_a_single_wan_gateway_are_both_wan1(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """Without a WAN2 port, two close results are not split into WAN1 and WAN2.
+
+    Issue #23: a single-WAN gateway would otherwise publish a WAN1 run as WAN2.
+    """
+    mock_config_entry.add_to_hass(hass)
+    gateway = {k: v for k, v in _GATEWAY_DEVICE.items() if k != "wan2"}
+    api = _api(
+        get_devices=AsyncMock(return_value=[gateway]),
+        get_speedtest_results=AsyncMock(
+            return_value=[
+                {"time": 1_300_000, "download_mbps": 500, "upload_mbps": 50},
+                {"time": 1_000_000, "download_mbps": 100, "upload_mbps": 10},
+            ]
+        ),
+    )
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+
+    result = await coordinator._async_update_data()
+
+    gw = result["gateway"]
+    assert gw["wan1_speedtest_download"] == 500
+    assert all(
+        gw[f"wan2_speedtest_{k}"] is None for k in ("download", "upload", "ping")
+    )
+
+
+async def test_far_apart_speedtests_with_a_wan2_port_are_not_paired(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """With a WAN2 port, results ten or more minutes apart are still not a pair."""
+    mock_config_entry.add_to_hass(hass)
+    api = _api(
+        get_devices=AsyncMock(return_value=[dict(_GATEWAY_WITH_PORTS)]),
+        get_speedtest_results=AsyncMock(
+            return_value=[
+                {"time": 10_000_000, "download_mbps": 500},
+                {"time": 1_000_000, "download_mbps": 100},
+            ]
+        ),
     )
     coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
 

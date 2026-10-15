@@ -17,6 +17,10 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: UniFi Network Monitor](#internal-detailed-changelog-unifi-network-monitor)
+  - [\[1.1.1\] - 2026-10-16 - Release: Gateway Uptime, Diagnostics Privacy Hardening, and Single-WAN Fixes](#111---2026-10-16---release-gateway-uptime-diagnostics-privacy-hardening-and-single-wan-fixes)
+  - [\[1.1.1-dev3\] - 2026-10-15 - Tests: Real Polls Over the HTTP Seam, Contract Sweeps, Entity Hygiene Sweeps; Action Icons Nested; Masked-Errors Audit](#111-dev3---2026-10-15---tests-real-polls-over-the-http-seam-contract-sweeps-entity-hygiene-sweeps-action-icons-nested-masked-errors-audit)
+  - [\[1.1.1-dev2\] - 2026-10-15 - Uptime: Device Boot Times From the Controller, Link Latch Reconciles; WAN Totals and Weight Fixed; Health Severity Values](#111-dev2---2026-10-15---uptime-device-boot-times-from-the-controller-link-latch-reconciles-wan-totals-and-weight-fixed-health-severity-values)
+  - [\[1.1.1-dev1\] - 2026-10-15 - Manifest Bump 1.1.0 → 1.1.1 - Diagnostics Redaction: State-Map Keys, Alert Blocks, Whole-Word Substitution; Leak Check Walks Keys](#111-dev1---2026-10-15---manifest-bump-110--111---diagnostics-redaction-state-map-keys-alert-blocks-whole-word-substitution-leak-check-walks-keys)
   - [\[1.1.0\] - 2026-10-12 - Release: Gateway Detection, Projected Data Usage, Diagnostics Hardening, and WAN Weight Controls](#110---2026-10-12---release-gateway-detection-projected-data-usage-diagnostics-hardening-and-wan-weight-controls)
   - [\[1.1.0-dev14\] - 2026-10-12 - Diagnostics Download: Rejection, Endpoint and Gateway Captures; Scrubber Hardened; Hardware Diagnostics Check](#110-dev14---2026-10-12---diagnostics-download-rejection-endpoint-and-gateway-captures-scrubber-hardened-hardware-diagnostics-check)
   - [\[1.1.0-dev12\] - 2026-10-12 - Gateway Detection: Signature-First Selection; Unrecognized-Gateway Repair; Automatic Identity Correction](#110-dev12---2026-10-12---gateway-detection-signature-first-selection-unrecognized-gateway-repair-automatic-identity-correction)
@@ -53,6 +57,185 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.1-dev1\] - 2026-07-26 - Documentation and Tooling: Health Automation Example, AGENTS Structure, and CI Bumps](#101-dev1---2026-07-26---documentation-and-tooling-health-automation-example-agents-structure-and-ci-bumps)
   - [\[1.0.0\] - 2026-07-22 - Initial Public Release](#100---2026-07-22---initial-public-release)
   - [Document Audit Status](#document-audit-status)
+
+---
+
+## [1.1.1] - 2026-10-16 - Release: Gateway Uptime, Diagnostics Privacy Hardening, and Single-WAN Fixes
+
+### Summary
+
+- **Diagnostics Privacy**: Diagnostics downloads scrub dictionary keys, nested alert parameters, and IPv6/public addresses, preventing SSIDs, tunnel names, and network details from leaking.
+- **Uptime Reliability**: Gateway and link uptimes use controller start timestamps and drift-corrected latching, eliminating frozen or stale boot time reporting.
+- **Single-WAN Fixes**: Monthly data totals and speedtest result pairing now handle single-WAN setups without becoming unavailable or swapping interfaces.
+- **Immediate WAN Weight Feedback**: Adjusting the WAN load-balance weight updates the UI slider immediately while waiting for controller confirmation.
+- **Health Severity Vocabulary**: Integration Health severity values are standardized to `ok`, `degraded`, and `error`.
+
+### Thanks
+
+- 🙏 **[@superscouby](https://github.com/superscouby)**: For helping to enable support for the UniFi Cloud Gateway Ultra model, and identifying several compatibility, code and diagnostic bugs.
+
+### Fixed
+
+- **Gateway and link uptime stale timestamps** *(refines System & Link Uptimes, introduced in 1.0.0)*: device boot times, including the gateway, are calculated directly from each device's start timestamp (`startup_timestamp`), preventing gateway uptime from freezing or becoming weeks stale. WAN1, WAN2, and Internet (`www`) link uptimes use a shared drift-corrected latch with persistent state across restarts.
+
+- **Diagnostics redaction of keys and alert parameters** *(enhances Diagnostics, introduced in 1.0.0, refined in 1.1.0)*: state-map dictionary keys (such as SSIDs and VPN tunnel names) are tokenized rather than published as plain text, alert parameter blocks are scrubbed by default, and public IPv4 and IPv6 addresses are masked using whole-word matching that prevents redaction markers from corrupting.
+
+- **Internet Month Total on single-WAN gateways** *(refines Internet Data Usage, introduced in 1.0.0)*: the monthly combined total treats unconfigured secondary WAN counters as zero rather than becoming unavailable when only one WAN connection is present.
+
+- **Speedtest interface pairing on single-WAN gateways** *(refines Speedtest Tracking, introduced in 1.0.0)*: speedtest results without explicit interface tags are only paired across WAN1 and WAN2 when a secondary WAN interface is physically configured, preventing single-WAN results from misattributing to WAN2.
+
+- **WAN load-balance weight slider responsiveness** *(refines WAN Load-Balance Control, introduced in 1.0.0, refined in 1.1.0)*: the number entity displays the newly set value immediately, maintaining the slider position until the controller confirms the write and reverting at once if the write fails.
+
+### Changed
+
+- **Integration Health severity vocabulary** *(refines Integration Health, introduced in 1.0.0)*: the `severity` attribute reports `ok`, `degraded`, or `error` (replacing `None`, `moderate`, and `serious`). The primary entity state (`problem`) remains `off` when healthy and `on` when issues are detected; user automations evaluating the `severity` attribute should update checks for `moderate` or `serious` to `degraded` or `error`.
+
+- **Action icons formatting**: updated action icons in `icons.json` to Home Assistant's current nested format.
+
+- **Concurrent login serialization**: controller authentication requests are serialized behind a dedicated lock, preventing simultaneous login attempts during session renewal.
+
+### Added
+
+- **Drift metrics on Integration Health**: added `drift_rate_pct`, `drift_rate_min_pct`, `drift_rate_max_pct`, `drift_intervals`, `drift_measured_seconds`, and `drift_deficit_seconds` attributes to the Integration Health sensor for link timing diagnosis.
+
+- **Diagnostics uptime section**: diagnostics downloads include link latch anchors, counter history, and timing drift metrics.
+
+### Under the hood
+
+- **HTTP Seam & Test Coverage**: introduced a full-fidelity mock transport layer (`tests/transport.py`), expanding test suite coverage to 1,103 passing tests with 100% line and branch coverage (0 partial branches).
+- **Diagnostics Decomposition**: refactored the diagnostics download pipeline into modular handlers, reducing complexity metrics below 20 and removing complexity exemptions.
+- **Automated Leak Verification**: confirmed zero data leaks across 1,191 controller values using automated leak scanning (`scripts/diag_check.py`).
+
+## [1.1.1-dev3] - 2026-10-15 - Tests: Real Polls Over the HTTP Seam, Contract Sweeps, Entity Hygiene Sweeps; Action Icons Nested; Masked-Errors Audit
+
+### Summary
+
+Test-depth work with one user-visible change. Polls now run through a fake controller at the HTTP layer, so `api.py` executes in the tests that drive the repairs. The repair and severity contracts, the entity, icon, suppression and device-registry rules are each held by a sweep that was seen to fail. The action icons use Home Assistant's current nested form.
+
+### Changed
+
+- **Action icons in the nested form**: the seven `services` entries in `icons.json` are `{"service": "mdi:..."}`; the flat `"action": "mdi:..."` form still rendered, so nothing a user sees changes.
+
+### Tests
+
+- **`tests/transport.py`** (new): a fake UniFi controller over `aioclient_mock`, the seam `zte_router_5g` and `wifi_ssid_monitor` use. It answers every endpoint, can serve a drifted gateway, a different sites list, or HTTP 500 on chosen endpoints.
+- **`tests/test_repairs.py`**: `site_resolution_failed` and `schema_drift_detected` driven through real polls; `Tests: Depth Check` reports 4 of 4 outcomes driven in `REACH mode: coverage contexts`. The repair text sweeps, a firing fixture for each of the four repairs, and a stale repair cleared by the fresh coordinator a reload builds, under the family names of `C-022` step 8.
+- **`tests/test_integration_health.py`**: the Section 19 severity vocabulary swept over four driven paths (`ok`, `degraded`, drift `error`, outage `error`), each finding classified exactly once, and a guard on the number of severity writers.
+- **`tests/test_entity_hygiene.py`**: every live entity belongs to a device (135 swept); each device shape is built only in `helpers.py`; every live entity has an icon or a device class; action icons are nested; the suppression allow-list with eleven written reasons; deprecated device-registry surfaces only in `_compat.py`, ported from `zte_router_5g`.
+- **Publish captures and seams**: `test_number_flush.py`, `test_select.py` and `test_switch.py` capture what the entity reads at the publish. The config-flow tests patch `UnifiNetworkAPI.validate_connection` rather than `_validate_connection`, the button test builds the real entities, and the AP parse-error test feeds a malformed stats block to the real `_parse_ap`.
+- **`tests/conftest.py`**: `mock_api` awaits every method the poll calls; seven were bare `MagicMock`s, so every full-setup test ran the wlan, system-log and v3 endpoints' failure paths (masked errors Class C). `get_sites` now resolves the configured site, so the v3 endpoints are awaited rather than the site marked failed (independent review F1).
+- **Mutation proofs**: each new test or rewritten seam failed with the behavior it guards broken, then passed once restored.
+- **Coverage**: 1103 passed, 100% line and branch coverage, 0 partial branches; `Tests: Depth Check` PASSED.
+
+### Documentation
+
+- **`docs/ROADMAP.md`**: Declined records the nine entity names that repeat their sub-device word as keeps (`C-030`); no entity is renamed.
+- **`PARALLEL_UPDATES = 0`**: the decision and its reasoning have been in `docs/DEVELOPMENT.md` since `[1.0.1-dev16]`; re-checked against the dev2 number entity, which still serializes its own writes (`C-027`).
+- **Masked-errors audit**: all four classes; five findings, two fixed (the `mock_api` gap and a `noqa: BLE001` without a stated reason), three recorded with a reason.
+
+### Known
+
+- **Partial API mocks in six poll-driving test files**: each mocks only the endpoints its assertion reads, so the rest take the hold path. The skipped behavior is driven over the seam; converting the files is follow-up work.
+- **Full mutation run not repeated**: on owner direction it runs as and when a reason arises, not on a schedule.
+
+---
+
+## [1.1.1-dev2] - 2026-10-15 - Uptime: Device Boot Times From the Controller, Link Latch Reconciles; WAN Totals and Weight Fixed; Health Severity Values
+
+### Summary
+
+Focused on the defects found in v1.1.0. Device boot times now come from the controller's own start time, and the gateway's no longer sits weeks stale; the three link uptimes reconcile with the shared latch design. The combined monthly total and the speedtest split work on a single-WAN gateway, the WAN weight control shows the value just set, Integration Health uses the standard severity values, and logins are serialized.
+
+### Changed
+
+- **Integration Health severity values**: `severity` reads `ok`, `degraded` or `error`, never `None`; it was `None`, `moderate` and `serious`. `problem` is `severity != "ok"`, so the binary sensor's state is unchanged. A user automation testing `moderate` or `serious` must test `degraded` or `error`.
+- **Logins serialized**: `login()` takes `_login_lock`, as `zte_router_5g` does, so concurrent endpoints on an expired password-mode session log in one at a time.
+- **README automation triggers**: the Pause Polling and Integration Health examples carry `from: "off"`, so a return from `unavailable` does not fire them.
+- **Spelling and cleanup wording**: US spelling across the component, and the `cleanup.py` docstring and comments say emptied devices are removed, as the code does.
+
+### Fixed
+
+- **Gateway uptime 63 days stale**: device boot times, the gateway's included, are published from each device's `startup_timestamp`; the per-device latch that froze is gone.
+- **Link uptime latch could freeze**: the `wan1`, `wan2` and `www` boot times run the shared latch (`uptime.py`), with a store record saved on unload and the drift-corrected anchor. The `last_uptime` counter in each stored record is dropped at the first latch.
+- **Internet Month Total unavailable on a single-WAN gateway (issue #23)**: the total counts a `None` monthly field as zero and reads `None` only when all four are `None`.
+- **WAN1 speedtest published as WAN2 on a single-WAN gateway**: two close results without interface names pair as WAN1 and WAN2 only when the gateway reports a WAN2 port.
+- **Stale diagnostics field (found by the independent review)**: the `gateway` block's `boot_times_cache` read a record no latch writes any more; removed.
+- **v1.1.0 device records kept indefinitely (found by the independent review)**: the gateway and per-MAC `boot_times` records are dropped at the first link latch.
+- **Startup reconciliation waited for an absent WAN2 (found by the independent review)**: a link that never reports is not waited for.
+- **WAN weight showed the old value for about 7 s after a set**: the entity publishes the value just set until the controller's read-back arrives, keeps a later set's value across an update, and returns to the controller's value at once when the write fails.
+
+### Added
+
+- **Drift attributes on Integration Health**: `drift_rate_pct`, `drift_rate_min_pct`, `drift_rate_max_pct`, `drift_intervals`, `drift_measured_seconds` and `drift_deficit_seconds` for the `www` latch, named as in the sibling projects.
+- **Diagnostics `uptime` section**: each link latch's anchor, counters and drift.
+
+### Tests
+
+- **`tests/test_uptime_latch.py`** (new): the shared cases of `uptime_drift_analyzed.md` §8 under the shared names, the store failure cases, the upgrade from the v1.1.0 record shape, the store saved on unload, and device boot times from `startup_timestamp`; the simultaneous cold start and offline gap cases fail against the previous coordinator.
+- **`tests/test_api_lock_concurrency.py`** (new): `test_two_logins_take_turns` with a positive control.
+- **`tests/test_number.py`**: the five `patch.object` publish stubs are publish-moment captures, with four tests of the WAN weight hold.
+- **`tests/test_usage_total_value_fn.py`**, **`tests/test_coordinator_branches.py`**, **`tests/test_coordinator.py`**, **`tests/test_integration_health.py`**, **`tests/test_binary_sensor.py`**: the month total cases, the single-WAN pairing, the severity values; a fixture gained the WAN2 port name a UDM Pro reports, and the tests of the removed per-device latch were replaced.
+- **Mutation proofs**: each fix disabled in turn; each named test failed, then passed once restored.
+- **Coverage**: 100% line and branch coverage, 0 partial branches.
+
+### Verified
+
+- **Live on the UDM Pro**: Internet Month Total equals the sum of the WAN1 and WAN2 totals; the gateway uptime sensor reads the controller's `startup_timestamp`; Integration Health reads `off` with `severity: ok`; a WAN weight set from 60 to 40 published `40.0` within 0.1 s, then restored to 60; the diagnostics check `PASSED` with 0 leaks.
+
+### Known
+
+- **Concurrent logins unmeasured**: the development entry authenticates by API key, so the controller's handling of concurrent logins is not measured.
+- **Two manifest rows not mapped by `Sensor: Verify HA`**: the per-AP `score` and the dynamic `vpn_tunnel_name` rows, which predate this build.
+
+---
+
+## [1.1.1-dev1] - 2026-10-15 - Manifest Bump 1.1.0 → 1.1.1 - Diagnostics Redaction: State-Map Keys, Alert Blocks, Whole-Word Substitution; Leak Check Walks Keys
+
+### Summary
+
+Focused on the diagnostics download leaks reported in issue #23. SSIDs and tunnel names used as dictionary keys, nested client and network names in alert parameters, and public and IPv6 addresses no longer reach the download, and redacted values are no longer garbled. The hardware leak check now scans keys, and failed on the development download before the scrubber changed.
+
+### Changed
+
+- **Leak check walks keys**: `scripts/diag_check.py` `leaves()` yields every dictionary key as well as every string value, so an identifier used as a key is scanned. Keys that are string literals in the integration's own source, such as `data` and the endpoint labels, and the keys of a `routes` table are not scanned. VPN tunnel names are a scanned category, and a printed path has any found value masked.
+- **Diagnostics entry point decomposed**: `async_get_config_entry_diagnostics` (complexity 32) is split into `_learn_gateway_and_devices`, `_learn_entry`, `_learn_rogues`, `_scrub_entry`, `_scrub_gateway`, `_rogue_history` and `_coordinator_block`, each block moved verbatim in its original order. Every function in `diagnostics.py` measures under 20, and its `# noqa: C901` is removed.
+- **Alert blocks redacted unless known safe**: every string in an alert `parameters` block, at any depth, is redacted unless the block is device-shaped or on a safe set of radio, traffic, timing and setting blocks. Device-shaped blocks now include `DEVICE_FROM`, `DEVICE_TO`, `DST_DEVICE` and `SRC_DEVICE`, and a block's `name` resolves to its device token. A redacted block's `name` and `hostname` values are learned, so the alert's prose loses them too.
+- **Address backstop**: the free-text backstop uses the `huawei_router_5g` patterns: `_MAC_RE` matches colon and dash forms, `_IPV4_RE` matches every IPv4 address, public included, and `_IPV6_RE` is added. Loopback, unspecified and common public resolver addresses are kept. A dash-form MAC used as a key is tokenized.
+- **Example values**: aligned with `example_values.md`.
+
+### Fixed
+
+- **SSID and tunnel names published as keys**: the gateway's `wifi_states` and `vpn_states` keys are tokenized (`wlan-1`, `vpn-1`); the booleans are kept.
+- **Nested client and network names published**: a `CLIENTS.clients[]` list and a `NETWORK` block, as in the issue #23 download, carried client names, hostnames and the network name.
+- **Redacted values garbled**: free-text substitution replaced a learned literal inside the redaction marker, so a rogue SSID such as `RED` turned `**REDACTED**` into `**rogue-1ACTED**`. A literal is now replaced only as a whole word, in one pass that never enters the marker or re-scans a replacement.
+- **Leak check passed a download carrying SSID keys**: the check read values only, so the 2026-10-12 pass missed the three SSIDs used as `wifi_states` keys.
+- **Address before a full stop not redacted (found by the independent review)**: the adopted `_IPV4_RE` lookahead rejected a trailing full stop, so `203.0.113.7.` passed; the lookahead now rejects only a word character, `(` or a full stop followed by a word character.
+- **Dotted key printed unmasked (found by the independent review)**: `diag_check.py` masked a path segment by segment, so an SSID key such as `IoT-Guest.5G` printed in full; the whole path is now masked.
+- **Docstrings exempted keys from the leak check (found by the independent review)**: the integration's own names now exclude docstrings.
+- **SSID keys differing only in case merged (found by the independent review)**: each later colliding or blank key takes a numbered suffix (`wlan-1#2`), so no state is lost.
+- **Alert names missed in the other alert's text (found by the independent review)**: names in redacted alert blocks are learned in pass 1, before any text is scrubbed.
+- **Leak check reported the integration's own key names (found during the live check)**: with keys walked, the top-level `data` key, an endpoint label and a route key each matched a controller port or network name; the integration's own names and route keys are now excluded.
+
+### Tests
+
+- **`tests/test_diag_check.py`**: an SSID used as a key is found with its path masked; the integration's own names and route keys are skipped; a MAC-shaped key is masked; tunnel names are read as a category.
+- **`tests/test_diagnostics_sanitization.py`**: SSID and tunnel keys tokenized with their prose; nested `CLIENTS` and `NETWORK` blocks redacted with `LEARN_MORE.url` kept; `WLAN` and unseen blocks redacted and `SRC_DEVICE` tokenized; the marker and `Redmond` untouched by a literal `RED`; punctuation-edged names replaced; public IPv4, IPv6, bracketed IPv6 and dash MACs redacted while a version, an object ID, a time and a resolver are kept; a dash-form MAC key tokenized; a blank name redacted.
+- **`tests/test_diagnostics_artefact.py`**: `test_every_section_and_rewrite_survives_the_decomposition`, written against the undivided function and passing on both.
+- **`tests/test_standards_guards.py`**: `test_local_time_field_is_never_read_as_utc` fails if a function reads `last_successful_config_application_time` without `controller_timezone`, with a test that the guard sees an unguarded read.
+- **Updated for the alert-block rule**: `tests/test_diagnostics.py`, `tests/test_diagnostics_branches.py` and `tests/test_diagnostics_mutation.py` asserted that a block on no list kept its strings; each now asserts the redaction and states why.
+- **Mutation proofs**: the key walk, the state-map key rewrite, the alert depth walk, the alert inversion, the single-pass substitution and each of the three address patterns disabled in turn; each named test failed, then passed once restored.
+- **Review corrections**: `test_an_address_ending_a_sentence_is_redacted`, `test_a_dotted_key_is_masked_whole`, `test_own_names_leave_out_docstrings`, `test_state_map_keys_keep_their_count` and `test_a_name_in_one_alert_leaves_the_other_alerts_prose`; the last three failed with their fix disabled.
+- **Coverage**: 100% line and branch coverage, 0 partial branches.
+
+### Verified
+
+- **Leak check before the scrubber change**: on the development UDM Pro the check reported `FAILED` with the SSID key at `data.gateway.wifi_states`.
+- **Decomposition**: a rich fixture rendered byte-identical before and after; two live downloads before and after carried 895 paths each with structure drift 0.
+- **Leak check after the scrubber change**: `PASSED` with 0 leaks and 0 shape findings, with alerts of both severities present and `wifi_states` keyed `wlan-1` to `wlan-3`; repeated after the review corrections, `PASSED` with 0 leaks over 1191 controller values.
+
+### Known
+
+- **Alert blocks seen after the plan's sample**: `COUNT`, `UPLINK` and `CONSOLE_WITH_DEVICE_NAME` appeared in the live download and are redacted by the default rule.
 
 ---
 
@@ -161,7 +344,7 @@ Focussed on diagnostics download. The download now records what the integration 
 
 ### Verified
 
-- **Live download on the development UDM Pro**: after a restart onto this build, the four blocks present; 18 endpoints `answered`; 18 routes with status and `meta.rc`; `selection_reason` `wan_signature`; gateway start 2026-09-19 beside the published boot time 2026-07-18; timezone `Europe/Dublin`.
+- **Live download on the development UDM Pro**: after a restart onto this build, the four blocks present; 18 endpoints `answered`; 18 routes with status and `meta.rc`; `selection_reason` `wan_signature`; gateway start 2026-09-19 beside the published boot time 2026-07-18; the controller timezone present.
 - **Leak scan**: 0 of 1194 controller values in 21 categories found in the download, and no MAC-shaped or IPv6-shaped value; `diag_check.py` reports `PASSED`, and `FAILED` with the device-name scrub reverted.
 - **Rejection capture against the controller**: an unknown site recorded `401` `api.err.NoSiteContext`; a missing v2 route recorded an `unparsable` HTML `404`.
 
@@ -1060,6 +1243,6 @@ Entry structure — headers, titles, category headings and the split between thi
 
 ## Document Audit Status
 
-- **Headers Checked**: `1.1.0-dev14` to `1.0.0` (2026-10-12); 34 entries aligned to CF-101
-- **Bullets Checked**: `1.1.0-dev14` to `1.0.0` (2026-10-12); 233 bullets audited and verified per CF-202 (zero data loss)
+- **Headers Checked**: `1.1.1-dev3` to `1.0.0` (2026-10-16); 37 entries aligned to CF-101
+- **Bullets Checked**: `1.1.1-dev3` to `1.0.0` (2026-10-16); 261 bullets audited and verified per CF-202 (zero data loss)
 - **Specification**: Follows `changelog_format.md` (maintainer engineering voice; zero data loss)

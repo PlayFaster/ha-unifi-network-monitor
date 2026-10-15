@@ -103,7 +103,9 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
 - **Dual-WAN Status**: WAN1/WAN2 active-uplink and link-up indicators, uptime, latency, local/public IP addresses, and configured WAN interface names. See the [WAN Failover / Restore](#-wan-failover--restore-dual-wan) and [High Internet / WAN Latency](#-high-internet--wan-latency) examples.
 - **Multi-WAN Load Balancing**: Read and adjust the WAN1/WAN2 load-balance weight (always summing to 100%). See the [Optimize WAN Weight on High Latency](#-optimize-wan-weight-on-high-latency) example.
 
-> [!NOTE] **Where these figures come from.**
+> [!NOTE]
+>
+> **Where these figures come from.**
 >
 > The monthly figures are read from the controller, not measured by this integration. They move when the controller's own counter moves, they cover the calendar month rather than your ISP's billing cycle, and they are not your ISP's billing figure.
 >
@@ -1498,6 +1500,7 @@ description: "Automatically resumes polling or resets the polling interval to de
 triggers:
   - trigger: state
     entity_id: switch.unifi_network_system_pause_polling
+    from: "off"
     to: "on"
     for: "01:00:00"
     id: resume_polling
@@ -1583,6 +1586,7 @@ mode: single
 triggers:
   - trigger: state
     entity_id: binary_sensor.unifi_network_system_integration_health
+    from: "off"
     to: "on"
     for:
       minutes: 10
@@ -1814,10 +1818,10 @@ This integration registers its **own separate device cards** - a Gateway device 
 
 Some failures are **silent** - a fetch succeeds but the data is wrong (e.g. a UniFi controller update renames a field and a sensor group quietly reads zero). The **Integration Health** sensor (a `problem` binary sensor on the System sub-device) watches for these:
 
-- **`on` (moderate)** when a data source is **unavailable and you didn't disable it** - the attributes name the affected capability (e.g. _Security / Rogue APs_).
-- **`on` (serious) + Repair Issue** when schema drift is detected (a non-empty response parsing to empty payloads across multiple cycles), raising a `schema_drift_detected` repair issue suggesting an integration update.
+- **`on`, severity `degraded`,** when a data source is **unavailable and you didn't disable it** - the attributes name the affected capability (e.g. _Security / Rogue APs_).
+- **`on`, severity `error`, + Repair Issue** when schema drift is detected (a non-empty response parsing to empty payloads across multiple cycles), raising a `schema_drift_detected` repair issue suggesting an integration update.
 
-It's deliberately cautious: it **ignores capabilities you turned off**, ignores v3/firewall/VPN under username-password auth (expected), and only flags drift after it persists (no single-cycle false alarms). Details - `issues`, `severity`, `degraded_capabilities`, `drift`, `auth_mode` - live in the sensor's attributes; put it on a dashboard or alert on it to catch breakage early instead of months later. See the [Integration Health Problem Alert](#-integration-health-problem-alert) example.
+It's deliberately cautious: it **ignores capabilities you turned off**, ignores v3/firewall/VPN under username-password auth (expected), and only flags drift after it persists (no single-cycle false alarms). Details - `issues`, `severity`, `degraded_capabilities`, `drift`, `auth_mode` - live in the sensor's attributes, with `severity` one of `ok`, `degraded` or `error`; put it on a dashboard or alert on it to catch breakage early instead of months later. See the [Integration Health Problem Alert](#-integration-health-problem-alert) example.
 
 ### 🔄 Data Polling & 3-Strike Resilience
 
@@ -2213,6 +2217,8 @@ This is a **personal project**. Support and updates are provided on a **"best-ef
 This integration stands on the shoulders of several excellent open-source projects:
 
 - 🙏 [**@johntdyer**](https://github.com/johntdyer) , who, way back in 2024 provided the [original python script](https://github.com/custom-components/sensor.unifigateway/issues/59#issuecomment-1938652085) that I used and modified until deciding to make a custom component out of it. THANKS!
+
+- 🙏 **[@superscouby](https://github.com/superscouby)**: For helping to enable support for the UniFi Cloud Gateway Ultra model, and identifying several compatibility, code and diagnostic bugs.
 
 - 🙏 **Home Assistant Core [UniFi Network Integration](https://www.home-assistant.io/integrations/unifi/)** (@Kane610 , and contributors)
 
