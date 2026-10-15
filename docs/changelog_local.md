@@ -17,6 +17,8 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: UniFi Network Monitor](#internal-detailed-changelog-unifi-network-monitor)
+  - [\[1.1.1\] - 2026-10-16 - Release: Gateway Uptime, Diagnostics Privacy Hardening, and Single-WAN Fixes](#111---2026-10-16---release-gateway-uptime-diagnostics-privacy-hardening-and-single-wan-fixes)
+  - [\[1.1.1-dev3\] - 2026-10-15 - Tests: Real Polls Over the HTTP Seam, Contract Sweeps, Entity Hygiene Sweeps; Action Icons Nested; Masked-Errors Audit](#111-dev3---2026-10-15---tests-real-polls-over-the-http-seam-contract-sweeps-entity-hygiene-sweeps-action-icons-nested-masked-errors-audit)
   - [\[1.1.1-dev2\] - 2026-10-15 - Uptime: Device Boot Times From the Controller, Link Latch Reconciles; WAN Totals and Weight Fixed; Health Severity Values](#111-dev2---2026-10-15---uptime-device-boot-times-from-the-controller-link-latch-reconciles-wan-totals-and-weight-fixed-health-severity-values)
   - [\[1.1.1-dev1\] - 2026-10-15 - Manifest Bump 1.1.0 → 1.1.1 - Diagnostics Redaction: State-Map Keys, Alert Blocks, Whole-Word Substitution; Leak Check Walks Keys](#111-dev1---2026-10-15---manifest-bump-110--111---diagnostics-redaction-state-map-keys-alert-blocks-whole-word-substitution-leak-check-walks-keys)
   - [\[1.1.0\] - 2026-10-12 - Release: Gateway Detection, Projected Data Usage, Diagnostics Hardening, and WAN Weight Controls](#110---2026-10-12---release-gateway-detection-projected-data-usage-diagnostics-hardening-and-wan-weight-controls)
@@ -57,6 +59,52 @@ All changes to this project will be documented in this file. This is the detaile
   - [Document Audit Status](#document-audit-status)
 
 ---
+
+## [1.1.1] - 2026-10-16 - Release: Gateway Uptime, Diagnostics Privacy Hardening, and Single-WAN Fixes
+
+### Summary
+
+- **Diagnostics Privacy**: Diagnostics downloads scrub dictionary keys, nested alert parameters, and IPv6/public addresses, preventing SSIDs, tunnel names, and network details from leaking.
+- **Uptime Reliability**: Gateway and link uptimes use controller start timestamps and drift-corrected latching, eliminating frozen or stale boot time reporting.
+- **Single-WAN Fixes**: Monthly data totals and speedtest result pairing now handle single-WAN setups without becoming unavailable or swapping interfaces.
+- **Immediate WAN Weight Feedback**: Adjusting the WAN load-balance weight updates the UI slider immediately while waiting for controller confirmation.
+- **Health Severity Vocabulary**: Integration Health severity values are standardized to `ok`, `degraded`, and `error`.
+
+### Thanks
+
+- 🙏 **[@superscouby](https://github.com/superscouby)**: For helping to enable support for the UniFi Cloud Gateway Ultra model, and identifying several compatibility, code and diagnostic bugs.
+
+### Fixed
+
+- **Gateway and link uptime stale timestamps** *(refines System & Link Uptimes, introduced in 1.0.0)*: device boot times, including the gateway, are calculated directly from each device's start timestamp (`startup_timestamp`), preventing gateway uptime from freezing or becoming weeks stale. WAN1, WAN2, and Internet (`www`) link uptimes use a shared drift-corrected latch with persistent state across restarts.
+
+- **Diagnostics redaction of keys and alert parameters** *(enhances Diagnostics, introduced in 1.0.0, refined in 1.1.0)*: state-map dictionary keys (such as SSIDs and VPN tunnel names) are tokenized rather than published as plain text, alert parameter blocks are scrubbed by default, and public IPv4 and IPv6 addresses are masked using whole-word matching that prevents redaction markers from corrupting.
+
+- **Internet Month Total on single-WAN gateways** *(refines Internet Data Usage, introduced in 1.0.0)*: the monthly combined total treats unconfigured secondary WAN counters as zero rather than becoming unavailable when only one WAN connection is present.
+
+- **Speedtest interface pairing on single-WAN gateways** *(refines Speedtest Tracking, introduced in 1.0.0)*: speedtest results without explicit interface tags are only paired across WAN1 and WAN2 when a secondary WAN interface is physically configured, preventing single-WAN results from misattributing to WAN2.
+
+- **WAN load-balance weight slider responsiveness** *(refines WAN Load-Balance Control, introduced in 1.0.0, refined in 1.1.0)*: the number entity displays the newly set value immediately, maintaining the slider position until the controller confirms the write and reverting at once if the write fails.
+
+### Changed
+
+- **Integration Health severity vocabulary** *(refines Integration Health, introduced in 1.0.0)*: the `severity` attribute reports `ok`, `degraded`, or `error` (replacing `None`, `moderate`, and `serious`). The primary entity state (`problem`) remains `off` when healthy and `on` when issues are detected; user automations evaluating the `severity` attribute should update checks for `moderate` or `serious` to `degraded` or `error`.
+
+- **Action icons formatting**: updated action icons in `icons.json` to Home Assistant's current nested format.
+
+- **Concurrent login serialization**: controller authentication requests are serialized behind a dedicated lock, preventing simultaneous login attempts during session renewal.
+
+### Added
+
+- **Drift metrics on Integration Health**: added `drift_rate_pct`, `drift_rate_min_pct`, `drift_rate_max_pct`, `drift_intervals`, `drift_measured_seconds`, and `drift_deficit_seconds` attributes to the Integration Health sensor for link timing diagnosis.
+
+- **Diagnostics uptime section**: diagnostics downloads include link latch anchors, counter history, and timing drift metrics.
+
+### Under the hood
+
+- **HTTP Seam & Test Coverage**: introduced a full-fidelity mock transport layer (`tests/transport.py`), expanding test suite coverage to 1,103 passing tests with 100% line and branch coverage (0 partial branches).
+- **Diagnostics Decomposition**: refactored the diagnostics download pipeline into modular handlers, reducing complexity metrics below 20 and removing complexity exemptions.
+- **Automated Leak Verification**: confirmed zero data leaks across 1,191 controller values using automated leak scanning (`scripts/diag_check.py`).
 
 ## [1.1.1-dev3] - 2026-10-15 - Tests: Real Polls Over the HTTP Seam, Contract Sweeps, Entity Hygiene Sweeps; Action Icons Nested; Masked-Errors Audit
 
@@ -1195,6 +1243,6 @@ Entry structure — headers, titles, category headings and the split between thi
 
 ## Document Audit Status
 
-- **Headers Checked**: `1.1.0-dev14` to `1.0.0` (2026-10-12); 34 entries aligned to CF-101
-- **Bullets Checked**: `1.1.0-dev14` to `1.0.0` (2026-10-12); 233 bullets audited and verified per CF-202 (zero data loss)
+- **Headers Checked**: `1.1.1-dev3` to `1.0.0` (2026-10-16); 37 entries aligned to CF-101
+- **Bullets Checked**: `1.1.1-dev3` to `1.0.0` (2026-10-16); 261 bullets audited and verified per CF-202 (zero data loss)
 - **Specification**: Follows `changelog_format.md` (maintainer engineering voice; zero data loss)

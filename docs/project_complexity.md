@@ -1,6 +1,6 @@
 # Project Complexity & Health: ha-unifi-network-monitor
 
-**Last Measured:** 2026-10-15T21:58:35.503120+00:00 · **Release:** `1.1.1` · **Dev Version:** `1.1.1-dev3`
+**Last Measured:** 2026-10-15T22:22:16.234801+00:00 · **Release:** `1.1.1` · **Dev Version:** `1.1.1-dev3`
 
 ## 1. Executive Summary
 
@@ -27,7 +27,7 @@
 | **Platform SLOC / Entity** | **20.4 lines/entity** | Target 20 – 45 lines/entity declarative efficiency |
 | **Test-to-Source Ratio** | **1.8×** | 14,777 test lines ($\ge 1.5×$ recommended) |
 | **Pytest Coverage** | **100%** | 1103 tests executed |
-| **Pytest Duration** | **255.71s** | Full test suite wall-clock execution time |
+| **Pytest Duration** | **257.92s** | Full test suite wall-clock execution time |
 
 ## 2. High Complexity Routines ($\ge 10$)
 

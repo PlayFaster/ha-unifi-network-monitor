@@ -2218,6 +2218,8 @@ This integration stands on the shoulders of several excellent open-source projec
 
 - 🙏 [**@johntdyer**](https://github.com/johntdyer) , who, way back in 2024 provided the [original python script](https://github.com/custom-components/sensor.unifigateway/issues/59#issuecomment-1938652085) that I used and modified until deciding to make a custom component out of it. THANKS!
 
+- 🙏 **[@superscouby](https://github.com/superscouby)**: For helping to enable support for the UniFi Cloud Gateway Ultra model, and identifying several compatibility, code and diagnostic bugs.
+
 - 🙏 **Home Assistant Core [UniFi Network Integration](https://www.home-assistant.io/integrations/unifi/)** (@Kane610 , and contributors)
 
 - 🙏 **[UniFi API Browser](https://github.com/Art-of-WiFi/UniFi-API-browser)** Utility (@Art-of-WiFi , and contributors): The utility that allows a UDM gateway to be explored and interrogated.

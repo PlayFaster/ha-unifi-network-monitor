@@ -2,9 +2,9 @@
 
 An architectural reference and at-a-glance inventory of verified capabilities, interfaces, technical guarantees, and version lineage for `ha-unifi-network-monitor`.
 
-**Current Through:** `v1.1.0` (covering `v1.0.0` to `v1.1.0`) · **Last Audited:** 2026-10-12 · **Status:** `Active`
+**Current Through:** `v1.1.1` (covering `v1.0.0` to `v1.1.1`) · **Last Audited:** 2026-10-16 · **Status:** `Active`
 
-Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series and `1.1.0-dev3` to `1.1.0-dev14` series shipped together as public `v1.1.0` on 2026-10-12. Capabilities that predate the detailed changelog are recorded as `v1.0.0 verified`, the earliest verified release.
+Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series and `1.1.0-dev3` to `1.1.0-dev14` series shipped together as public `v1.1.0` on 2026-10-12; the `1.1.1-dev1` to `1.1.1-dev3` series shipped as `v1.1.1` on 2026-10-16. Capabilities that predate the detailed changelog are recorded as `v1.0.0 verified`, the earliest verified release.
 
 ---
 
@@ -18,9 +18,11 @@ Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series and `1.1.0-dev3` to `1
   - Classic `stat/*` endpoints serve device and health data under either authentication mode.
   - Official v3 / Integration endpoints (WAN names, VPN tunnels, firewall policies) are fetched concurrently via `asyncio.gather()` and are reachable only with an API key; under username and password auth the seven sensors they feed stay `unknown`, which is documented as expected behavior.
   - A v3 endpoint that is unsupported or fails degrades its sensor group to `unavailable` without failing the update cycle.
+  - Controller login requests are serialized behind `_login_lock` to prevent concurrent password login attempts during session renewal.
 - **Lifecycle Timeline**:
   - `v1.0.0 verified`: Hybrid classic and v3 model in place.
   - `v1.1.0`: The API-key menu path in the setup form aligned with the README (**UniFi Network → Integrations → Create New API Key**).
+  - `v1.1.1`: Logins serialized behind `_login_lock` (`1.1.1-dev2`).
 
 ### Three-Strike Poll Resilience
 
@@ -97,6 +99,7 @@ Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series and `1.1.0-dev3` to `1
 - **Lifecycle Timeline**:
   - `v1.0.0 verified`: Daily and monthly usage per WAN; persisted high-water mark.
   - `v1.1.0`: `TOTAL` state-class ban and no-upper-bound sweep on accumulating counters (`1.0.1-dev13`).
+  - `v1.1.1`: Month total calculation treats unconfigured secondary WAN as zero on single-WAN gateways (`1.1.1-dev2`).
 
 ### Projected Monthly Usage
 
@@ -116,11 +119,13 @@ Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series and `1.1.0-dev3` to `1
 - **Technical Guarantees**:
   - The weight write is composed from a fresh `networkconf` read immediately before the PUT, never from coordinator-held state (`coordinator.py:954`).
   - The WAN1 and WAN2 PUTs run under `asyncio.shield`, so a cancelled debounce cannot leave the pair not summing to 100.
+  - The number entity publishes the newly set value immediately, maintaining the slider position until controller confirmation and reverting if the write fails.
   - The write is read back and returns one of three distinct outcomes; an unverified read-back is logged as a warning, not as a failure.
   - Classified `ATTENDED` in `scripts/write_classification.py` and excluded from the hardware check.
 - **Lifecycle Timeline**:
   - `v1.0.0 verified`: Dual-WAN status and weight control.
   - `v1.1.0`: Fresh-read composition, shielded pair write and read-back (`1.0.1-dev12`).
+  - `v1.1.1`: Optimistic UI slider holding across update cycles until confirmation (`1.1.1-dev2`).
 
 ### Speedtest Results and Manual Runs
 
@@ -128,11 +133,13 @@ Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series and `1.1.0-dev3` to `1
 - **Entities & Interfaces**: Speedtest sub-device (12 entities); `button.unifi_network_speedtest_wan1_run`, `button.unifi_network_speedtest_wan2_run`.
 - **Technical Guarantees**:
   - The button sends the gateway's physical port (`wan1_ifname` / `wan2_ifname`, falling back to `eth8` / `eth9`) to `cmd/devmgr`, which refuses the logical WAN name with HTTP 400.
+  - Two un-tagged speedtest results are only paired as WAN1 and WAN2 when the gateway actually reports a physical WAN2 interface.
   - A failed trigger raises `HomeAssistantError` (`speedtest_failed`).
   - Classified `SAFE` and exercised against real hardware by `scripts/hardware_check.py`.
 - **Lifecycle Timeline**:
   - `v1.0.0 verified`: Speedtest sensors and run buttons.
   - `v1.1.0-dev11`: Hardware check resolves the same port name and passes against a UDM Pro.
+  - `v1.1.1`: WAN2 pairing restricted to gateways with physical WAN2 configurations (`1.1.1-dev2`).
 
 ### Gateway, Status and System Data
 
@@ -140,11 +147,23 @@ Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series and `1.1.0-dev3` to `1
 - **Entities & Interfaces**: Gateway (34), Status (22) and System (15) sub-devices.
 - **Technical Guarantees**:
   - Numeric values are rounded to 3 decimal places at parse time by `_safe_float` / `_safe_int`, separately from `suggested_display_precision`.
+  - Device boot times (gateway and adopted hardware) are published from `startup_timestamp`, eliminating the frozen per-device latch.
   - Every numeric sensor declares a lower guard band or is listed on a named allow-list; percentage sensors also declare an upper band (`test_standards_guards.py`).
   - Guard bands are documented per sensor in `docs/value_min_max.md`.
 - **Lifecycle Timeline**:
   - `v1.0.0 verified`: Gateway, status and system sensors.
   - `v1.1.0`: Guard-band sweeps (`1.0.1-dev13`); all 34 previously undocumented guard bands documented (`1.0.1-dev16`).
+  - `v1.1.1`: Gateway boot time published from controller `startup_timestamp` (`1.1.1-dev2`).
+
+### System and Link Uptime Drift-Corrected Latching
+
+- **Purpose**: Tracks system and WAN link uptimes with persistent baseline anchors that compensate for controller clock drift without false disconnects.
+- **Entities & Interfaces**: `sensor.unifi_network_system_uptime`, `sensor.unifi_network_internet_wan1_uptime`, `sensor.unifi_network_internet_wan2_uptime`, `sensor.unifi_network_internet_uptime`; `uptime.py` (`UptimeLatch`).
+- **Technical Guarantees**:
+  - WAN1, WAN2, and `www` link uptimes use a shared drift-corrected latch with persistent state saved to `Store` on unload.
+  - Dropped link counters do not wait for absent secondary links on single-WAN setups.
+- **Lifecycle Timeline**:
+  - `v1.1.1`: Shared latch design adopted for all link uptimes (`1.1.1-dev2`).
 
 ---
 
@@ -226,13 +245,15 @@ Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series and `1.1.0-dev3` to `1
 ### Integration Health Self-Diagnosis
 
 - **Purpose**: Reports silent failures, where a fetch succeeds but the data is unusable, as well as unavailable data sources.
-- **Entities & Interfaces**: `binary_sensor.unifi_network_system_integration_health` with attributes `issues`, `severity`, `degraded_capabilities`, `drift`, `auth_mode`, `v3_available`, `last_good_update`.
+- **Entities & Interfaces**: `binary_sensor.unifi_network_system_integration_health` with attributes `issues`, `severity`, `degraded_capabilities`, `drift`, `auth_mode`, `v3_available`, `last_good_update`, `drift_rate_pct`, `drift_rate_min_pct`, `drift_rate_max_pct`, `drift_intervals`, `drift_measured_seconds`, `drift_deficit_seconds`.
 - **Technical Guarantees**:
   - Schema drift (a non-empty response parsing to nothing) is flagged only after `HEALTH_DRIFT_STRIKE_LIMIT = 3` cycles.
   - Capabilities the user disabled, and v3 endpoints under username and password auth, are excluded from the verdict.
+  - Severity vocabulary conforms to Section 19 standards (`ok`, `degraded`, `error`), replacing `None`, `moderate`, and `serious`.
 - **Lifecycle Timeline**:
   - `v1.0.0 verified`: Integration Health sensor.
   - `v1.1.0`: README example corrected to `last_good_update` (`1.0.1-dev3`).
+  - `v1.1.1`: Section 19 severity vocabulary adopted and drift diagnostic attributes added (`1.1.1-dev2`).
 
 ### Repair Issues
 
@@ -253,11 +274,15 @@ Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series and `1.1.0-dev3` to `1
 - **Technical Guarantees**:
   - `TO_REDACT` masks credentials, host, MACs, local and public IPs, ISP name and organization, and BSSIDs.
   - `_Scrubber` assigns stable pseudonymous tokens, scrubs identifiers from alert parameters and messages, blanks `ISP_ASN`, and redacts non-default site names.
-  - Dedicated capture blocks (`endpoints`, `last_rejection`, `login`, `gateway`) capture reachability status, login headers, and error structures without storing values.
+  - Dictionary keys in state maps (SSIDs, VPN tunnel names) are tokenized to prevent leaks through object keys.
+  - Text substitution uses single-pass whole-word replacement to prevent redaction marker corruption.
+  - Decomposed into modular helper blocks under McCabe complexity 20 without `# noqa: C901` exemptions.
+  - Dedicated capture blocks (`endpoints`, `last_rejection`, `login`, `gateway`, `uptime`) capture reachability status, login headers, and error structures without storing values.
   - Verified against a populated live capture with automated zero-leak whole-word scanning (`scripts/diag_check.py`).
 - **Lifecycle Timeline**:
   - `v1.0.0 verified`: Redaction in place.
   - `v1.1.0`: Token scrubbing mutation-tested (`1.0.1-dev19`); verified against a live capture (`1.0.1-dev22`); structured captures (`endpoints`, `last_rejection`, `login`, `gateway`) added and leak-checked against 1,204 controller values across 21 categories (`1.1.0-dev14`).
+  - `v1.1.1`: State-map keys tokenized, nested alert parameters scrubbed, IPv6 address masking added, and pipeline decomposed under complexity 20 (`1.1.1-dev1`).
 
 ### Recorder Hygiene and About Notes
 
@@ -276,9 +301,10 @@ Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series and `1.1.0-dev3` to `1
 ### Unit and Regression Test Suite
 
 - **Purpose**: Verifies behavior and standards across all 19 component modules.
-- **Interfaces**: `tests/` (44 files); `Pytest: Check Test Coverage` task with `--cov-branch`.
+- **Interfaces**: `tests/` (45 files); `tests/transport.py` (fake UniFi controller over `aioclient_mock`); `Pytest: Check Test Coverage` task with `--cov-branch`.
 - **Lifecycle Timeline**:
   - `v1.1.0`: 100% branch coverage with 0 partial branches (`1.0.1-dev18`); `fail_under = 100` enforced from `1.1.0-dev10`; 967 tests at 100% line and branch coverage (`1.1.0-dev14`).
+  - `v1.1.1`: Expanded to 1,103 tests at 100% line and branch coverage (0 partial branches); added `transport.py` HTTP seam (`1.1.1-dev3`).
 
 ### Standards Guard Sweeps
 
@@ -286,6 +312,7 @@ Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series and `1.1.0-dev3` to `1
 - **Interfaces**: `test_standards_guards.py` (guard bands, `TOTAL` ban, forecast state class); `test_translations_icons.py` (translation, icon and exception keys reconciled against source in both directions); `test_entity_hygiene.py`; `test_write_classification.py`; rationale in `docs/test_guards.md`.
 - **Lifecycle Timeline**:
   - `v1.1.0`: Introduced across `1.0.1-dev4`, `1.0.1-dev13` and `1.0.1-dev16`.
+  - `v1.1.1`: Added entity hygiene sweep (135 entities, device association, icon/class presence, nested action icons) (`1.1.1-dev3`).
 
 ### Mutation Testing
 
@@ -302,6 +329,7 @@ Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series and `1.1.0-dev3` to `1
   - `v1.1.0`: Register and hardware check introduced (`1.0.1-dev16`).
   - `v1.1.0-dev11`: Hardware check reads `/config/.storage`, resolves the WAN port name and prints a verdict banner; `PASSED (1/1)` against a UDM Pro.
   - `v1.1.0-dev14`: Diagnostics check introduced: two real downloads compared, block contents checked, and a leak scan against the controller's own lists; `PASSED` against a UDM Pro.
+  - `v1.1.1`: Leak scan updated to walk dictionary keys; verified 0 leaks over 1,191 values (`1.1.1-dev1`).
 
 ### Complexity Scorecard and Compatibility Ledger
 
@@ -311,6 +339,7 @@ Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series and `1.1.0-dev3` to `1
   - `v1.1.0-dev6`: McCabe rule adopted; `_async_update_data` (83) and `async_get_config_entry_diagnostics` (31) under temporary `# noqa: C901`.
   - `v1.1.0-dev7`: Scorecard added; PlayFaster Health Index 33/100 at `1.1.0-dev11`.
   - `v1.1.0-dev8`: Minimum Home Assistant 2025.2.0 (Python 3.13); tested against 2026.10.1 at `1.1.0-dev11`.
+  - `v1.1.1`: `async_get_config_entry_diagnostics` decomposed into helpers under complexity 20; `# noqa: C901` removed (`1.1.1-dev1`).
 
 ### Sensor Manifest Synchronization
 
@@ -321,4 +350,4 @@ Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series and `1.1.0-dev3` to `1
 
 ---
 
-*Capabilities dossier audited against codebase and changelogs up to `v1.1.0` on 2026-10-12. Maintained via `capabilities_build.md`.*
+*Capabilities dossier audited against codebase and changelogs up to `v1.1.1` on 2026-10-16. Maintained via `capabilities_build.md`.*
