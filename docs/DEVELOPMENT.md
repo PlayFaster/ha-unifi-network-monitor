@@ -368,6 +368,10 @@ Each counter advances at wall rate within report granularity, so none pauses, an
 
 `UnifiNetworkAPI.login()` takes `_login_lock`, the shape of `zte_router_5g`: concurrent endpoints on an expired password-mode session log in one at a time, and a caller that waited logs in again rather than reusing the session just made. **Known limit:** how the controller treats concurrent logins is unmeasured, since the development entry authenticates by API key and never logs in.
 
+### Real Polls Over the HTTP Seam (v1.1.1-dev3)
+
+`tests/transport.py` fakes the controller at the HTTP layer through `aioclient_mock`, so `api.py` runs in the tests that use it, as in `zte_router_5g` and `wifi_ssid_monitor`. `ControllerFake.serve()` answers every endpoint the poll calls in API-key mode and can serve a drifted gateway, a different sites list, or HTTP 500 on chosen endpoints. A test that asserts an outcome a poll produces drives it through this seam; a `MagicMock` API proves only how the coordinator handles what the mock returns. Six older test files still use partial `MagicMock` APIs (masked-errors report C.2).
+
 ## 4. Success Patterns
 
 - **`DataUpdateCoordinator`**: Single fetch per poll cycle distributes data to all entities. `button.py` uses `coordinator.async_request_refresh()` for immediate feedback on manual refresh.
@@ -517,3 +521,4 @@ The fallback branches therefore only break when those APIs are **removed in HA C
 - **[2026-10-12]** — **v1.1.0-dev12, gateway detection (issue #23).** Added the Gateway Selection & Identity Correction architecture section with its known limits; speedtest mapping no longer defaults to the UDM Pro ports `eth8` / `eth9`, and the WAN2 button raises `speedtest_wan2_port_unknown` when no WAN2 port is reported.
 - **[2026-10-15]** — v1.1.1-dev1 diagnostics redaction: state-map keys tokenized, alert blocks redacted unless known safe, whole-word substitution, sibling address patterns, the leak check walking keys, and the local-time field guard. Sections above updated.
 - **[2026-10-15]** — v1.1.1-dev2: link uptime latch and device boot times from `startup_timestamp`, Integration Health §19 severity values, speedtest pairing gate, WAN weight hold, serialized logins.
+- **[2026-10-15]** — v1.1.1-dev3: tests drive real polls over the HTTP seam (`tests/transport.py`); repair, severity, device, icon, suppression and device-registry sweeps added; action icons in the nested form; masked-errors audit run.

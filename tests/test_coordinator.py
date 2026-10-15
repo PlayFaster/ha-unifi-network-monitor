@@ -960,6 +960,9 @@ async def test_coordinator_device_parse_error_skipped(
                 "model": "UAP-AC-M",
                 "state": 1,
                 "is_access_point": True,
+                # A stats block that is not a mapping: the real `_parse_ap`
+                # raises on it, which is the except branch under test.
+                "system-stats": "unavailable",
             },
         ]
     )
@@ -975,12 +978,7 @@ async def test_coordinator_device_parse_error_skipped(
     api.get_speedtest_results = AsyncMock(return_value=[])
 
     coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
-    # Override _parse_ap to raise - this tests the except branch
-    with patch(
-        "custom_components.unifi_network_monitor.coordinator._parse_ap",
-        side_effect=ValueError("bad data"),
-    ):
-        result = await coordinator._async_update_data()
+    result = await coordinator._async_update_data()
     # Gateway should still be parsed successfully
     assert result["gateway"] is not None
     # Failed AP should not appear in devices

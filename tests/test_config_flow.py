@@ -91,7 +91,7 @@ MOCK_IDENTITY = {
 async def test_config_flow_api_key_success(hass: Any) -> None:
     """Complete config flow succeeds with a valid API key."""
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(return_value=MOCK_IDENTITY),
     ):
         result = await hass.config_entries.flow.async_init(
@@ -142,7 +142,7 @@ async def test_config_flow_without_a_gateway_uses_the_host(hass: Any) -> None:
 async def test_config_flow_cannot_connect(hass: Any) -> None:
     """Config flow shows error on connection failure."""
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(side_effect=UnifiConnectionError("timeout")),
     ):
         result = await hass.config_entries.flow.async_init(
@@ -160,7 +160,7 @@ async def test_config_flow_cannot_connect(hass: Any) -> None:
 async def test_config_flow_invalid_auth(hass: Any) -> None:
     """Config flow shows error on auth failure."""
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(side_effect=UnifiAuthError("bad key")),
     ):
         result = await hass.config_entries.flow.async_init(
@@ -199,7 +199,7 @@ async def test_config_flow_no_credentials_shows_error(hass: Any) -> None:
 async def test_config_flow_duplicate_aborts(hass: Any) -> None:
     """Second config flow for same device aborts with already_configured."""
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(return_value=MOCK_IDENTITY),
     ):
         result = await hass.config_entries.flow.async_init(
@@ -210,7 +210,7 @@ async def test_config_flow_duplicate_aborts(hass: Any) -> None:
         )
 
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(return_value=MOCK_IDENTITY),
     ):
         result2 = await hass.config_entries.flow.async_init(
@@ -228,7 +228,7 @@ async def test_config_flow_duplicate_aborts(hass: Any) -> None:
 async def test_config_flow_reconfigure_success(hass: Any) -> None:
     """Reconfigure flow succeeds with valid credentials."""
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(return_value=MOCK_IDENTITY),
     ):
         result = await hass.config_entries.flow.async_init(
@@ -242,7 +242,7 @@ async def test_config_flow_reconfigure_success(hass: Any) -> None:
 
     updated_input = {**REAUTH_INPUT, "api_key": "new-key"}
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(return_value=MOCK_IDENTITY),
     ):
         result = await hass.config_entries.flow.async_init(
@@ -261,7 +261,7 @@ async def test_config_flow_reconfigure_success(hass: Any) -> None:
 async def test_config_flow_reauth_no_entry(hass: Any) -> None:
     """Reauth raises UnknownEntry for non-existent entry."""
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(return_value=MOCK_IDENTITY),
     ):
         result = await hass.config_entries.flow.async_init(
@@ -286,7 +286,7 @@ async def test_config_flow_reauth_no_entry(hass: Any) -> None:
 async def test_options_flow_success(hass: Any) -> None:
     """Options flow updates scan interval successfully."""
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(return_value=MOCK_IDENTITY),
     ):
         result = await hass.config_entries.flow.async_init(
@@ -299,7 +299,7 @@ async def test_options_flow_success(hass: Any) -> None:
         entry = result["result"]
 
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(return_value=MOCK_IDENTITY),
     ):
         result = await hass.config_entries.options.async_init(entry.entry_id)
@@ -317,7 +317,7 @@ async def test_options_flow_success(hass: Any) -> None:
 async def test_config_flow_unexpected_error(hass: Any) -> None:
     """Config flow shows unknown error on unexpected exception."""
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(side_effect=RuntimeError("boom")),
     ):
         result = await hass.config_entries.flow.async_init(
@@ -335,7 +335,7 @@ async def test_config_flow_unexpected_error(hass: Any) -> None:
 async def test_options_flow_cannot_connect(hass: Any) -> None:
     """Options flow shows connection error."""
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(return_value=MOCK_IDENTITY),
     ):
         result = await hass.config_entries.flow.async_init(
@@ -348,7 +348,7 @@ async def test_options_flow_cannot_connect(hass: Any) -> None:
         entry = result["result"]
 
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(side_effect=UnifiConnectionError("timeout")),
     ):
         result = await hass.config_entries.options.async_init(entry.entry_id)
@@ -364,7 +364,7 @@ async def test_options_flow_cannot_connect(hass: Any) -> None:
 async def test_options_flow_invalid_auth(hass: Any) -> None:
     """Options flow shows auth error."""
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(return_value=MOCK_IDENTITY),
     ):
         result = await hass.config_entries.flow.async_init(
@@ -377,7 +377,7 @@ async def test_options_flow_invalid_auth(hass: Any) -> None:
         entry = result["result"]
 
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(side_effect=UnifiAuthError("bad key")),
     ):
         result = await hass.config_entries.options.async_init(entry.entry_id)
@@ -464,7 +464,7 @@ async def test_validate_connection_creates_api_and_validates(hass: Any) -> None:
 async def test_config_flow_reconfigure_step_success(hass: Any) -> None:
     """Reconfigure step succeeds with valid credentials."""
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(return_value=MOCK_IDENTITY),
     ):
         result = await hass.config_entries.flow.async_init(
@@ -477,7 +477,7 @@ async def test_config_flow_reconfigure_step_success(hass: Any) -> None:
         entry = result["result"]
 
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(return_value=MOCK_IDENTITY),
     ):
         result = await hass.config_entries.flow.async_init(
@@ -503,7 +503,7 @@ async def test_config_flow_reconfigure_can_clear_ignore_list(hass: Any) -> None:
     Using ``suggested_value`` + ``default=""`` makes a blank submit clear it.
     """
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(return_value=MOCK_IDENTITY),
     ):
         result = await hass.config_entries.flow.async_init(
@@ -547,7 +547,7 @@ async def test_config_flow_reconfigure_can_clear_ignore_list(hass: Any) -> None:
 async def test_config_flow_reconfigure_auth_error(hass: Any) -> None:
     """Reconfigure step shows auth error."""
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(return_value=MOCK_IDENTITY),
     ):
         result = await hass.config_entries.flow.async_init(
@@ -560,7 +560,7 @@ async def test_config_flow_reconfigure_auth_error(hass: Any) -> None:
         entry = result["result"]
 
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(side_effect=UnifiAuthError("bad key")),
     ):
         result = await hass.config_entries.flow.async_init(
@@ -579,7 +579,7 @@ async def test_config_flow_reconfigure_auth_error(hass: Any) -> None:
 async def test_config_flow_reconfigure_connection_error(hass: Any) -> None:
     """Reconfigure step shows connection error."""
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(return_value=MOCK_IDENTITY),
     ):
         result = await hass.config_entries.flow.async_init(
@@ -592,7 +592,7 @@ async def test_config_flow_reconfigure_connection_error(hass: Any) -> None:
         entry = result["result"]
 
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(side_effect=UnifiConnectionError("timeout")),
     ):
         result = await hass.config_entries.flow.async_init(
@@ -616,7 +616,7 @@ async def test_config_flow_reconfigure_connection_error(hass: Any) -> None:
 async def test_config_flow_reauth_confirm_auth_error(hass: Any) -> None:
     """Reauth_confirm shows auth error."""
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(return_value=MOCK_IDENTITY),
     ):
         result = await hass.config_entries.flow.async_init(
@@ -629,7 +629,7 @@ async def test_config_flow_reauth_confirm_auth_error(hass: Any) -> None:
         entry_id = result["result"].entry_id
 
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(side_effect=UnifiAuthError("bad key")),
     ):
         result = await hass.config_entries.flow.async_init(
@@ -657,7 +657,7 @@ async def test_config_flow_reauth_confirm_auth_error(hass: Any) -> None:
 async def test_options_flow_unexpected_error(hass: Any) -> None:
     """Options flow shows unknown error on unexpected exception."""
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(return_value=MOCK_IDENTITY),
     ):
         result = await hass.config_entries.flow.async_init(
@@ -670,7 +670,7 @@ async def test_options_flow_unexpected_error(hass: Any) -> None:
         entry = result["result"]
 
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(side_effect=RuntimeError("boom")),
     ):
         result = await hass.config_entries.options.async_init(entry.entry_id)
@@ -691,7 +691,7 @@ async def test_options_flow_unexpected_error(hass: Any) -> None:
 async def test_config_flow_reconfigure_no_credentials(hass: Any) -> None:
     """Reconfigure merges empty creds with existing (line 192 is dead code)."""
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(return_value=MOCK_IDENTITY),
     ):
         result = await hass.config_entries.flow.async_init(
@@ -704,7 +704,7 @@ async def test_config_flow_reconfigure_no_credentials(hass: Any) -> None:
         entry = result["result"]
 
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(return_value=MOCK_IDENTITY),
     ):
         result = await hass.config_entries.flow.async_init(
@@ -735,7 +735,7 @@ async def test_config_flow_reconfigure_no_credentials(hass: Any) -> None:
 async def test_config_flow_reconfigure_unexpected_error(hass: Any) -> None:
     """Reconfigure shows unknown error on unexpected exception (lines 205-207)."""
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(return_value=MOCK_IDENTITY),
     ):
         result = await hass.config_entries.flow.async_init(
@@ -748,7 +748,7 @@ async def test_config_flow_reconfigure_unexpected_error(hass: Any) -> None:
         entry = result["result"]
 
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(side_effect=RuntimeError("unexpected")),
     ):
         result = await hass.config_entries.flow.async_init(
@@ -767,7 +767,7 @@ async def test_config_flow_reconfigure_unexpected_error(hass: Any) -> None:
 async def test_config_flow_reauth_confirm_no_credentials(hass: Any) -> None:
     """Reauth_confirm merges empty creds with existing (line 235 is dead code)."""
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(return_value=MOCK_IDENTITY),
     ):
         result = await hass.config_entries.flow.async_init(
@@ -780,7 +780,7 @@ async def test_config_flow_reauth_confirm_no_credentials(hass: Any) -> None:
         entry_id = result["result"].entry_id
 
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(return_value=MOCK_IDENTITY),
     ):
         result = await hass.config_entries.flow.async_init(
@@ -805,7 +805,7 @@ async def test_config_flow_reauth_confirm_no_credentials(hass: Any) -> None:
 async def test_config_flow_reauth_confirm_connection_error(hass: Any) -> None:
     """Reauth_confirm shows connection error (lines 249-250)."""
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(return_value=MOCK_IDENTITY),
     ):
         result = await hass.config_entries.flow.async_init(
@@ -818,7 +818,7 @@ async def test_config_flow_reauth_confirm_connection_error(hass: Any) -> None:
         entry_id = result["result"].entry_id
 
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(side_effect=UnifiConnectionError("timeout")),
     ):
         result = await hass.config_entries.flow.async_init(
@@ -837,7 +837,7 @@ async def test_config_flow_reauth_confirm_connection_error(hass: Any) -> None:
 async def test_config_flow_reauth_confirm_unexpected_error(hass: Any) -> None:
     """Reauth_confirm shows unknown error on unexpected exception (lines 251-253)."""
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(return_value=MOCK_IDENTITY),
     ):
         result = await hass.config_entries.flow.async_init(
@@ -850,7 +850,7 @@ async def test_config_flow_reauth_confirm_unexpected_error(hass: Any) -> None:
         entry_id = result["result"].entry_id
 
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(side_effect=RuntimeError("unexpected")),
     ):
         result = await hass.config_entries.flow.async_init(
@@ -869,7 +869,7 @@ async def test_config_flow_reauth_confirm_unexpected_error(hass: Any) -> None:
 async def test_options_flow_no_credentials(hass: Any) -> None:
     """Options flow merges empty creds with existing (line 287 is dead code)."""
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(return_value=MOCK_IDENTITY),
     ):
         result = await hass.config_entries.flow.async_init(
@@ -882,7 +882,7 @@ async def test_options_flow_no_credentials(hass: Any) -> None:
         entry = result["result"]
 
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(return_value=MOCK_IDENTITY),
     ):
         result = await hass.config_entries.options.async_init(entry.entry_id)
@@ -1019,7 +1019,7 @@ async def test_config_flow_reauth_confirm_entry_gone(hass: Any) -> None:
 
     with (
         patch(
-            "custom_components.unifi_network_monitor.config_flow._validate_connection",
+            "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
             AsyncMock(return_value=MOCK_IDENTITY),
         ),
         pytest.raises(UnknownEntry),
@@ -1102,7 +1102,7 @@ async def test_options_flow_core_present(hass: Any) -> None:
     core_entry.add_to_hass(hass)
 
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(return_value=MOCK_IDENTITY),
     ):
         result = await hass.config_entries.flow.async_init(
@@ -1115,7 +1115,7 @@ async def test_options_flow_core_present(hass: Any) -> None:
         entry = result["result"]
 
     with patch(
-        "custom_components.unifi_network_monitor.config_flow._validate_connection",
+        "custom_components.unifi_network_monitor.config_flow.UnifiNetworkAPI.validate_connection",
         AsyncMock(return_value=MOCK_IDENTITY),
     ):
         result = await hass.config_entries.options.async_init(entry.entry_id)

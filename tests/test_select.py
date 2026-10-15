@@ -107,15 +107,21 @@ async def test_async_select_option_valid() -> None:
     entry = _make_entry(period="1h")
     select = UnifiRoguePeriodSelect(coordinator, entry)
     hass = MagicMock()
-    hass.config_entries.async_update_entry = MagicMock()
+    hass.config_entries.async_update_entry = MagicMock(
+        side_effect=lambda e, options: setattr(e, "options", options)
+    )
     select.hass = hass
-    select.async_write_ha_state = MagicMock()
+    # Capture what the entity reads at the moment of the publish.
+    published: list[str] = []
+    select.async_write_ha_state = MagicMock(
+        side_effect=lambda: published.append(select.current_option)
+    )
 
     await select.async_select_option("30m")
 
     call_kwargs = hass.config_entries.async_update_entry.call_args[1]
     assert call_kwargs["options"][CONF_ROGUE_PERIOD] == "30m"
-    select.async_write_ha_state.assert_called_once()
+    assert published == ["30m"]
     coordinator.async_force_refresh.assert_awaited_once()
 
 

@@ -437,12 +437,26 @@
     }
   },
   "services": {
-    "add_rogue_ignore": "mdi:playlist-plus",
-    "cleanup_unused_entities": "mdi:broom",
-    "clear_rogue_history": "mdi:delete-sweep",
-    "get_alerts": "mdi:bell-alert",
-    "get_rogue_aps": "mdi:access-point-network",
-    "remove_rogue_ignore": "mdi:playlist-minus",
-    "set_rogue_ignore": "mdi:playlist-edit"
+    "add_rogue_ignore": {
+      "service": "mdi:playlist-plus"
+    },
+    "cleanup_unused_entities": {
+      "service": "mdi:broom"
+    },
+    "clear_rogue_history": {
+      "service": "mdi:delete-sweep"
+    },
+    "get_alerts": {
+      "service": "mdi:bell-alert"
+    },
+    "get_rogue_aps": {
+      "service": "mdi:access-point-network"
+    },
+    "remove_rogue_ignore": {
+      "service": "mdi:playlist-minus"
+    },
+    "set_rogue_ignore": {
+      "service": "mdi:playlist-edit"
+    }
   }
 }

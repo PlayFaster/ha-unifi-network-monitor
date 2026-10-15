@@ -279,6 +279,20 @@ def mock_api() -> MagicMock:
     api.get_guests = AsyncMock(return_value=[])
     api.get_backups = AsyncMock(return_value=[])
     api.get_speedtest_results = AsyncMock(return_value=[])
+    # Every method the poll awaits. A bare MagicMock attribute cannot be
+    # awaited, so the endpoint would take its failure path in every test
+    # built on this fixture while the test passed (masked errors Class C).
+    api.get_wlanconf = AsyncMock(return_value=[])
+    api.get_system_logs = AsyncMock(return_value=[])
+    # Resolves the configured site, so the v1 endpoints below are awaited
+    # rather than the site being marked failed on every setup.
+    api.get_sites = AsyncMock(
+        return_value=[{"id": "site-uuid", "internalReference": DEFAULT_SITE}]
+    )
+    api.get_wan_interfaces = AsyncMock(return_value=[])
+    api.get_vpn_servers = AsyncMock(return_value=[])
+    api.get_vpn_tunnels = AsyncMock(return_value=[])
+    api.get_firewall_policies = AsyncMock(return_value=[])
     api.login = AsyncMock()
     api.logout = AsyncMock()
     # Diagnostics captures (api.py); a bare MagicMock attribute would be

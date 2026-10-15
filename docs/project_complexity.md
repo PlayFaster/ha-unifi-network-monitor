@@ -1,6 +1,6 @@
 # Project Complexity & Health: ha-unifi-network-monitor
 
-**Last Measured:** 2026-10-15T17:26:09.649817+00:00 · **Release:** `1.1.1` · **Dev Version:** `1.1.1-dev2`
+**Last Measured:** 2026-10-15T21:58:35.503120+00:00 · **Release:** `1.1.1` · **Dev Version:** `1.1.1-dev3`
 
 ## 1. Executive Summary
 
@@ -20,14 +20,14 @@
 | **Type Suppressions (`# type: ignore`)** | **0** | Mypy strict compliance |
 | **Source Python SLOC** | **8,198** | Across 20 files in custom_components/ (code statements) |
 | **Docstring Volume** | **1,175 lines** | Interface and contract documentation |
-| **Comment Density** | **8.1%** | 665 inline comment lines (Healthy implementation rationale) |
+| **Comment Density** | **8.1%** | 667 inline comment lines (Healthy implementation rationale) |
 | **Platform Declarations SLOC** | **2,877 lines** | Across 6 platform files |
 | **Core Engine / Driver SLOC** | **5,321 lines** | Across 14 coordinator/API/helper files |
 | **Static Entities** | **141 entities** | Scale indicator (`all_sensors.md`) |
 | **Platform SLOC / Entity** | **20.4 lines/entity** | Target 20 – 45 lines/entity declarative efficiency |
-| **Test-to-Source Ratio** | **1.74×** | 14,263 test lines ($\ge 1.5×$ recommended) |
-| **Pytest Coverage** | **100%** | 1072 tests executed |
-| **Pytest Duration** | **193.94s** | Full test suite wall-clock execution time |
+| **Test-to-Source Ratio** | **1.8×** | 14,777 test lines ($\ge 1.5×$ recommended) |
+| **Pytest Coverage** | **100%** | 1103 tests executed |
+| **Pytest Duration** | **255.71s** | Full test suite wall-clock execution time |
 
 ## 2. High Complexity Routines ($\ge 10$)
 
@@ -49,7 +49,7 @@
 | :-: | :-- | :-- |
 | 1560 | `BLE001` | `coordinator.py` |
 | 1604 | `C901` | `coordinator.py` |
-| 1646 | `BLE001` | `coordinator.py` |
+| 1648 | `BLE001` | `coordinator.py` |
 | 104 | `S104` | `diagnostics.py` |
 | 450 | `BLE001` | `diagnostics.py` |
 | 218 | `BLE001` | `uptime.py` |

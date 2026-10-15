@@ -58,6 +58,40 @@ All changes to this project will be documented in this file. This is the detaile
 
 ---
 
+## [1.1.1-dev3] - 2026-10-15 - Tests: Real Polls Over the HTTP Seam, Contract Sweeps, Entity Hygiene Sweeps; Action Icons Nested; Masked-Errors Audit
+
+### Summary
+
+Test-depth work with one user-visible change. Polls now run through a fake controller at the HTTP layer, so `api.py` executes in the tests that drive the repairs. The repair and severity contracts, the entity, icon, suppression and device-registry rules are each held by a sweep that was seen to fail. The action icons use Home Assistant's current nested form.
+
+### Changed
+
+- **Action icons in the nested form**: the seven `services` entries in `icons.json` are `{"service": "mdi:..."}`; the flat `"action": "mdi:..."` form still rendered, so nothing a user sees changes.
+
+### Tests
+
+- **`tests/transport.py`** (new): a fake UniFi controller over `aioclient_mock`, the seam `zte_router_5g` and `wifi_ssid_monitor` use. It answers every endpoint, can serve a drifted gateway, a different sites list, or HTTP 500 on chosen endpoints.
+- **`tests/test_repairs.py`**: `site_resolution_failed` and `schema_drift_detected` driven through real polls; `Tests: Depth Check` reports 4 of 4 outcomes driven in `REACH mode: coverage contexts`. The repair text sweeps, a firing fixture for each of the four repairs, and a stale repair cleared by the fresh coordinator a reload builds, under the family names of `C-022` step 8.
+- **`tests/test_integration_health.py`**: the Section 19 severity vocabulary swept over four driven paths (`ok`, `degraded`, drift `error`, outage `error`), each finding classified exactly once, and a guard on the number of severity writers.
+- **`tests/test_entity_hygiene.py`**: every live entity belongs to a device (135 swept); each device shape is built only in `helpers.py`; every live entity has an icon or a device class; action icons are nested; the suppression allow-list with eleven written reasons; deprecated device-registry surfaces only in `_compat.py`, ported from `zte_router_5g`.
+- **Publish captures and seams**: `test_number_flush.py`, `test_select.py` and `test_switch.py` capture what the entity reads at the publish. The config-flow tests patch `UnifiNetworkAPI.validate_connection` rather than `_validate_connection`, the button test builds the real entities, and the AP parse-error test feeds a malformed stats block to the real `_parse_ap`.
+- **`tests/conftest.py`**: `mock_api` awaits every method the poll calls; seven were bare `MagicMock`s, so every full-setup test ran the wlan, system-log and v3 endpoints' failure paths (masked errors Class C). `get_sites` now resolves the configured site, so the v3 endpoints are awaited rather than the site marked failed (independent review F1).
+- **Mutation proofs**: each new test or rewritten seam failed with the behavior it guards broken, then passed once restored.
+- **Coverage**: 1103 passed, 100% line and branch coverage, 0 partial branches; `Tests: Depth Check` PASSED.
+
+### Documentation
+
+- **`docs/ROADMAP.md`**: Declined records the nine entity names that repeat their sub-device word as keeps (`C-030`); no entity is renamed.
+- **`PARALLEL_UPDATES = 0`**: the decision and its reasoning have been in `docs/DEVELOPMENT.md` since `[1.0.1-dev16]`; re-checked against the dev2 number entity, which still serializes its own writes (`C-027`).
+- **Masked-errors audit**: all four classes; five findings, two fixed (the `mock_api` gap and a `noqa: BLE001` without a stated reason), three recorded with a reason.
+
+### Known
+
+- **Partial API mocks in six poll-driving test files**: each mocks only the endpoints its assertion reads, so the rest take the hold path. The skipped behavior is driven over the seam; converting the files is follow-up work.
+- **Full mutation run not repeated**: on owner direction it runs as and when a reason arises, not on a schedule.
+
+---
+
 ## [1.1.1-dev2] - 2026-10-15 - Uptime: Device Boot Times From the Controller, Link Latch Reconciles; WAN Totals and Weight Fixed; Health Severity Values
 
 ### Summary

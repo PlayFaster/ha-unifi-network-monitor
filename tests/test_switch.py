@@ -115,14 +115,20 @@ async def test_switch_turn_on_pauses_polling() -> None:
 
     switch = UnifiPausePollingSwitch(coordinator, entry)
     hass = MagicMock()
-    hass.config_entries.async_update_entry = MagicMock()
+    hass.config_entries.async_update_entry = MagicMock(
+        side_effect=lambda e, options: setattr(e, "options", options)
+    )
     switch.hass = hass
-    switch.async_write_ha_state = MagicMock()
+    # Capture what the entity reads at the moment of the publish.
+    published: list[bool] = []
+    switch.async_write_ha_state = MagicMock(
+        side_effect=lambda: published.append(switch.is_on)
+    )
 
     await switch.async_turn_on()
     call_kwargs = hass.config_entries.async_update_entry.call_args[1]
     assert call_kwargs["options"][CONF_STOP_POLLING] is True
-    switch.async_write_ha_state.assert_called_once()
+    assert published == [True]
 
 
 async def test_switch_turn_off_resumes_polling() -> None:

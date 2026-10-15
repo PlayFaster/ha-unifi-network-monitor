@@ -1643,6 +1643,8 @@ class UnifiNetworkDataUpdateCoordinator(
                         err,
                     )
                     self.site_uuid = "failed"
+                # Broad on purpose: the site lookup must not fail the poll, and
+                # the classifier below decides what a failure means.
                 except Exception as err:  # noqa: BLE001
                     _LOGGER.debug("Failed to fetch sites for UUID resolution: %s", err)
                     if (

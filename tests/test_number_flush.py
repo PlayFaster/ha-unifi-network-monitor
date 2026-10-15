@@ -59,9 +59,14 @@ async def test_wan_removal_flushes_pending_weight(hass: Any) -> None:
     coordinator = _make_coordinator()
     number = WanLoadBalanceNumber(coordinator, _make_entry())
     number.hass = hass
-    number.async_write_ha_state = MagicMock()  # type: ignore[method-assign]
+    # Capture what the entity reads at the moment of the publish.
+    published: list[Any] = []
+    number.async_write_ha_state = MagicMock(  # type: ignore[method-assign]
+        side_effect=lambda: published.append(number.native_value)
+    )
 
     await number.async_set_native_value(70.0)
+    assert published == [70.0]
     # Removal lands well inside the 2 s debounce window.
     await number.async_will_remove_from_hass()
 
