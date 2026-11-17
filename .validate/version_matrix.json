@@ -2,15 +2,27 @@
   "tools": {
     "check-jsonschema": {
       "pins": ["dockerfile", "requirements_test"],
-      "version": "0.38.2"
+      "version": "0.39.0"
     },
     "codespell": {
       "pins": ["pre-commit", "dockerfile", "requirements_test"],
       "version": "2.4.3"
     },
+    "homeassistant": {
+      "pins": [],
+      "version": "stable"
+    },
+    "hypothesis": {
+      "pins": ["dockerfile", "requirements_test"],
+      "version": "6.170.15"
+    },
+    "mutmut": {
+      "pins": ["dockerfile", "requirements_test"],
+      "version": "3.8.1"
+    },
     "mypy": {
       "pins": ["dockerfile"],
-      "version": "2.4.0"
+      "version": "2.4.1"
     },
     "prettier": {
       "pins": ["pre-commit", "dockerfile"],
@@ -24,13 +36,13 @@
       "pins": ["dockerfile", "requirements_test"],
       "version": "7.1.0"
     },
-    "pytest-homeassistant-custom-component": {
-      "pins": ["dockerfile", "requirements_test"],
-      "version": "0.13.372"
+    "pytest-homeassistant": {
+      "pins": [],
+      "version": "derived"
     },
     "ruff": {
       "pins": ["pre-commit", "dockerfile", "requirements_test"],
-      "version": "0.16.10"
+      "version": "0.17.4"
     },
     "yamllint": {
       "pins": ["pre-commit", "dockerfile", "requirements_test"],
@@ -38,7 +50,7 @@
     },
     "zizmor": {
       "pins": ["pre-commit", "dockerfile"],
-      "version": "1.30.1"
+      "version": "1.32.0"
     }
   }
 }

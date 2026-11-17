@@ -391,7 +391,7 @@ async def test_async_remove_config_entry_device_other_entry(
         identifiers={("unifi_network_monitor", "mac:test:device:3")},
     )
 
-    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from pytest_homeassistant.common import MockConfigEntry
 
     other_entry = MockConfigEntry(
         domain="other_domain",

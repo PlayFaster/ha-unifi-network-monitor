@@ -121,6 +121,19 @@ Full design: `.notes/design_monitor_setup_options.md`. Cross-project porting gui
 
 ## Key Patterns & Conventions
 
+### Adding entities
+
+Every new, changed, moved or removed entity follows `.shared/dev_std/adding_entities.md`, which lists each step and the standard that holds its rule. This project's specifics:
+
+| Item | This project |
+| :-- | :-- |
+| Description classes | `UnifiSensorEntityDescription`, `UnifiBinarySensorEntityDescription`; other platforms use entity classes |
+| Data access | `value_fn` receives a device's data, selected by the description's `device_key` in `sensor.py` |
+| Device link | `device_info` built from device MAC/model via `coordinator` in `entity.py` |
+| Reference implementations | Sensor `ram` in `sensor.py`; binary sensor `internet` in `binary_sensor.py`; switch `pause_polling` in `switch.py`; select `UnifiRoguePeriodSelect` in `select.py`; number `UnifiScanIntervalNumber` in `number.py`; button `wan1_speedtest` in `button.py` |
+| Generated documents | "Check Sensor Manifest" regenerates `docs/all_sensors.md` |
+| Mutation scope | `.validate/mutmut_modules.txt` |
+
 Shared conventions (ruff/mypy strictness, `_LOGGER` prefixing, `PARALLEL_UPDATES`, `translation_key`, icons, exception tuple syntax, markdown emoji rules) are in shared conventions §4–5 (`.shared/dev_std/agent_conventions.md`). Nothing in this project deviates.
 
 Note: this project's README was cleaned of all ten VS16-emoji occurrences on 2026-07-22.

@@ -15,7 +15,7 @@ import logging
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant.common import MockConfigEntry
 
 from custom_components.unifi_network_monitor.const import (
     CONF_UNIFI_DEVICE_MODE,

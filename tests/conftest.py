@@ -8,7 +8,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant.common import MockConfigEntry
 
 from custom_components.unifi_network_monitor import _compat
 from custom_components.unifi_network_monitor.const import (
@@ -31,7 +31,12 @@ from custom_components.unifi_network_monitor.const import (
 
 @pytest.fixture(autouse=True)
 def auto_enable_custom_integrations(enable_custom_integrations: Any) -> None:
-    """Enable loading of custom integrations for all tests."""
+    """Request `enable_custom_integrations`, which gives every test a live `hass`.
+
+    The `pytest-homeassistant` `hass` fixture already enables custom
+    integrations; the wrapper stays because the fixture it requests starts
+    `hass`, and tests rely on that instance being live.
+    """
     yield
 
 

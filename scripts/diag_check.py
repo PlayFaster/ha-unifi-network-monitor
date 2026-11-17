@@ -49,10 +49,7 @@ import homeassistant  # noqa: F401
 _PROJECT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_PROJECT))
 
-from custom_components.unifi_network_monitor.api import (  # noqa: E402
-    UnifiError,
-    UnifiNetworkAPI,
-)
+from custom_components.unifi_network_monitor.api import UnifiError, UnifiNetworkAPI  # noqa: E402
 from custom_components.unifi_network_monitor.const import DOMAIN  # noqa: E402
 
 # Colour is on unless `NO_COLOR` is set, matching the Huawei and ZTE scripts:

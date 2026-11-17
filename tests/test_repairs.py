@@ -155,7 +155,7 @@ async def test_two_entries_do_not_share_a_repair(
     hass: Any, mock_config_entry: Any
 ) -> None:
     """Clearing one entry's repair must not clear the other's."""
-    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from pytest_homeassistant.common import MockConfigEntry
 
     mock_config_entry.add_to_hass(hass)
     second = MockConfigEntry(
@@ -595,7 +595,7 @@ async def _fire_gateway_not_recognized(hass: Any, entry: Any, mock: Any) -> None
 
 
 async def _fire_gateway_identity_blocked(hass: Any, entry: Any, mock: Any) -> None:
-    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from pytest_homeassistant.common import MockConfigEntry
 
     from custom_components.unifi_network_monitor.identity import (
         IDENTITY_BLOCKED_MAC,

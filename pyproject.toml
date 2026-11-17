@@ -15,22 +15,37 @@ extend = ".validate/pyproject_common.toml"
 "tests/**" = [
     "F821", "F841", "S101", "S105", "S106", "S107",
     "PT003", "PT006", "PT018", "PT022", "PT023", "PT024", "PT025", "PT026",
-    "RUF012", "SLF001", "RET504", "TID251"
+    "RUF012", "SLF001", "RET504", "TID251", "PLC0415"
 ]
 "tests/*" = [
     "F821", "F841", "S101", "S105", "S106", "S107",
     "PT003", "PT006", "PT018", "PT022", "PT023", "PT024", "PT025", "PT026",
-    "RUF012", "SLF001", "RET504", "TID251"
+    "RUF012", "SLF001", "RET504", "TID251", "PLC0415"
 ]
 "tests/**/*.py" = [
     "F821", "F841", "S101", "S105", "S106", "S107",
     "PT003", "PT006", "PT018", "PT022", "PT023", "PT024", "PT025", "PT026",
-    "RUF012", "SLF001", "RET504", "TID251"
+    "RUF012", "SLF001", "RET504", "TID251", "PLC0415"
 ]
+
+# HA Core per-file ignores for Core paths, copied for alignment. No integration has these paths,
+# so they have no effect. HA's "tests/**" PTH ignore is not copied (local is stricter by decision).
+"homeassistant/__main__.py" = ["T201"]
+"homeassistant/scripts/*" = ["T201"]
+"script/*" = ["T20"]
+"script/hassfest/*" = ["INP001"]
+"homeassistant/util/*" = ["N806"]
+"homeassistant/auth/*/*" = ["TID252"]
+"homeassistant/components/*/*/*" = ["TID252"]
+"tests/components/*/*/*" = ["TID252"]
+"benchmarks/**" = ["TID251"]
+"homeassistant/**" = ["PTH"]
 
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-p no:respx -p hypothesis"
 testpaths = ["tests"]
 norecursedirs = [".git", "testing_config"]
 markers = [
@@ -39,6 +54,7 @@ markers = [
 filterwarnings = [
     "ignore::DeprecationWarning:homeassistant.components.http.*",
     "ignore::pytest.PytestUnraisableExceptionWarning",
+    "ignore::UserWarning:_hypothesis_pytestplugin",
 ]
 
 [tool.mypy]
@@ -112,5 +128,5 @@ fail_under = 100
 
 
 [tool.codespell]
-skip = ".git,.venv,.ruff_cache,.pytest_cache"
+skip = ".git,.venv,.ruff_cache,.pytest_cache,local_only,mutants,scratch,temp_check,CLAUDE.md,uv.lock,*.code-workspace"
 ignore-words-list = "hass"

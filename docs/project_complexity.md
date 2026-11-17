@@ -1,6 +1,6 @@
 # Project Complexity & Health: ha-unifi-network-monitor
 
-**Last Measured:** 2026-10-15T22:22:16.234801+00:00 · **Release:** `1.1.1` · **Dev Version:** `1.1.1-dev3`
+**Last Measured:** 2026-11-17T22:15:05.183005+00:00 · **Release:** `1.1.1` · **Dev Version:** `1.1.1`
 
 ## 1. Executive Summary
 
@@ -12,7 +12,7 @@
 | **Danger Routines ($\ge 20$)** | **3** | Zero tolerance (refactor or decompose) |
 | **Elevated Routines ($10–19$)** | **5** | Monitor closely; candidate for cleanup |
 | **Mean Routine Length** | **14.2 code lines** | Target $\le 15$ code lines ideal |
-| **Largest Routine Length** | **849 code lines** | `_async_update_data` in `coordinator.py` (Target $\le 40$ ideal, $> 80$ warn, $> 150$ fail) |
+| **Largest Routine Length** | **849 code lines** | `_async_update_data` in `custom_components/unifi_network_monitor/coordinator.py` (Target $\le 40$ ideal, $> 80$ warn, $> 150$ fail) |
 | **Routines > 80 Code Lines** | **4** | Candidate for functional decomposition |
 | **Largest Module** | **1,940 code lines** | `coordinator.py` (Warn $> 1,500$ code lines module bloat) |
 | **Modules > 1,500 Code Lines** | **2** | Candidate for module decomposition |
@@ -27,7 +27,10 @@
 | **Platform SLOC / Entity** | **20.4 lines/entity** | Target 20 – 45 lines/entity declarative efficiency |
 | **Test-to-Source Ratio** | **1.8×** | 14,777 test lines ($\ge 1.5×$ recommended) |
 | **Pytest Coverage** | **100%** | 1103 tests executed |
-| **Pytest Duration** | **257.92s** | Full test suite wall-clock execution time |
+| **Test Decision Density** | **0.99 tests/branch** | 1103 tests across 1114 branches (Target $\ge 0.80$ · Strong regression depth) |
+| **Assertion Completeness** | **100.0%** | 1018 test functions, 0 unasserted (`test_assertions.txt`) |
+| **Dynamic Sequence Depth** | **5 consecutive polls** | Deepest test lifecycle without stubbed seams (`test_depth.txt`) |
+| **Pytest Duration** | **285.58s** | Full test suite wall-clock execution time |
 
 ## 2. High Complexity Routines ($\ge 10$)
 

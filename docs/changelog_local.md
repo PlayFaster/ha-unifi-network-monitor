@@ -17,6 +17,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: UniFi Network Monitor](#internal-detailed-changelog-unifi-network-monitor)
+  - [\[1.1.2-dev1\] - 2026-11-17 - Toolchain & Standards: Test Harness Migration, Shared Tooling Sync, and Documentation Alignment](#112-dev1---2026-11-17---toolchain--standards-test-harness-migration-shared-tooling-sync-and-documentation-alignment)
   - [\[1.1.1\] - 2026-10-16 - Release: Gateway Uptime, Diagnostics Privacy Hardening, and Single-WAN Fixes](#111---2026-10-16---release-gateway-uptime-diagnostics-privacy-hardening-and-single-wan-fixes)
   - [\[1.1.1-dev3\] - 2026-10-15 - Tests: Real Polls Over the HTTP Seam, Contract Sweeps, Entity Hygiene Sweeps; Action Icons Nested; Masked-Errors Audit](#111-dev3---2026-10-15---tests-real-polls-over-the-http-seam-contract-sweeps-entity-hygiene-sweeps-action-icons-nested-masked-errors-audit)
   - [\[1.1.1-dev2\] - 2026-10-15 - Uptime: Device Boot Times From the Controller, Link Latch Reconciles; WAN Totals and Weight Fixed; Health Severity Values](#111-dev2---2026-10-15---uptime-device-boot-times-from-the-controller-link-latch-reconciles-wan-totals-and-weight-fixed-health-severity-values)
@@ -57,6 +58,36 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.1-dev1\] - 2026-07-26 - Documentation and Tooling: Health Automation Example, AGENTS Structure, and CI Bumps](#101-dev1---2026-07-26---documentation-and-tooling-health-automation-example-agents-structure-and-ci-bumps)
   - [\[1.0.0\] - 2026-07-22 - Initial Public Release](#100---2026-07-22---initial-public-release)
   - [Document Audit Status](#document-audit-status)
+
+---
+
+## [1.1.2-dev1] - 2026-11-17 - Toolchain & Standards: Test Harness Migration, Shared Tooling Sync, and Documentation Alignment
+
+### Summary
+
+- **Test Harness Migration**: Migrated test suites from `pytest-homeassistant-custom-component` imports to direct `pytest-homeassistant` fixture harness.
+- **Shared Tooling Sync**: Synchronized dev-workbench tooling, manifest schemas (categories, connectivity, LoRaWAN), Ruff rules (`PLC0415`), and tasks.
+- **Documentation Alignment**: Updated README for Home Assistant 2026.11+ Marketplace custom repositories, refreshed complexity scorecard, regenerated roadmap, and documented entity creation standards in AGENTS.md.
+
+### Changed
+
+- **Test harness imports** *(refines Test Suite, introduced in 1.0.0)*: Updated `MockConfigEntry` imports across 6 test modules and `transport.py` from `pytest_homeassistant_custom_component.common` to `pytest_homeassistant.common`.
+- **Pre-commit and workflow hooks**: Bumped Ruff to `v0.17.4` and Zizmor to `v1.32.0`; updated shared GitHub Actions workflows to `v2.0.19`.
+- **Validation tasks and profiles**: Updated `.vscode/tasks.json` with `Validate Fast (Docs & Style)` and summary statistics reporters.
+- **Ruff per-file rules**: Configured `PLC0415` ignore rule for test suites and aligned common codespell exclusions.
+
+### Documentation
+
+- **README Marketplace support**: Added Home Assistant 2026.11+ Marketplace custom repository installation, update, and uninstall instructions alongside HACS.
+- **AGENTS entity creation standard**: Added the `Adding entities` standard table referencing `.shared/dev_std/adding_entities.md` and project description classes.
+- **HA compatibility ledger**: Recorded audit rows `v1.4.0` through `v1.4.3` covering 2026.10/2026.11 compatibility entries (`HAC-002`, `HAC-004`, `HAC-005`, `HAC-011`, `HAC-019`).
+- **Roadmap regeneration**: Regenerated `docs/ROADMAP.md` via `.workbench/generate_roadmap.py` with structured decline rationales.
+- **Project complexity scorecard**: Updated `docs/project_complexity.md` to reflect test decision density (0.99 tests/branch), 100% assertion completeness, and sequence depth tracking.
+
+### Tests
+
+- **Script import formatting**: Cleaned top-level imports in `scripts/diag_check.py` and `scripts/hardware_check.py`.
+- **Test suite verification**: 1,103 tests passing with 100% line and branch coverage.
 
 ---
 
@@ -1243,6 +1274,6 @@ Entry structure — headers, titles, category headings and the split between thi
 
 ## Document Audit Status
 
-- **Headers Checked**: `1.1.1-dev3` to `1.0.0` (2026-10-16); 37 entries aligned to CF-101
-- **Bullets Checked**: `1.1.1-dev3` to `1.0.0` (2026-10-16); 261 bullets audited and verified per CF-202 (zero data loss)
+- **Headers Checked**: `1.1.2-dev1` to `1.0.0` (2026-11-17); 38 entries aligned to CF-101
+- **Bullets Checked**: `1.1.2-dev1` to `1.0.0` (2026-11-17); 275 bullets audited and verified per CF-202 (zero data loss)
 - **Specification**: Follows `changelog_format.md` (maintainer engineering voice; zero data loss)

@@ -2,7 +2,7 @@
 
 # UniFi Network Monitor for Home Assistant
 
-[![HACS Integration](https://img.shields.io/badge/HACS-Integration-orange.svg)](https://hacs.xyz/) [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5?logo=homeassistant&logoColor=white)](https://hacs.xyz/docs/faq/custom_repositories) [![Latest Release](https://img.shields.io/github/v/release/PlayFaster/ha-unifi-network-monitor?label=Release&logo=github)](https://github.com/PlayFaster/ha-unifi-network-monitor/releases) [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0) [![Validate](https://github.com/PlayFaster/ha-unifi-network-monitor/actions/workflows/validate.yaml/badge.svg)](https://github.com/PlayFaster/ha-unifi-network-monitor/actions/workflows/validate.yaml) ![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/PlayFaster/a26a356246076e5172fc9342fb019361/raw/coverage.json) [![Last Commit](https://img.shields.io/github/last-commit/PlayFaster/ha-unifi-network-monitor?label=Last%20commit)](https://github.com/PlayFaster/ha-unifi-network-monitor/commits/main)
+[![Marketplace Integration](https://img.shields.io/badge/Marketplace-Integration-orange.svg)](https://hacs.xyz/) [![Marketplace Custom](https://img.shields.io/badge/Marketplace-Custom-41BDF5?logo=home-assistant&logoColor=white)](https://www.home-assistant.io/integrations/marketplace/#custom-repositories) [![Latest Release](https://img.shields.io/github/v/release/PlayFaster/ha-unifi-network-monitor?label=Release&logo=github)](https://github.com/PlayFaster/ha-unifi-network-monitor/releases) [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0) [![Validate](https://github.com/PlayFaster/ha-unifi-network-monitor/actions/workflows/validate.yaml/badge.svg)](https://github.com/PlayFaster/ha-unifi-network-monitor/actions/workflows/validate.yaml) ![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/PlayFaster/a26a356246076e5172fc9342fb019361/raw/coverage.json) [![Last Commit](https://img.shields.io/github/last-commit/PlayFaster/ha-unifi-network-monitor?label=Last%20commit)](https://github.com/PlayFaster/ha-unifi-network-monitor/commits/main)
 
 ---
 
@@ -1616,19 +1616,18 @@ actions:
 
 ## 📥 Installation
 
-### ✨ HACS (Recommended)
+### ✨ Marketplace / HACS (Recommended)
 
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=PlayFaster&repository=ha-unifi-network-monitor&category=integration)
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Marketplace.](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=PlayFaster&repository=ha-unifi-network-monitor&category=integration)
 
-Use the **shortcut badge** above, and then proceed to Step #3 or just ...
-
-1. Add this [repository](https://github.com/PlayFaster/ha-unifi-network-monitor) as a **Custom Repository** in HACS:
-   - Open HACS in Home Assistant
-   - Click **Custom repositories** (⋮ menu)
-   - Add repository URL and Type: `Integration`
-2. Search for "UniFi Network Monitor" and click **Download**
-3. Restart Home Assistant
-4. Go to **Settings > Devices & Services > Add Integration** and search for "UniFi Network Monitor"
+- **Marketplace (Home Assistant 2026.11+):**
+  1. In **Settings > Marketplace**, select **Add from link** in the upper-right corner, enter `https://github.com/PlayFaster/ha-unifi-network-monitor`, and click **Add** (prompts for GitHub device sign-in).
+  2. Click **Install** (or use the **shortcut badge** above, then click **Install**).
+  3. Add the integration when prompted (or restart if a repair appears under **Settings > System > Repairs**).
+- **HACS (Home Assistant < 2026.11):**
+  1. In **HACS**, open the `⋮` menu -> **Custom repositories**, and add `https://github.com/PlayFaster/ha-unifi-network-monitor` with Type `Integration`.
+  2. Search for "UniFi Network Monitor" and click **Download** (or use the **shortcut badge** above, then click **Download**).
+  3. Restart Home Assistant, then go to **Settings > Devices & Services > Add Integration** and search for "UniFi Network Monitor".
 
 ### 💾 Manual Installation
 
@@ -1643,7 +1642,7 @@ Specific to this integration:
 
 - If a release **removes** sensors, the old entities linger as `unavailable` - the same behavior as turning a feature group off. Clear them with the **Clean Up Unused Entities** button or action (see [Actions](#-actions-services)).
 
-Otherwise, standard HACS custom-repository integration update behavior:
+Otherwise, standard Marketplace / HACS custom-repository integration update behavior:
 
 <details>
 
@@ -1651,7 +1650,8 @@ Otherwise, standard HACS custom-repository integration update behavior:
 &nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
 </summary><br>
 
-- New releases show up in **HACS** as normal. Update there, then restart Home Assistant.
+- **Marketplace (Home Assistant 2026.11+):** New releases appear under **Settings > Updates** (checked every 48 hours when GitHub is connected; not checked automatically without it). Update there, then restart Home Assistant.
+- **HACS (Home Assistant < 2026.11):** New releases show up in **HACS** as normal. Update there, then restart Home Assistant.
 - For Manual installs: replace the `custom_components/unifi_network_monitor` folder and restart.
 - Your settings and entity customizations carry over - Configure options, connection details, renamed entities, enabled/disabled choices, dashboards.
 - New sensors in a release (if any), appear on the first restart after updating.
@@ -2181,7 +2181,7 @@ To remove the integration from Home Assistant:
 
 <br>
 
-To fully uninstall (HACS):
+To fully uninstall (Marketplace / HACS):
 
 <details>
 
@@ -2189,10 +2189,11 @@ To fully uninstall (HACS):
 &nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
 </summary><br>
 
-1. Go to **HACS**.
-2. Find **UniFi Network Monitor** and click into it.
-3. Click the **three dots** (⋮) at the top right and select **Remove**.
-4. **Restart** Home Assistant.
+- **Marketplace (Home Assistant 2026.11+):**
+  1. Go to **Settings > Marketplace**, open **UniFi Network Monitor**, click the **three dots** (⋮) at the top right, and select **Uninstall** (if the integration is still configured, choose **View integration** or **Delete and uninstall**).
+- **HACS (Home Assistant < 2026.11):**
+  1. Go to **HACS**, open **UniFi Network Monitor**, click the **three dots** (⋮) at the top right, and select **Remove**.
+  2. **Restart** Home Assistant.
 
 ---
 

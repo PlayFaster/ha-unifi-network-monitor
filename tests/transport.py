@@ -4,9 +4,9 @@ Every other suite in this project builds the coordinator over a `MagicMock`
 standing in for `UnifiNetworkAPI`. That proves the coordinator handles what the
 API object returns, and proves nothing about `api.py`, because none of it runs.
 
-The seam is `aioclient_mock`, which `pytest-homeassistant-custom-component`
-ships and which intercepts `async_get_clientsession`, the session
-`async_setup_entry` hands the API. No dependency is added, and it is the seam
+The seam is `aioclient_mock`, which `pytest-homeassistant` ships and which
+intercepts `async_get_clientsession`, the session `async_setup_entry` hands
+the API. No dependency is added, and it is the seam
 `zte_router_5g` and `wifi_ssid_monitor` use (`fault_injection_options.md` §3).
 
 Pattern, from the `zte_router_5g` reference:
