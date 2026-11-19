@@ -57,6 +57,7 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
   - [📝 Maintenance Status](#-maintenance-status)
   - [🤝 Contributors \& Acknowledgements](#-contributors--acknowledgements)
   - [📄 License](#-license)
+  - [🧩 Other Home Assistant Projects by PlayFaster](#-other-home-assistant-projects-by-playfaster)
 
 ## 🔧 Compatibility & Tested Devices
 
@@ -2221,25 +2222,29 @@ This integration stands on the shoulders of several excellent open-source projec
 
 - 🙏 **[@superscouby](https://github.com/superscouby)**: For helping to enable support for the UniFi Cloud Gateway Ultra model, and identifying several compatibility, code and diagnostic bugs.
 
-- 🙏 **Home Assistant Core [UniFi Network Integration](https://www.home-assistant.io/integrations/unifi/)** (@Kane610 , and contributors)
+- 🙏 **Home Assistant Core [UniFi Network Integration](https://www.home-assistant.io/integrations/unifi/)** and its **[aiounifi](https://github.com/Kane610/aiounifi)** library (@Kane610 , and contributors): The built-in UniFi integration and the Python library behind it. Insight into the per WAN gateway data elements.
 
-- 🙏 **[UniFi API Browser](https://github.com/Art-of-WiFi/UniFi-API-browser)** Utility (@Art-of-WiFi , and contributors): The utility that allows a UDM gateway to be explored and interrogated.
+- 🙏 **[UniFi API Browser](https://github.com/Art-of-WiFi/UniFi-API-browser)** Utility and **[UniFi API Client](https://github.com/Art-of-WiFi/UniFi-API-client)** (@Art-of-WiFi , and contributors): A web tool and a PHP library for exploring and calling the UniFi controller API. These made it possible to interrogate a UDM gateway, and read its statistics.
 
-- 🙏 **[UniFi WAN](https://github.com/holdestmade/Unifi-WAN)** Custom Component (@holdestmade , and contributors): Insight into what Speedtest endpoints are available.
+- 🙏 **[UniFi WAN](https://github.com/holdestmade/Unifi-WAN)** Custom Component (@holdestmade , and contributors): WAN status, ISP and speedtest monitoring for UniFi gateways. Insight into the speedtest endpoints, per-WAN ISP details and WAN IPv6 addresses.
 
-- 🙏 **[UniFi Network Rules](https://github.com/sirkirby/unifi-network-rules)** Custom Component (@sirkirby , and contributors): Insight into the wide range of rules information available.
+- 🙏 **[UniFi Network Rules](https://github.com/sirkirby/unifi-network-rules)** Custom Component and **[UniFi MCP](https://github.com/sirkirby/unifi-mcp)** (@sirkirby , and contributors): Switches for UniFi firewall and traffic rules, and an MCP server for AI tools to work with UniFi. Insight into the wide range of rules information available, and into reading UniFi statistics.
 
-- **Personal prior work**: The structure and integration architecture draw on my own custom components [ZTE Router 5G](https://github.com/PlayFaster/ha-zte-router-5g-monitor) and [WiFi SSID](https://github.com/PlayFaster/ha-wifi-ssid-monitor) Monitors.
+- 🙏 **[UniFi Insights](https://github.com/tinkerologie/ha-unifi-insights)** Custom Component (@tinkerologie ,  @ruaan-deysel , and contributors): One integration covering UniFi Network, Protect and other UniFi applications. Its approach showed how to read WAN usage from the newer UniFi statistics.
 
-- This project was developed with the assistance of AI to ensure code quality and adherence to best practices.
+- 🧩 **Personal prior work**: The structure and integration architecture draw on my own custom components [ZTE Router 5G](https://github.com/PlayFaster/ha-zte-router-5g-monitor) , [Huawei Router 5G](https://github.com/PlayFaster/ha-huawei-router-5g-monitor) and [WiFi SSID](https://github.com/PlayFaster/ha-wifi-ssid-monitor) Monitors.
 
-### Other Integrations
+- 🤖 This project was developed with the assistance of AI to ensure code quality and adherence to best practices.
+
+### 🔀 Other Integrations
 
 Not directly referenced but also may be of interest to UniFi users:
 
 - 🙏 **[HA UniFi Network](https://github.com/wittypluck/ha-unifi-network)** Custom Component (@wittypluck , and contributors): If you want many of the features of the core UniFi Network integration in a separate component.
 
-- 🙏 **[UniFi Insights](https://github.com/ruaan-deysel/ha-unifi-insights)** Custom Component (@ruaan-deysel , and contributors): If you want many of the features of the core UniFi Network **and** UniFi Protect integrations in a single integrated component.
+- 🙏 **[UniFi Speedtest](https://github.com/biofects/HA-Unifi-Speedtest)** Custom Component (@biofects , and contributors): If you want speedtests run on a schedule from Home Assistant, with a device per WAN.
+
+- 🙏 **[UniFi Network Map](https://github.com/merlijntishauser/unifi-network-maps-ha)** Custom Component (@merlijntishauser , and contributors): If you want an interactive map of your UniFi network's topology.
 
 ---
 
@@ -2251,4 +2256,16 @@ This project is licensed under the Apache License, Version 2.0. See [LICENSE](LI
 
 ---
 
+⭐ **Find this useful?** Please consider starring the repository on GitHub — it helps other Home Assistant users discover it.
+
 💬 **Questions or Issues?** Visit the [GitHub repository](https://github.com/PlayFaster/ha-unifi-network-monitor).
+
+## 🧩 Other Home Assistant Projects by PlayFaster
+
+| Project | Description |
+| :--- | :--- |
+| [UniFi Network Monitor](https://github.com/PlayFaster/ha-unifi-network-monitor) | **[THIS REPO]** WAN data usage, speedtests, latency, load balancing, and rogue AP alerts for UniFi Gateways |
+| [Huawei Router 5G Monitor](https://github.com/PlayFaster/ha-huawei-router-5g-monitor) | 5G/LTE signal stats, data projections, connected clients, and SMS management |
+| [ZTE Router 5G Monitor](https://github.com/PlayFaster/ha-zte-router-5g-monitor) | 5G/LTE signal stats (RSRP, SINR, SNR), data projections, and SMS management for ZTE CPEs |
+| [WiFi SSID Monitor](https://github.com/PlayFaster/ha-wifi-ssid-monitor) | Nearby WiFi SSID scanner, rogue AP alerts, and smart-device setup AP detection |
+| [Very Dark Black HA Theme](https://github.com/PlayFaster/very-dark-black-ha-theme) | Pure-black / AMOLED dark mode theme with bold accent color variants |

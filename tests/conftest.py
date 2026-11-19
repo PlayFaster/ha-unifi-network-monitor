@@ -356,7 +356,9 @@ def make_device_registry(device: MagicMock | None) -> MagicMock:
     return registry
 
 
-def assert_links_to_parent(info: Mapping[str, Any], parent_ident: str) -> None:
+def assert_links_to_parent(
+    info: DeviceInfo | Mapping[str, Any], parent_ident: str
+) -> None:
     """Assert a ``DeviceInfo`` links to its parent, whichever HA form is in use.
 
     <=2026.7 emits the ``via_device`` identifier tuple; 2026.8+ emits

@@ -3420,3 +3420,98 @@ async def test_integration_health_computation_error_caught(
 
     assert result is not None
     assert "gateway" in result
+
+
+async def test_gateway_sw_version_change_updates_device_registry(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """A new stat/sysinfo version updates the device registry without a reload."""
+    from custom_components.unifi_network_monitor.const import DOMAIN
+    from homeassistant.helpers import device_registry as dr
+
+    mock_config_entry.add_to_hass(hass)
+    dev_reg = dr.async_get(hass)
+    gw_device = dev_reg.async_get_or_create(
+        config_entry_id=mock_config_entry.entry_id,
+        identifiers={(DOMAIN, mock_config_entry.data["mac"])},
+        name="Gateway",
+        sw_version="10.4.57",
+    )
+
+    api = MagicMock()
+    api.get_devices = AsyncMock(return_value=[])
+    api.get_health = AsyncMock(return_value=[])
+    api.get_sysinfo = AsyncMock(return_value=[{"version": "11.0.99"}])
+    api.get_networkconf = AsyncMock(return_value=[])
+    api.get_settings = AsyncMock(return_value=[])
+    api.get_daily_gateway = AsyncMock(return_value=[])
+    api.get_monthly_gateway = AsyncMock(return_value=[])
+    api.get_rogueaps = AsyncMock(return_value=[])
+    api.get_guests = AsyncMock(return_value=[])
+    api.get_backups = AsyncMock(return_value=[])
+    api.get_speedtest_results = AsyncMock(return_value=[])
+    api.get_system_logs = AsyncMock(return_value=[])
+
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+    assert coordinator.sw_version == "10.4.57"
+
+    with patch.object(
+        dev_reg, "async_update_device", wraps=dev_reg.async_update_device
+    ) as update_spy:
+        await coordinator._async_update_data()
+        assert coordinator.sw_version == "11.0.99"
+        updated = dev_reg.async_get(gw_device.id)
+        assert updated is not None and updated.sw_version == "11.0.99"
+        assert update_spy.call_count == 1
+
+        # Unchanged version makes no registry write.
+        await coordinator._async_update_data()
+        assert update_spy.call_count == 1
+
+    # Missing registry entry / empty gateway_mac does not raise.
+    coordinator.gateway_mac = ""
+    api.get_sysinfo = AsyncMock(return_value=[{"version": "11.0.100"}])
+    await coordinator._async_update_data()
+    assert coordinator.sw_version == "11.0.100"
+
+
+async def test_unadopted_device_skipped_while_later_adopted_processed(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """An adopted: false device first in devices_raw is skipped without stopping the loop."""
+    mock_config_entry.add_to_hass(hass)
+    unadopted_ap = {
+        "mac": "11:22:33:44:55:66",
+        "name": "Pending AP",
+        "model": "U6-Pro",
+        "state": 1,
+        "adopted": False,
+        "is_access_point": True,
+    }
+    adopted_ap = {
+        "mac": "77:88:99:aa:bb:cc",
+        "name": "Adopted AP",
+        "model": "U6-Pro",
+        "state": 1,
+        "adopted": True,
+        "is_access_point": True,
+    }
+
+    api = MagicMock()
+    api.get_devices = AsyncMock(return_value=[unadopted_ap, adopted_ap])
+    api.get_health = AsyncMock(return_value=[])
+    api.get_sysinfo = AsyncMock(return_value=[])
+    api.get_networkconf = AsyncMock(return_value=[])
+    api.get_settings = AsyncMock(return_value=[])
+    api.get_daily_gateway = AsyncMock(return_value=[])
+    api.get_monthly_gateway = AsyncMock(return_value=[])
+    api.get_rogueaps = AsyncMock(return_value=[])
+    api.get_guests = AsyncMock(return_value=[])
+    api.get_backups = AsyncMock(return_value=[])
+    api.get_speedtest_results = AsyncMock(return_value=[])
+    api.get_system_logs = AsyncMock(return_value=[])
+
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+    result = await coordinator._async_update_data()
+    assert "11:22:33:44:55:66" not in result["devices"]
+    assert "77:88:99:aa:bb:cc" in result["devices"]

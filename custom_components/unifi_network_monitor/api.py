@@ -12,6 +12,8 @@ from typing import Any
 
 import aiohttp
 
+from .gateway import select_gateway
+
 _LOGGER = logging.getLogger(__name__)
 
 _API_TIMEOUT = aiohttp.ClientTimeout(total=15)
@@ -592,18 +594,28 @@ class UnifiNetworkAPI:
         )
         return self._extract(resp)
 
+    def _check_write_rc(self, path: str, body: Any) -> None:
+        """Raise when a controller write returns an HTTP 200 ``meta.rc=error``."""
+        rc, msg = _meta(body)
+        if rc == "error":
+            raise UnifiConnectionError(
+                f"Write refused ({msg or 'rc=error'}) from {route_of(path)}"
+            )
+
     async def trigger_speedtest(self, interface_name: str | None = None) -> None:
         """Trigger a manual speedtest on the gateway."""
+        path = f"/proxy/network/api/s/{self.site}/cmd/devmgr"
         payload: dict[str, Any] = {"cmd": "speedtest"}
         if interface_name:
             payload["interface_name"] = interface_name
-        await self._post(f"/proxy/network/api/s/{self.site}/cmd/devmgr", payload)
+        body = await self._post(path, payload)
+        self._check_write_rc(path, body)
 
     async def update_networkconf(self, net_id: str, payload: dict[str, Any]) -> None:
         """Update a network configuration object by ID."""
-        await self._put(
-            f"/proxy/network/api/s/{self.site}/rest/networkconf/{net_id}", payload
-        )
+        path = f"/proxy/network/api/s/{self.site}/rest/networkconf/{net_id}"
+        body = await self._put(path, payload)
+        self._check_write_rc(path, body)
 
     async def validate_connection(self) -> dict[str, Any]:
         """Validate credentials and return gateway identity.
@@ -626,8 +638,6 @@ class UnifiNetworkAPI:
             raise UnifiConnectionError(
                 "No devices returned — check site ID and permissions"
             )
-
-        from .gateway import select_gateway
 
         selection = select_gateway(devices)
         gateway = selection.device

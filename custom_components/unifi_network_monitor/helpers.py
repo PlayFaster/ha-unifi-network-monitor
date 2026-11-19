@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.helpers.device_registry import DeviceInfo, format_mac
 
@@ -84,15 +84,12 @@ def build_network_device_info(
 ) -> DeviceInfo:
     """Build DeviceInfo for the virtual Network Health sub-device."""
     mac = coordinator.gateway_mac
-    info = DeviceInfo(
+    return DeviceInfo(
         identifiers={(DOMAIN, f"{mac}_network")},
         name=f"{entry.title} Network",
         manufacturer="Ubiquiti",
+        **via_device_link(coordinator.hass, DOMAIN, mac, coordinator.entry.entry_id),
     )
-    cast(dict[str, Any], info).update(
-        via_device_link(coordinator.hass, DOMAIN, mac, coordinator.entry.entry_id)
-    )
-    return info
 
 
 def build_sub_device_info(
@@ -115,15 +112,12 @@ def build_sub_device_info(
     }
     suffix = suffixes.get(device_key, "System")
 
-    info = DeviceInfo(
+    return DeviceInfo(
         identifiers={(DOMAIN, f"{mac}_{device_key}")},
         name=f"{entry.title} {suffix}",
         manufacturer="Ubiquiti",
+        **via_device_link(coordinator.hass, DOMAIN, mac, coordinator.entry.entry_id),
     )
-    cast(dict[str, Any], info).update(
-        via_device_link(coordinator.hass, DOMAIN, mac, coordinator.entry.entry_id)
-    )
-    return info
 
 
 def build_unifi_device_info(
@@ -144,18 +138,15 @@ def build_unifi_device_info(
     # Per-device MACs come straight off the controller payload, so canonicalise
     # here — the gateway MAC is already normalized by the coordinator (§3).
     device_mac = format_mac(device_mac)
-    info = DeviceInfo(
+    return DeviceInfo(
         identifiers={(DOMAIN, device_mac)},
         name=device_name,
         manufacturer="Ubiquiti",
         model=device_model or None,
-    )
-    cast(dict[str, Any], info).update(
-        via_device_link(
+        **via_device_link(
             coordinator.hass, DOMAIN, gateway_mac, coordinator.entry.entry_id
-        )
+        ),
     )
-    return info
 
 
 def calendar_cycle_bounds(now: datetime) -> tuple[datetime, datetime, int]:

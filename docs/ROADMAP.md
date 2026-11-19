@@ -9,39 +9,13 @@ A Home Assistant custom integration for Ubiquiti UniFi networks running on a Uni
 
 ---
 
-## Maybe
-
-### Formal child devices (HA architecture discussion #1414)
-
-Re-parent seven sub-devices and per-AP/switch devices onto Home Assistant formal child devices.
-
-### A problem binary sensor for guard-band suppression
-
-Binary sensor indicating when numeric entities are returning None due to guard-band suppression.
-
-## Blocked
-
-### Cross-model verification beyond the UDM Pro
-
-Confirm gateway parsing and capability discovery on UniFi gateways beyond reference UDM Pro.
-
-**Reason:** : Real-world diagnostics downloads from non-UDM-Pro UniFi gateways.
-
-## Parked
+## Declined
 
 ### The AP satisfaction-score guard band
 
-Evaluate admitting UniFi -1 satisfaction scores versus maintaining floor at 0.
+Admitting UniFi -1 AP satisfaction scores was declined; percentage sensors keep the 0–100% floor.
 
-**Reason:** : Reopens if Home Assistant Core establishes a standard pattern for negative percentage sensor sentinel values.
-
-### PARALLEL_UPDATES = 1 on the number platform
-
-Evaluate PARALLEL_UPDATES serialization on number entity writes.
-
-**Reason:** : Reopens if concurrent number writes cause API collisions on live controller.
-
-## Declined
+**Reason:** 2026-11-19: Admitting UniFi's `-1` AP satisfaction score was declined; percentage sensors maintain the `0–100%` contract and suppress `-1` (no connected clients) to `unknown` (`sensor.py:1340-1370, 1491-1512`).
 
 ### Automatic cleanup of orphaned entities on an options change
 
@@ -54,6 +28,12 @@ Automatic silent purging of orphaned entities on options change was declined in 
 Merging monitor entities into core UniFi integration device entries was declined to preserve clean isolation.
 
 **Reason:** 2026-08-08: Device merging with core UniFi integration was declined to maintain independent lifecycle, clean diagnostics, and prevent cross-integration collisions.
+
+### PARALLEL_UPDATES = 1 on the number platform
+
+Setting PARALLEL_UPDATES = 1 on the number platform was declined; PARALLEL_UPDATES = 0 is already settled across all six platforms.
+
+**Reason:** 2026-11-19: Setting `PARALLEL_UPDATES = 1` on `number.py` was declined; `PARALLEL_UPDATES = 0` is already settled and documented across all six platforms (`C-027`, `docs/DEVELOPMENT.md`), `_DebouncedWriteEntity` (`number.py:102-165`) debounces writes and cancels prior pending tasks, and only one number entity (`wan1_load_balance_weight`) writes to the controller.
 
 ### Prior-cycle blending for the Projected Usage sensors
 

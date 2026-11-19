@@ -52,6 +52,8 @@ from pathlib import Path
 import sys
 from typing import Any
 
+import aiohttp
+
 # Installs probatio as `voluptuous` before the package imports it (C-036).
 import homeassistant  # noqa: F401
 
@@ -191,8 +193,6 @@ async def _check_speedtest(
 
 
 async def _main(interface: str, timeout: int) -> int:
-    import aiohttp
-
     options = _load_options()
     async with aiohttp.ClientSession() as session:
         api = UnifiNetworkAPI(

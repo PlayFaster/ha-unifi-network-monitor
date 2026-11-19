@@ -32,7 +32,7 @@ def _make_entry() -> MagicMock:
     return entry
 
 
-def _assert_links_to(info: dict[str, Any], parent_ident: str) -> None:
+def _assert_links_to(info: Any, parent_ident: str) -> None:
     """Assert the DeviceInfo links to its parent, whichever HA form is in use."""
     assert_links_to_parent(info, parent_ident)
 

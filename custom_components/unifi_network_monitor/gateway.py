@@ -73,6 +73,16 @@ def is_online(device: _Device) -> bool:
     return bool(device.get("state", 1) != 0)
 
 
+def is_adopted(device: _Device) -> bool:
+    """Return True unless ``adopted`` is False; missing counts as adopted."""
+    return device.get("adopted") is not False
+
+
+def _is_mesh_or_ap_mode(device: _Device) -> bool:
+    """Return True when ``device_mode_override`` is ``mesh`` or ``ap``."""
+    return str(device.get("device_mode_override") or "").lower() in {"mesh", "ap"}
+
+
 def mac_key(mac: Any) -> str:
     """Return a MAC reduced to lowercase hex digits, for comparison only."""
     return re.sub(r"[^0-9a-f]", "", str(mac or "").lower())
@@ -133,7 +143,11 @@ def select_gateway(
     is returned.
     """
     stored = mac_key(stored_mac)
-    all_devices = [d for d in devices if isinstance(d, dict)]
+    all_devices = [
+        d
+        for d in devices
+        if isinstance(d, dict) and is_adopted(d) and not _is_mesh_or_ap_mode(d)
+    ]
     online = [d for d in all_devices if is_online(d)]
 
     carriers = [d for d in online if has_wan_signature(d)]

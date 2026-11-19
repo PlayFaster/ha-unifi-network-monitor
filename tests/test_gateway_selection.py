@@ -203,3 +203,58 @@ def test_an_offline_gateway_type_without_a_wan_object_is_still_identified() -> N
     selection = select_gateway([_SWITCH, gateway])
     assert selection.device is gateway
     assert selection.reason == "type"
+
+
+def test_unadopted_gateway_with_wan_ignored_in_favor_of_adopted_gateway() -> None:
+    """A pending-adoption device with wan1 must not shadow the adopted gateway."""
+    unadopted = _dev("aa:00:00:00:00:28", model="UDMPRO", type="udm", wan1=_WAN)
+    unadopted["adopted"] = False
+    adopted = _dev("aa:00:00:00:00:29", model="UDMPRO", type="udm", wan1=_WAN)
+    adopted["adopted"] = True
+    selection = select_gateway([unadopted, adopted])
+    assert selection.device is adopted
+    assert selection.reason == "wan_signature"
+
+
+def test_missing_adopted_key_treated_as_adopted() -> None:
+    """A device omitting the ``adopted`` key is treated as adopted."""
+    gateway = _dev("aa:00:00:00:00:30", model="UDMPRO", type="udm", wan1=_WAN)
+    selection = select_gateway([gateway])
+    assert selection.device is gateway
+
+
+def test_mesh_mode_ux_excluded_in_favor_of_udm_pro() -> None:
+    """A UniFi Express in mesh mode carrying wan1 must not shadow a UDM Pro."""
+    mesh_ux = _dev("aa:00:00:00:00:31", model="UX", type="udm", wan1=_WAN)
+    mesh_ux["device_mode_override"] = "mesh"
+    udm = _dev("aa:00:00:00:00:32", model="UDMPRO", type="udm", wan1=_WAN)
+    selection = select_gateway([mesh_ux, udm])
+    assert selection.device is udm
+    assert selection.reason == "wan_signature"
+
+
+def test_mesh_mode_ux_on_type_fallback_not_selected() -> None:
+    """A mesh-mode UX without WAN signature is excluded from type/model fallback."""
+    mesh_ux = _dev("aa:00:00:00:00:33", model="UX", type="udm")
+    mesh_ux["device_mode_override"] = "MESH"
+    selection = select_gateway([_SWITCH, mesh_ux])
+    assert selection.device is None
+    assert selection.reason == "none"
+
+
+def test_ap_mode_override_alone_returns_none() -> None:
+    """A device with device_mode_override='ap' is excluded from gateway selection."""
+    ap_ux = _dev("aa:00:00:00:00:34", model="UX", type="udm", wan1=_WAN)
+    ap_ux["device_mode_override"] = "ap"
+    selection = select_gateway([ap_ux])
+    assert selection.device is None
+    assert selection.reason == "none"
+
+
+def test_none_device_mode_override_still_selected() -> None:
+    """A gateway with ``device_mode_override: None`` is still selected."""
+    gateway = _dev("aa:00:00:00:00:35", model="UDMPRO", type="udm", wan1=_WAN)
+    gateway["device_mode_override"] = None
+    selection = select_gateway([gateway])
+    assert selection.device is gateway
+    assert selection.reason == "wan_signature"

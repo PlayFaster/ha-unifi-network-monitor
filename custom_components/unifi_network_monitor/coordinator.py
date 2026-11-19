@@ -12,7 +12,7 @@ from typing import Any, Literal
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
-from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers import device_registry as dr, issue_registry as ir
 from homeassistant.helpers.device_registry import format_mac
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.storage import Store
@@ -20,6 +20,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from homeassistant.util import dt as dt_util
 
 from . import identity
+from ._compat import device_by_identifier
 from .alerts import alert_title, build_alert_attrs, build_event_payload
 from .api import UnifiAuthError, UnifiConnectionError, UnifiNetworkAPI
 from .const import (
@@ -88,7 +89,7 @@ from .const import (
     rogue_history_storage_key,
     usage_watermark_storage_key,
 )
-from .gateway import GatewaySelection, select_gateway
+from .gateway import GatewaySelection, is_adopted, select_gateway
 from .helpers import calendar_cycle_bounds, project_cycle_usage
 from .uptime import UptimeLatchMixin
 
@@ -890,7 +891,15 @@ class UnifiNetworkDataUpdateCoordinator(
         # device-card merge (dev_standards §3).
         self.gateway_mac: str = format_mac(entry.data.get("mac", ""))
         self.gateway_model: str = entry.data.get("model", "UDM Pro")
-        self.sw_version: str | None = entry.data.get("sw_version")
+        existing_sw: str | None = None
+        if self.gateway_mac:
+            dev_reg = dr.async_get(hass)
+            existing_device = device_by_identifier(
+                dev_reg, DOMAIN, self.gateway_mac, entry.entry_id
+            )
+            if existing_device is not None:
+                existing_sw = existing_device.sw_version
+        self.sw_version: str | None = existing_sw or entry.data.get("sw_version")
         self.site_uuid: str | None = None
         # The latest gateway selection, kept for the repair, the identity
         # correction and the diagnostics download.
@@ -1823,6 +1832,8 @@ class UnifiNetworkDataUpdateCoordinator(
                 for device in devices_raw:
                     if device.get("state", 0) == 0:
                         continue  # Offline — skip
+                    if not is_adopted(device):
+                        continue  # Pending adoption — skip
                     try:
                         if selected_gateway is not None and device is selected_gateway:
                             gateway_device = device
@@ -2431,9 +2442,18 @@ class UnifiNetworkDataUpdateCoordinator(
                         }
                     )
 
-                # Update sw_version on coordinator if changed
+                # Update sw_version on coordinator and device registry if changed
                 if sw_version and sw_version != self.sw_version:
                     self.sw_version = sw_version
+                    if self.gateway_mac:
+                        dev_reg = dr.async_get(self.hass)
+                        device = device_by_identifier(
+                            dev_reg, DOMAIN, self.gateway_mac, self.entry.entry_id
+                        )
+                        if device is not None:
+                            dev_reg.async_update_device(
+                                device.id, sw_version=sw_version
+                            )
 
                 self.consecutive_failures = 0
                 self.last_update_success_time = update_time

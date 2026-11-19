@@ -43,6 +43,8 @@ import re
 import sys
 from typing import Any
 
+import aiohttp
+
 # Installs probatio as `voluptuous` before the package imports it (C-036).
 import homeassistant  # noqa: F401
 
@@ -347,8 +349,6 @@ async def _download(session: Any, token: str) -> dict[str, Any]:
 
 
 async def _main() -> int:
-    import aiohttp
-
     options = _load_options()
     token = _TOKEN.read_text(encoding="utf-8").strip()
     api_key = (options.get("api_key") or "").strip() or None

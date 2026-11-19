@@ -17,6 +17,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: UniFi Network Monitor](#internal-detailed-changelog-unifi-network-monitor)
+  - [\[1.1.2-dev2\] - 2026-11-19 - Foundation, Validation, and Quick Fixes: PyHA Verification, Ruff PLC0415, Suppression Cleanup, Write Refusal, HA 2026.11 DeviceInfo, Firmware Sync, Adoption/Mesh Guards](#112-dev2---2026-11-19---foundation-validation-and-quick-fixes-pyha-verification-ruff-plc0415-suppression-cleanup-write-refusal-ha-202611-deviceinfo-firmware-sync-adoptionmesh-guards)
   - [\[1.1.2-dev1\] - 2026-11-17 - Toolchain & Standards: Test Harness Migration, Shared Tooling Sync, and Documentation Alignment](#112-dev1---2026-11-17---toolchain--standards-test-harness-migration-shared-tooling-sync-and-documentation-alignment)
   - [\[1.1.1\] - 2026-10-16 - Release: Gateway Uptime, Diagnostics Privacy Hardening, and Single-WAN Fixes](#111---2026-10-16---release-gateway-uptime-diagnostics-privacy-hardening-and-single-wan-fixes)
   - [\[1.1.1-dev3\] - 2026-10-15 - Tests: Real Polls Over the HTTP Seam, Contract Sweeps, Entity Hygiene Sweeps; Action Icons Nested; Masked-Errors Audit](#111-dev3---2026-10-15---tests-real-polls-over-the-http-seam-contract-sweeps-entity-hygiene-sweeps-action-icons-nested-masked-errors-audit)
@@ -58,6 +59,43 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.1-dev1\] - 2026-07-26 - Documentation and Tooling: Health Automation Example, AGENTS Structure, and CI Bumps](#101-dev1---2026-07-26---documentation-and-tooling-health-automation-example-agents-structure-and-ci-bumps)
   - [\[1.0.0\] - 2026-07-22 - Initial Public Release](#100---2026-07-22---initial-public-release)
   - [Document Audit Status](#document-audit-status)
+
+---
+
+## [1.1.2-dev2] - 2026-11-19 - Foundation, Validation, and Quick Fixes: PyHA Verification, Ruff PLC0415, Suppression Cleanup, Write Refusal, HA 2026.11 DeviceInfo, Firmware Sync, Adoption/Mesh Guards
+
+### Summary
+
+Clears the validation and test-harness baseline on Home Assistant 2026.11.2, adds `manifest.json` categories (`C-041`), enforces HTTP 200 `meta.rc=error` write refusal, updates `DeviceInfo` construction for HA 2026.11 compatibility, syncs gateway `sw_version` to the device registry, and excludes unadopted and AP/mesh-mode devices from selection and entity creation.
+
+### Added
+
+- **Manifest Categories (`C-041`)**: Added `"categories": ["computers_network.routers_network", "computers_network.monitoring"]` to `custom_components/unifi_network_monitor/manifest.json`.
+- **Write-Refusal Guard (`C-026`)**: Added `_check_write_rc(path, body)` in `api.py` and `tests/test_write_refusal.py` covering `trigger_speedtest` and `update_networkconf` on HTTP errors and HTTP `200` `meta.rc == "error"`, `-> None` annotations, and `logout` teardown.
+
+### Changed
+
+- **Ruff `PLC0415` Imports**: Hoisted `select_gateway` (`api.py`) and `aiohttp` (`scripts/diag_check.py`, `scripts/hardware_check.py`) to module top level while preserving `C-036` `homeassistant` import ordering.
+- **HA 2026.11 `DeviceInfo` Links**: Replaced `cast(dict[str, Any], info).update(...)` in `helpers.py` (`build_network_device_info`, `build_sub_device_info`, `build_unifi_device_info`) with direct `DeviceInfo(..., **via_device_link(...))` construction.
+
+### Fixed
+
+- **Gateway Registry Firmware Sync**: Updated `coordinator.py` to push changed `stat/sysinfo` `sw_version` directly to the gateway device registry entry (guarded by `if device is not None:`) and seed `self.sw_version` from the device registry on startup without mutating `entry.data`.
+- **Pending-Adoption Devices**: Added `is_adopted(device)` in `gateway.py` and skipped `adopted: false` devices in `select_gateway` and `coordinator.py` while preserving devices omitting `adopted`.
+- **AP/Mesh UX Gateway Shadowing**: Excluded devices with `device_mode_override` in `{"mesh", "ap"}` (null-safe) ahead of every candidate list in `select_gateway`.
+
+### Removed
+
+- **Suppression Cleanup**: Removed 8 removable `# type: ignore` directives (`alerts.py`, `test_alerts.py`, `test_diagnostics_artefact.py`, `test_platform_branches.py` using real `MockConfigEntry`) and 1 false-positive `pragma: no cover` comment (`test_entity_hygiene.py:310`), reducing `check_suppressions.py` total from `31` to `22` (`21` approved, `1` unregistered `coordinator.py:1604`).
+
+### Tests
+
+- **Full Coverage**: `pytest` (`1124 passed`, `100.00%` line and branch coverage across `3723` statements and `1126` branches), `Tests: Assertion Audit` (`0` of `1034`), and `Tests: Depth Check` (`4` of `4` outcomes driven, `0` stubbed seams/publishes).
+
+### Documentation
+
+- **Compatibility & Docs**: Updated `docs/ha_compatibility.md` (`2026.11.2` / `pytest-homeassistant 2026.11.2`), `AGENTS.md`, `docs/DEVELOPMENT.md`, and `docs/test_guards.md`.
+- **README (`README.md`)**: Expanded **Contributors & Acknowledgements** and **Other Integrations** (`aiounifi`, `UniFi API Client`, `UniFi MCP`, `UniFi Insights`, `HA-Unifi-Speedtest`, `UniFi Network Map`, and `Huawei Router 5G` under personal prior work), and added a star/repository callout plus the **Other Home Assistant Projects by PlayFaster** section and table-of-contents link.
 
 ---
 

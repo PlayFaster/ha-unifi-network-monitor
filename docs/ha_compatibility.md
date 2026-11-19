@@ -15,7 +15,7 @@ What Home Assistant versions this integration supports and the status of any cha
 | Type | Version / Status | Note |
 | :-- | :-- | :-- |
 | **Minimum** | **2025.2.0** | Declared in `README.md` |
-| **Tested against** | **2026.10.4** | `pytest-homeassistant-custom-component` 0.13.375 (development container) |
+| **Tested against** | **2026.11.2** | `pytest-homeassistant` 2026.11.2 (development container) |
 | **Enforced by** | `hacs.json` | `"homeassistant": "2025.2.0"` |
 | **Functional floor** | `data_entry_flow.section` | Introduced in HA 2024.11 |
 | **Python** | 3.13 or later | Required by Home Assistant 2025.2.0. Tests run on Python 3.14 |
@@ -37,7 +37,7 @@ What Home Assistant versions this integration supports and the status of any cha
 | `voluptuous` imports (`HAC-009`) | N/A (replaced by probatio in 2026.9) | None announced | Config flow and schemas | **Held**: works through Home Assistant's `install_as_voluptuous()` alias. Done when HA removes or announces removal of the alias, which needs a 2026.9.0 floor (`HAC-009`, triage 2026-11-04). |
 | Flow and service schema types (probatio) (`HAC-010`) | 2026.10, type hints only | None announced | `voluptuous` imports in the config flow, services and schemas | **Already Handled**: runtime is unaffected, and a shared `pyproject.toml` override makes Mypy treat `voluptuous` as untyped. Mypy Strict passes (C-037). |
 | Device-class enums in `const` modules (`HAC-011`) | 2026.10, type hints only | None announced | `BinarySensorDeviceClass` imported from the platform package | **Already Handled**: the package re-export still works, and a shared `pyproject.toml` override makes Mypy count it as an export. Mypy Strict passes (C-037). |
-| `DeviceInfo` dict compatibility layer (`HAC-002`) | 2026.11 (dataclass) | Not announced | `helpers.py` sub-device builders call `.update()` | **Queued**: cross-project item `device_info_dataclass_2026_11.md` |
+| `DeviceInfo` dict compatibility layer (`HAC-002`) | 2026.11 (dataclass) | Not announced | `helpers.py` sub-device builders construct `DeviceInfo(..., **via_device_link(...))` | **Already Handled**: refactored to keyword construction in `[1.1.2-dev2]`; `device_info_dataclass_2026_11.md` `DONE`. |
 | Entity re-added on entity ID change without `async_entity_id_changed` (`HAC-004`) | 2026.11 | **2027.11** | `number.py` lifecycle hook | **Not Needed**: no lifecycle hook in this integration depends on the entity ID, so in-place renaming, the default from 2027.11, is correct for it. Checked by reading the hooks and every use of the entity ID; not live-tested (`HAC-004`, triage 2026-11-04). |
 | `PERCENTAGE` as a unit of measurement (`HAC-005`) | 2026.7 | Not announced | 15 sensors | **Held**: `PERCENTAGE` and `UnitOfRatio.PERCENTAGE` give the same `"%"` value, so nothing can break. Done when HA rejects `PERCENTAGE` units or the floor reaches 2026.7.0 (`HAC-005`, triage 2026-11-04). |
 | Boolean return from config entry methods (`HAC-019`) | 2026.11, core integrations only | Not announced for custom integrations | `async_setup_entry` and `async_unload_entry` return booleans (`__init__.py:224` setup, `:245` unload) | **Held**: booleans work for custom integrations; forced by Home Assistant reporting them; floor none, a feature-detected shim covers it |
@@ -65,3 +65,4 @@ What Home Assistant versions this integration supports and the status of any cha
 | **v1.4.1** | 2026-11-01 | Claude | Compatibility audit: tested-against 2026.10.4 (`pytest-homeassistant-custom-component` 0.13.375). |
 | **v1.4.2** | 2026-11-15 | Claude | Compatibility audit: ledger row for `HAC-019`. |
 | **v1.4.3** | 2026-11-15 | Claude | `HAC-019` Status cell set to Held by triage. |
+| 1.4.4 | 2026-11-19 | Antigravity | Tested-against updated to `2026.11.2` (`pytest-homeassistant` 2026.11.2) in `[1.1.2-dev2]`. |

@@ -56,7 +56,7 @@ Data flows in one direction: **`api.py` → `coordinator.py` → platform entiti
 - **`identity.py`**: detects and applies the automatic gateway identity correction; called from `async_setup_entry` before the coordinator is constructed, and once from the first selecting poll.
 
 - **`coordinator.py` (`UnifiNetworkDataUpdateCoordinator`)** — polling + parsing + resilience layer.
-  - **Flat Identity**: gateway MAC, model, and sw_version are loaded from `entry.data` at init time — no network call needed to identify the gateway device on boot.
+  - **Flat Identity**: gateway MAC and model are loaded from `entry.data` at init time — no network call needed to identify the gateway device on boot; `sw_version` seeds from the existing gateway device registry entry when present (falling back to `entry.data`) and updates the device registry in-place on `stat/sysinfo` changes without a reload.
   - **Global 3-Strike Rule**: applies to the two mandatory fetches (`get_devices`, `get_health`) and the whole update. On error, return cached `self.data` for failures 1–3; raise `UpdateFailed`/`ConfigEntryAuthFailed` on the 4th. `self.consecutive_failures` tracks the count.
   - **Per-endpoint resilience** (optional fetches): `_fetch_optional` holds each endpoint's last-good payload for `FETCH_STRIKE_LIMIT` (3) failures, then flags it stale (`self._stale_endpoints`). It distinguishes _failure_ from _empty_ and has a broadened `except` so an API-shape change degrades one endpoint, not the whole update. Entities tag their source endpoint (`_ENDPOINT_BY_KEY` / `_BINARY_ENDPOINT_BY_KEY`) and go **`unavailable`** via an `available` override when `coordinator.endpoint_available(source)` is False — while other endpoints keep serving data.
   - **Fetch skip when a feature is off**: `disabled_endpoints(options)` returns the endpoints whose feature toggle is disabled; `_optional(enabled, method, label)` substitutes a no-op `_skip_fetch` for those, preserving the positional `gather` unpack. Endpoint labels are shared `EP_*` constants in `const.py` (used by both the fetch calls and the entity tags — never inline them separately).
@@ -89,7 +89,7 @@ Data flows in one direction: **`api.py` → `coordinator.py` → platform entiti
 
 ### Device Identity Model ("Flat Identity")
 
-Hardware metadata (`mac`, `model`, `sw_version`) is discovered once at config flow time via `validate_connection()`, stored in `entry.data`, and loaded into the coordinator without any network call at boot. This keeps device info stable before the first poll completes.
+Hardware metadata (`mac`, `model`, `sw_version`) is discovered once at config flow time via `validate_connection()` and stored in `entry.data`; on startup `sw_version` seeds from the device registry when present so firmware updates persist across restarts without mutating `entry.data` on every poll.
 
 ### Config Entry Data vs. Options
 
@@ -142,7 +142,7 @@ Note: this project's README was cleaned of all ten VS16-emoji occurrences on 202
 
 Several tests here are **sweeps**: they assert that every member of a _set_ is covered, so they fail when the set **grows**, not when a known member breaks. The failure therefore looks unrelated to whatever you just changed, and the reflex is to suppress it.
 
-**If one of these fails, it has found something. An allow-list entry is the last resort, not the first move** — every allow-list below is deliberately empty, except `ALLOWED_SUPPRESSIONS`, whose eleven entries each carry a written reason, so adding to one is a visible, reviewable act.
+**If one of these fails, it has found something. An allow-list entry is the last resort, not the first move** — every allow-list below is deliberately empty, except `ALLOWED_SUPPRESSIONS`, whose eight entries each carry a written reason, so adding to one is a visible, reviewable act.
 
 **Add a row when you add a sweep.** The equivalent table on ZTE went stale within one session of being written, which is the same drift the sweeps themselves exist to catch.
 
@@ -169,6 +169,7 @@ Several tests here are **sweeps**: they assert that every member of a _set_ is c
 | A test with no assertion | the assertion audit (`python .workbench/check_test_assertions.py`) | Assert the observable outcome — nothing cancelled, nothing written, the error logged. |
 | **Any new partial branch** | branch coverage (`pytest --cov --cov-branch`) | Treat it as a missing test; the bar is zero partial branches. |
 | Any branch in a `for` loop guard | branch coverage (`pytest --cov --cov-branch`) | Use **at least two** items with the unwanted one **first**, and assert the later item was still processed. |
+| A refused API write, or a new write method | `test_a_refused_write_raises`, `test_every_write_is_in_the_refusal_sweep`, `test_every_write_is_annotated_to_return_none`, `test_no_write_contains_a_bare_return_of_a_value` | Capture `_post`/`_put` return value and call `_check_write_rc(path, body)`, annotate `-> None`, and add the method to `_CALLS` in `tests/test_write_refusal.py`. |
 
 When you add a guard test, add its row here and its rationale to [`docs/test_guards.md`](docs/test_guards.md).
 

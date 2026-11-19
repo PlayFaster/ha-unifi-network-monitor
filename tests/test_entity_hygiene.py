@@ -307,7 +307,7 @@ def test_action_icons_use_the_current_nested_form() -> None:
 
 # ---------------------------------------------------------------------------
 # Suppressions (C-004, `masked_errors_check` Class D). A `noqa`, `type: ignore`
-# or `pragma: no cover` hides what a tool would have said, so each one needs a
+# or coverage pragma hides what a tool would have said, so each one needs a
 # written reason here. Keyed on (file, directive) rather than line number, so
 # ordinary edits do not churn it. `RUF100` and mypy's `warn_unused_ignores`
 # report an unnecessary suppression; neither reports one that is doing work.
@@ -339,28 +339,14 @@ ALLOWED_SUPPRESSIONS: dict[tuple[str, str], str] = {
         "cross-check, and the latch re-anchors from the next reading when the "
         "load fails, as the comment at the site records."
     ),
-    ("test_alerts.py", "type: ignore[arg-type]"): (
-        "The two tests pass None where the signature says str or dict, "
-        "deliberately, to prove format_message tolerates a payload that "
-        "breaks its own annotation."
-    ),
     ("test_api_lock_concurrency.py", "type: ignore[method-assign]"): (
         "Replaces _login_unlocked with a counting fake so the test can observe "
         "how many logins run at once behind the real login lock."
-    ),
-    ("test_diagnostics_artefact.py", "type: ignore[assignment]"): (
-        "Swaps a section builder for one that raises, and restores it in "
-        "finally, to prove the download survives a failing section."
     ),
     ("test_number_flush.py", "type: ignore[method-assign]"): (
         "Assigns a capturing or stub async_write_ha_state on an entity built "
         "outside a platform, where Home Assistant has no state machine to "
         "write to."
-    ),
-    ("test_platform_branches.py", "type: ignore[assignment]"): (
-        "Swaps the service module's entry resolver and option writer for "
-        "recording stand-ins, restored in finally, to drive one handler "
-        "branch without a loaded entry."
     ),
     ("test_wan_weights.py", "type: ignore[method-assign]"): (
         "Replaces async_force_refresh with an AsyncMock so the write path is "
