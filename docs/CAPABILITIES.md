@@ -249,11 +249,14 @@ Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series and `1.1.0-dev3` to `1
 - **Technical Guarantees**:
   - Schema drift (a non-empty response parsing to nothing) is flagged only after `HEALTH_DRIFT_STRIKE_LIMIT = 3` cycles.
   - Capabilities the user disabled, and v3 endpoints under username and password auth, are excluded from the verdict.
-  - Severity vocabulary conforms to Section 19 standards (`ok`, `degraded`, `error`), replacing `None`, `moderate`, and `serious`.
+  - Severity vocabulary conforms to Section 19 standards (`ok`, `degraded`, `warning`, `error`), replacing `None`, `moderate`, and `serious`.
+  - Non-ephemeral sources that previously returned populated records and return `0` populated records for `HEALTH_DRIFT_STRIKE_LIMIT` consecutive polls raise `degraded` (`empty_capabilities`).
+  - Sensor guard-band suppressions (`min_limit`/`max_limit`) raise `warning` (`guard_band_suppressed`, precedence `error > warning > degraded > ok`) and clear on recovery.
 - **Lifecycle Timeline**:
   - `v1.0.0 verified`: Integration Health sensor.
   - `v1.1.0`: README example corrected to `last_good_update` (`1.0.1-dev3`).
   - `v1.1.1`: Section 19 severity vocabulary adopted and drift diagnostic attributes added (`1.1.1-dev2`).
+  - `v1.1.2`: Silent empty-source `degraded` detection (`empty_capabilities`) and guard-band `warning` reporting (`guard_band_suppressed`) added (`1.1.2-dev3`).
 
 ### Repair Issues
 

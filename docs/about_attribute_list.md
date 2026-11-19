@@ -207,6 +207,10 @@ The following entities carry no `about` attribute (self-explanatory or intention
 
 <!-- GENERATED:end -->
 
+## Standalone Entities (Integration Health)
+
+- **Integration Health** (`binary_sensor` / `integration_health`, System): `_attr_about` in `custom_components/unifi_network_monitor/binary_sensor.py` covers unavailable data sources, previously active sources returning no data (`empty_capabilities`), guard-band suppressions (`guard_band_suppressed`), and controller format drift (`drift`).
+
 ---
 
 _Note: The source of truth for these notes is the `about=` fields and `_attr_about` declarations in the component code. This file is generated dynamically from the live HA state attributes and should not be hand-edited._

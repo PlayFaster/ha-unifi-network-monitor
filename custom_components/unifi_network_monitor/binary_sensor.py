@@ -507,8 +507,10 @@ class UnifiIntegrationHealthBinarySensor(
     _attr_translation_key = "integration_health"
     _attr_about = (
         "On when the integration self-diagnoses a problem: a data source is "
-        "unavailable (and not one you disabled), or a controller update appears "
-        "to have changed the data format. See the attributes for details."
+        "unavailable (and not one you disabled), a previously active source "
+        "returned no data, a guard band suppressed an out-of-range value, or a "
+        "controller update appears to have changed the data format. See the "
+        "attributes for details."
     )
     _unrecorded_attributes = frozenset(
         {
@@ -516,6 +518,8 @@ class UnifiIntegrationHealthBinarySensor(
             "issues",
             "severity",
             "degraded_capabilities",
+            "empty_capabilities",
+            "guard_band_suppressed",
             "drift",
             "auth_mode",
             "v3_available",
@@ -576,6 +580,8 @@ class UnifiIntegrationHealthBinarySensor(
                 "severity": health.get("severity"),
                 "issues": health.get("issues") or [],
                 "degraded_capabilities": health.get("degraded_capabilities") or [],
+                "empty_capabilities": health.get("empty_capabilities") or [],
+                "guard_band_suppressed": health.get("guard_band_suppressed") or [],
                 "drift": health.get("drift") or [],
                 "auth_mode": health.get("auth_mode"),
                 "v3_available": health.get("v3_available"),

@@ -81,6 +81,24 @@ These endpoints are called during regular polling cycles or user actions.
 - **Purpose**: Requests historical monthly gateway usage statistics over a given date range.
 - **Use Case**: Provides aggregated volume stats for monthly billing-cycle tracking.
 
+### `GET /proxy/network/v2/api/stats/source`
+
+- **Used**: Yes (v2 API path, probed once per load and on controller/gateway version change)
+- **Purpose**: Detects the active statistics engine (`LEGACY` or `MODERN`); HTTP 404 maps to `LEGACY`.
+- **Use Case**: Routes daily and monthly WAN usage queries to the Network 11 statistics engine when `MODERN` is active.
+
+### `GET /proxy/network/api/self/sites`
+
+- **Used**: Yes (when `stats/source` returns `MODERN`)
+- **Purpose**: Resolves the internal `_id` (`siteId`) for the configured site name.
+- **Use Case**: Supplies the `siteId.eq(...)` filter parameter for `stats/recent/series`.
+
+### `GET /proxy/network/v2/api/stats/recent/series`
+
+- **Used**: Yes (v2 API path, when `MODERN` engine is active)
+- **Purpose**: Fetches `wanBySite` WAN usage buckets (`schema=wanBySite`, `projection=values(rxBytes,txBytes),nested(byNetworkGroup)`) bounded by local midnight `start`/`end` millisecond timestamps.
+- **Use Case**: Populates daily and monthly WAN1/WAN2 usage totals on UniFi Network 11.0.89+ controllers (older 11.0.x builds leave WAN usage `unknown`).
+
 ### `POST /proxy/network/api/s/{site}/stat/rogueap`
 
 - **Used**: Yes

@@ -296,6 +296,9 @@ def _poll_api(**overrides: Any) -> MagicMock:
     api = MagicMock()
     for name in _FETCHES:
         setattr(api, name, AsyncMock(return_value=overrides.get(name, [])))
+    api.get_stats_source = AsyncMock(
+        return_value=overrides.get("get_stats_source", "LEGACY")
+    )
     api.last_rejection = {"verdict": "http_error"}
     return api
 

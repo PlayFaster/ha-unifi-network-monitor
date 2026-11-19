@@ -297,6 +297,7 @@ async def test_every_section_and_rewrite_survives_the_decomposition(
         "gateway_mac",
         "gateway_model",
         "sw_version",
+        "stats",
         "integration_health",
     }
     # Pass 1 and the entry rewrite: MAC keys tokenised, labels kept.

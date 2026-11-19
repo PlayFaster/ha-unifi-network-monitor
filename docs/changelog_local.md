@@ -17,6 +17,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: UniFi Network Monitor](#internal-detailed-changelog-unifi-network-monitor)
+  - [\[1.1.2-dev3\] - 2026-11-19 - Network 11 Statistics Engine, Missing Values as Unknown, Empty-Source Health, and Guard-Band Suppression](#112-dev3---2026-11-19---network-11-statistics-engine-missing-values-as-unknown-empty-source-health-and-guard-band-suppression)
   - [\[1.1.2-dev2\] - 2026-11-19 - Foundation, Validation, and Quick Fixes: PyHA Verification, Ruff PLC0415, Suppression Cleanup, Write Refusal, HA 2026.11 DeviceInfo, Firmware Sync, Adoption/Mesh Guards](#112-dev2---2026-11-19---foundation-validation-and-quick-fixes-pyha-verification-ruff-plc0415-suppression-cleanup-write-refusal-ha-202611-deviceinfo-firmware-sync-adoptionmesh-guards)
   - [\[1.1.2-dev1\] - 2026-11-17 - Toolchain & Standards: Test Harness Migration, Shared Tooling Sync, and Documentation Alignment](#112-dev1---2026-11-17---toolchain--standards-test-harness-migration-shared-tooling-sync-and-documentation-alignment)
   - [\[1.1.1\] - 2026-10-16 - Release: Gateway Uptime, Diagnostics Privacy Hardening, and Single-WAN Fixes](#111---2026-10-16---release-gateway-uptime-diagnostics-privacy-hardening-and-single-wan-fixes)
@@ -59,6 +60,36 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.1-dev1\] - 2026-07-26 - Documentation and Tooling: Health Automation Example, AGENTS Structure, and CI Bumps](#101-dev1---2026-07-26---documentation-and-tooling-health-automation-example-agents-structure-and-ci-bumps)
   - [\[1.0.0\] - 2026-07-22 - Initial Public Release](#100---2026-07-22---initial-public-release)
   - [Document Audit Status](#document-audit-status)
+
+---
+
+## [1.1.2-dev3] - 2026-11-19 - Network 11 Statistics Engine, Missing Values as Unknown, Empty-Source Health, and Guard-Band Suppression
+
+### Summary
+
+Implements the UniFi Network 11 statistics engine (`stats/source`, `/self/sites`, `stats/recent/series`) for WAN usage with `<11.0.89` version gating, removes 28 substitute `0`/`100.0` defaults so omitted controller fields report `unknown` (`None`), adds silent empty-source `degraded` detection to Integration Health, and surfaces guard-band suppressions (`warning`) while normalizing AP `-1` scores at parse time.
+
+### Added
+
+- `api.py`: `get_stats_source()`, `get_self_sites()`, and `get_stats_series(site_id, start_ms, end_ms)` with bare `list` body, `params`, `ignore_404`, and `raw_text` support.
+- `coordinator.py`: `_parse_network_version`, `_is_modern_stats_supported`, `_usage_period_bounds_ms`, `_sum_wan_by_site_buckets`, `_ensure_stats_source`, `_fetch_wan_usage`, `_parse_wan_usage_period`, `_reset_stats_on_version_change`, `_valid_score`, and `report_guard_band`.
+- `diagnostics.py`: `_coordinator_block["stats"]` exposing `engine`, `daily_buckets`, and `monthly_buckets` without `_id`.
+- `binary_sensor.py`: `empty_capabilities` and `guard_band_suppressed` exposed in `UnifiIntegrationHealthBinarySensor` unrecorded attributes.
+
+### Changed
+
+- `coordinator.py`: Removed 28 substitute `0`/`100.0` defaults across `_parse_ap`, `_parse_switch`, and `_parse_health` so omitted fields return `None`; updated `_fetch_required` and `_compute_integration_health` for silent empty-source `degraded` detection (`empty_capabilities`) and `error > warning > degraded > ok` precedence (`guard_band_suppressed`).
+- `sensor.py`: `UnifiSensorBase.native_value` and `async_will_remove_from_hass` report/clear `min_limit`/`max_limit` guard-band trips via `coordinator.report_guard_band`.
+
+### Fixed
+
+- `coordinator.py`: AP `-1` uncomputed satisfaction scores (`score`, `score_wifi0`, `score_wifi1`) normalize to `None` at parse time so they do not trip the `min_limit=0.0` guard band; `_iter_wan_buckets` unpacks nested `{"siteId": ..., "series": [...]}` envelopes returned by Network 11 `stats/recent/series`; `_sum_wan_by_site_buckets` tracks `rxBytes` and `txBytes` presence independently (`E7` `F6`) so omitted fields return `None` instead of `0.0`.
+- `diagnostics.py`: Guarded `_coordinator_block["stats"]` with `isinstance(..., dict)` so mock coordinators in sanitization tests remain JSON-serializable.
+
+### Tests
+
+- Full test suite: `1135 passed, 0 failed, 0 warnings`, `100.00%` line and branch coverage (`3905` statements, `1220` branches, `0` missed).
+- `Assertion Audit`: `PASSED` (`0` of `1045` assert nothing); `Test Depth Check`: `PASSED` (`4` outcomes driven, `0` stubbed seams).
 
 ---
 

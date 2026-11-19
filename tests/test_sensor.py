@@ -708,3 +708,40 @@ def test_device_descs_switch_satisfaction_no_keys() -> None:
     """_device_descs empty for switch when satisfaction only."""
     result = _device_descs("switch", "satisfaction_only")
     assert result == ()
+
+
+def test_missing_health_and_device_values_return_none_in_sensors() -> None:
+    """I2: Sensors with omitted coordinator values return None (unknown) cleanly."""
+    from custom_components.unifi_network_monitor.sensor import (
+        AP_SENSORS,
+        HEALTH_SENSORS,
+        SWITCH_SENSORS,
+    )
+
+    health_descs = {d.key: d for d in HEALTH_SENSORS}
+    for key in (
+        "wan1_availability",
+        "wan1_latency_avg",
+        "wan2_availability",
+        "www_latency",
+        "wlan_num_user",
+        "lan_num_sw",
+    ):
+        assert health_descs[key].value_fn({"health": {}}) is None
+
+    ap_descs = {d.key: d for d in AP_SENSORS}
+    for key in ("clients", "guests", "clients_wifi0", "clients_wifi1"):
+        assert (
+            ap_descs[key].value_fn(
+                {
+                    "clients": None,
+                    "guests": None,
+                    "clients_wifi0": None,
+                    "clients_wifi1": None,
+                }
+            )
+            is None
+        )
+
+    sw_descs = {d.key: d for d in SWITCH_SENSORS}
+    assert sw_descs["ports_used"].value_fn({"ports_used": None}) is None

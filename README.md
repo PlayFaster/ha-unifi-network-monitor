@@ -1819,10 +1819,11 @@ This integration registers its **own separate device cards** - a Gateway device 
 
 Some failures are **silent** - a fetch succeeds but the data is wrong (e.g. a UniFi controller update renames a field and a sensor group quietly reads zero). The **Integration Health** sensor (a `problem` binary sensor on the System sub-device) watches for these:
 
-- **`on`, severity `degraded`,** when a data source is **unavailable and you didn't disable it** - the attributes name the affected capability (e.g. _Security / Rogue APs_).
+- **`on`, severity `degraded`,** when a data source is **unavailable and you didn't disable it**, or when a previously populated non-ephemeral source silently returns no data across multiple cycles (`empty_capabilities`) - the attributes name the affected capability (e.g. _Security / Rogue APs_, _WAN Usage_).
+- **`on`, severity `warning`,** when a sensor's guard band suppresses an out-of-range reading (`guard_band_suppressed`), clearing automatically when the reading returns to range or becomes `unknown`.
 - **`on`, severity `error`, + Repair Issue** when schema drift is detected (a non-empty response parsing to empty payloads across multiple cycles), raising a `schema_drift_detected` repair issue suggesting an integration update.
 
-It's deliberately cautious: it **ignores capabilities you turned off**, ignores v3/firewall/VPN under username-password auth (expected), and only flags drift after it persists (no single-cycle false alarms). Details - `issues`, `severity`, `degraded_capabilities`, `drift`, `auth_mode` - live in the sensor's attributes, with `severity` one of `ok`, `degraded` or `error`; put it on a dashboard or alert on it to catch breakage early instead of months later. See the [Integration Health Problem Alert](#-integration-health-problem-alert) example.
+It's deliberately cautious: it **ignores capabilities you turned off**, ignores v3/firewall/VPN under username-password auth (expected), and only flags drift or empty responses after they persist (no single-cycle false alarms). Details - `issues`, `severity`, `degraded_capabilities`, `empty_capabilities`, `guard_band_suppressed`, `drift`, `auth_mode` - live in the sensor's attributes, with `severity` one of `ok`, `degraded`, `warning` or `error`; put it on a dashboard or alert on it to catch breakage early instead of months later. See the [Integration Health Problem Alert](#-integration-health-problem-alert) example.
 
 ### 🔄 Data Polling & 3-Strike Resilience
 

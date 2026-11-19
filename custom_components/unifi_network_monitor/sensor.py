@@ -1494,22 +1494,33 @@ class UnifiSensorBase(
         if self.entity_description.key == "last_updated":
             return self.coordinator.last_update_success_time
         val = self._get_value()
-        if val is None:
-            return None
         desc = self.entity_description
+        uid = self.unique_id or desc.key
+        if val is None:
+            self.coordinator.report_guard_band(uid, desc.key, False)
+            return None
         if (
             desc.min_limit is not None
             and isinstance(val, (int, float))
             and val < desc.min_limit
         ):
+            self.coordinator.report_guard_band(uid, desc.key, True)
             return None
         if (
             desc.max_limit is not None
             and isinstance(val, (int, float))
             and val > desc.max_limit
         ):
+            self.coordinator.report_guard_band(uid, desc.key, True)
             return None
+        self.coordinator.report_guard_band(uid, desc.key, False)
         return val
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Clear any guard-band suppression entry when entity is removed."""
+        uid = self.unique_id or self.entity_description.key
+        self.coordinator.report_guard_band(uid, self.entity_description.key, False)
+        await super().async_will_remove_from_hass()
 
     def _get_value(self) -> Any:
         """Extract value from coordinator data — overridden per subclass."""

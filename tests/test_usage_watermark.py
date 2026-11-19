@@ -60,6 +60,80 @@ def test_same_period_restamp_cannot_reset() -> None:
     assert c._clamp_usage(KEY, P2, 4_000.0) == 5_000
 
 
+def test_modern_stats_helpers_timezone_and_31st_day() -> None:
+    """Pure helpers: version gate, non-UTC local midnight/31st-day bounds, and bucket sum."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    from custom_components.unifi_network_monitor.coordinator import (
+        _is_modern_stats_supported,
+        _parse_network_version,
+        _sum_wan_by_site_buckets,
+        _usage_period_bounds_ms,
+    )
+
+    assert _parse_network_version(None) is None
+    assert _parse_network_version("11.0") is None
+    assert _parse_network_version("11.0.x") is None
+    assert _parse_network_version("11.0.89-rc1") == (11, 0, 89)
+    assert _is_modern_stats_supported("11.0.88") is False
+    assert _is_modern_stats_supported("11.0.89") is True
+
+    berlin = datetime(2026, 10, 31, 14, 15, 0, tzinfo=ZoneInfo("Europe/Berlin"))
+    today_ms, month_ms, end_ms = _usage_period_bounds_ms(berlin)
+    assert today_ms == int(
+        datetime(2026, 10, 31, 0, 0, tzinfo=ZoneInfo("Europe/Berlin")).timestamp()
+        * 1000
+    )
+    assert month_ms == int(
+        datetime(2026, 10, 1, 0, 0, tzinfo=ZoneInfo("Europe/Berlin")).timestamp() * 1000
+    )
+    assert end_ms > today_ms > month_ms
+
+    assert _sum_wan_by_site_buckets(
+        [
+            {
+                "siteId": "s1",
+                "series": [
+                    {
+                        "byNetworkGroup": [
+                            {"networkGroup": "WAN", "rxBytes": 12.5, "txBytes": 3.5}
+                        ]
+                    },
+                    {
+                        "byNetworkGroup": [
+                            {"networkGroup": "WAN2", "rxBytes": 4.0, "txBytes": 1.0}
+                        ]
+                    },
+                ],
+            }
+        ]
+    ) == (12.5, 3.5, 4.0, 1.0)
+    assert _sum_wan_by_site_buckets(
+        [
+            {
+                "byNetworkGroup": [
+                    {"networkGroup": "WAN", "rxBytes": None, "txBytes": 5.0}
+                ]
+            },
+            {
+                "byNetworkGroup": [
+                    {"networkGroup": "WAN", "rxBytes": 5.0, "txBytes": None}
+                ]
+            },
+        ]
+    ) == (5.0, 5.0, None, None)
+    rx1, tx1, rx2, tx2 = _sum_wan_by_site_buckets(
+        [
+            {"byNetworkGroup": [{"networkGroup": "WAN", "rxBytes": 10, "txBytes": 5}]},
+            "bad-entry",
+            {"byNetworkGroup": "bad"},
+            {"byNetworkGroup": ["bad", {"networkGroup": "OTHER", "rxBytes": 99}]},
+        ]
+    )
+    assert (rx1, tx1, rx2, tx2) == (10.0, 5.0, None, None)
+
+
 def test_stale_bucket_is_ignored() -> None:
     """An out-of-order older bucket must not overwrite the current maximum."""
     c = _coord()

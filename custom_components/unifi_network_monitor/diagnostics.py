@@ -713,6 +713,13 @@ def _coordinator_block(coordinator: Any) -> dict[str, Any]:
         ).get("mac"),
         "gateway_model": coordinator.gateway_model,
         "sw_version": coordinator.sw_version,
+        "stats": (
+            stats
+            if isinstance(
+                (stats := getattr(coordinator, "_stats_diagnostics", None)), dict
+            )
+            else None
+        ),
         "integration_health": (coordinator.data or {}).get("integration_health"),
     }
 

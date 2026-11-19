@@ -157,7 +157,11 @@ class UnifiNetworkAPI:
     def _record_answer(self, method: str, path: str, status: Any, body: Any) -> None:
         """Record a parsed answer; a ``meta.rc`` of error is also a rejection."""
         rc, msg = _meta(body)
-        data = body.get("data") if isinstance(body, dict) else None
+        data = (
+            body.get("data")
+            if isinstance(body, dict)
+            else (body if isinstance(body, list) else None)
+        )
         records = len(data) if isinstance(data, list) else None
         populated = (
             sum(1 for item in data if isinstance(item, dict) and item)
@@ -258,7 +262,9 @@ class UnifiNetworkAPI:
             populated=None,
         )
 
-    async def _read(self, method: str, path: str, resp: Any) -> Any:
+    async def _read(
+        self, method: str, path: str, resp: Any, *, raw_text: bool = False
+    ) -> Any:
         """Check a response's status, parse it, and record the outcome."""
         status = resp.status
         if isinstance(status, int) and status >= 400:
@@ -268,6 +274,9 @@ class UnifiNetworkAPI:
             body = await resp.json()
         except (aiohttp.ContentTypeError, ValueError) as err:
             text = await self._body_text(resp)
+            if raw_text and text is not None:
+                self._record_answer(method, path, status, text)
+                return text
             self._record_unparsable(
                 method, path, status, getattr(resp, "content_type", None), text
             )
@@ -278,7 +287,14 @@ class UnifiNetworkAPI:
         return body
 
     async def _request(
-        self, method: str, path: str, payload: dict[str, Any] | None = None
+        self,
+        method: str,
+        path: str,
+        payload: dict[str, Any] | None = None,
+        *,
+        params: dict[str, str] | None = None,
+        ignore_404: bool = False,
+        raw_text: bool = False,
     ) -> Any:
         """Perform a request with automatic re-auth on 401, recording the outcome."""
         url = f"{self._base_url()}{path}"
@@ -286,8 +302,12 @@ class UnifiNetworkAPI:
         kwargs: dict[str, Any] = {"timeout": _API_TIMEOUT, "ssl": False}
         if payload is not None:
             kwargs["json"] = payload
+        if params is not None:
+            kwargs["params"] = params
         try:
             async with call(url, headers=self._auth_headers(), **kwargs) as resp:
+                if ignore_404 and resp.status == 404:
+                    return None
                 if resp.status == 401:
                     await self._record_failed_status(method, path, resp)
                     if self.api_key:
@@ -297,8 +317,10 @@ class UnifiNetworkAPI:
                     async with call(
                         url, headers=self._auth_headers(), **kwargs
                     ) as retry:
-                        return await self._read(method, path, retry)
-                return await self._read(method, path, resp)
+                        if ignore_404 and retry.status == 404:
+                            return None
+                        return await self._read(method, path, retry, raw_text=raw_text)
+                return await self._read(method, path, resp, raw_text=raw_text)
         except (UnifiAuthError, UnifiConnectionError):
             raise
         except aiohttp.ClientResponseError as err:
@@ -502,6 +524,49 @@ class UnifiNetworkAPI:
         }
         path = f"/proxy/network/api/s/{self.site}/stat/report/monthly.gw"
         resp = await self._post(path, payload)
+        return self._extract(resp)
+
+    async def get_stats_source(self) -> str:
+        """Return the active UniFi statistics engine (``LEGACY`` or ``MODERN``)."""
+        body = await self._request(
+            "GET",
+            "/proxy/network/v2/api/stats/source",
+            ignore_404=True,
+            raw_text=True,
+        )
+        if body is None:
+            return "LEGACY"
+        if isinstance(body, str):
+            val = body.strip().strip('"').upper()
+            if val:
+                return val
+        raise UnifiConnectionError("Unexpected stats/source response")
+
+    async def get_self_sites(self) -> list[dict[str, Any]]:
+        """Fetch sites from ``/api/self/sites`` to resolve stats ``siteId``."""
+        resp = await self._get("/proxy/network/api/self/sites")
+        if isinstance(resp, list):
+            return list(resp)
+        return self._extract(resp)
+
+    async def get_stats_series(
+        self, site_id: str, start_ms: int, end_ms: int
+    ) -> list[dict[str, Any]]:
+        """Fetch ``wanBySite`` buckets from the Network 11 statistics engine."""
+        params = {
+            "schema": "wanBySite",
+            "filter": f"siteId.eq('{site_id}')",
+            "projection": "values(rxBytes,txBytes),nested(byNetworkGroup)",
+            "start": str(start_ms),
+            "end": str(end_ms),
+        }
+        resp = await self._request(
+            "GET",
+            "/proxy/network/v2/api/stats/recent/series",
+            params=params,
+        )
+        if isinstance(resp, list):
+            return list(resp)
         return self._extract(resp)
 
     async def get_rogueaps(self, within_hours: int = 1) -> list[dict[str, Any]]:

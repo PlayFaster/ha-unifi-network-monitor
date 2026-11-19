@@ -176,9 +176,9 @@ Source: `/stat/device` — one set of entities per discovered switch.
 
 **No upper bound on throughput**: `www_xput_up` and `www_xput_down` have no upper bound. Capping at a fixed Mbps value would create a maintenance burden as broadband speeds increase. The `min=0` guard is sufficient to catch firmware glitches returning negative values.
 
-**Score min=0, and `-1` is deliberately excluded**: UniFi uses `-1` (not null) to mean "satisfaction score not yet computed" for a radio band. That is an **indicator, not a measurement** — admitting it would put a value on a percentage sensor that is not a percentage, and it would chart, average and enter long-term statistics as though the AP had scored below zero. The guard band is therefore `0`, which turns the sentinel into `unknown`, and `unknown` is the correct answer to "what is the score?" when there is not one yet (dev_standards §18 — a sentinel belongs in `unknown`).
+**Score min=0, and `-1` is normalized at parse time**: UniFi uses `-1` (not null) to mean "satisfaction score not yet computed" for a radio band. `_valid_score()` in `coordinator.py` normalizes negative satisfaction values (`-1`) to `None` (`unknown`) at parse time so newly provisioned APs report `unknown` cleanly without tripping the `min_limit=0.0` guard band.
 
-This document previously specified `-1` and argued that a min of `0` would wrongly suppress newly provisioned APs. **That reasoning is superseded.** Suppression is the intended outcome: a newly provisioned AP has no score, and reporting `unknown` says so, whereas reporting `-1` invents a number. The code has always shipped `0`; this document was the side that was wrong.
+**Guard-band suppression in Integration Health**: Any sensor value suppressed by `min_limit` or `max_limit` is reported per entity `unique_id` to the coordinator (`report_guard_band`), raising `Integration Health` to `severity: warning` with `guard_band_suppressed` listing the affected sensor keys until the sensor returns a valid or `None` value.
 
 **Projections carry no `state_class`**: `wan1_month_projected` and `wan2_month_projected` are forecasts, not measurements. They are bounded below at `0` like any byte counter, but they are deliberately kept out of statistics and long-term storage — a forecast that revises itself every poll would corrupt any long-term series it entered. The confidence in the figure is published as a `confidence` attribute alongside it rather than withheld as `unknown`, because a blank sensor on the 1st of the month reads as broken.
 
@@ -188,7 +188,10 @@ This document previously specified `-1` and argued that a min of `0` would wrong
 
 ## Version Control
 
-- **[2026-06-22]** — Initial document. Guard bands audited across all four sensor tuples.
-- **[2026-06-22]** — Added guard bands for new Multi-WAN modes/weights/latencies, storage partition used percentages, and Threat Management.
-- **[2026-07-08]** — Restructured into Part I and Part II split structure. Corrected translation and sensor keys to match those present in the manifest.
-- **[2026-07-14]** — Added the **Security & Alerts** guard-band table (rogue count / raw-24h / RSSI, alert counts) for the new sub-devices, and documented the `_safe_float` 3-dp rounding helper alongside guard bands.
+| Version | Date | Change |
+| :--- | :--- | :--- |
+| 1.0.0 | 2026-06-22 | Initial document. Guard bands audited across all four sensor tuples. |
+| 1.0.0 | 2026-06-22 | Added guard bands for Multi-WAN modes/weights/latencies, storage partition used percentages, and Threat Management. |
+| 1.0.0 | 2026-07-08 | Restructured into Part I and Part II split structure. Corrected translation and sensor keys to match those present in the manifest. |
+| 1.0.0 | 2026-07-14 | Added the **Security & Alerts** guard-band table (rogue count / raw-24h / RSSI, alert counts) and documented `_safe_float` 3-dp rounding. |
+| 1.1.2 | 2026-11-19 | Updated Design Notes: AP `-1` satisfaction scores normalize to `None` at parse time (`_valid_score()`), and active `min_limit`/`max_limit` guard-band suppressions raise `severity: warning` with `guard_band_suppressed` on `Integration Health`. |
