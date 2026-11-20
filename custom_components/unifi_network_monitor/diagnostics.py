@@ -62,12 +62,25 @@ TO_REDACT = {
     "host",
     "wan_isp_name",
     "wan_isp_org",
+    "wan1_isp",
+    "wan2_isp",
+    "uplink_isp",
+    "isp_organization",
     "mac",
     "wan1_local_ip",
     "wan1_public_ip",
     "wan2_local_ip",
     "wan2_public_ip",
+    "wan1_public_ipv6",
+    "wan2_public_ipv6",
     "bssid",
+    # Location fields of the gateway's geo_info blocks; never published, and
+    # redacted wherever a raw block could reach the download.
+    "address",
+    "latitude",
+    "longitude",
+    "city",
+    "accuracy",
 }
 
 # ``async_redact_data`` rewrites values, never keys, and only matches keys this
@@ -172,6 +185,10 @@ _ALERT_TEXT_KEYS = ("message", "title")
 _LITERAL_KEYS = (
     "wan_isp_name",
     "wan_isp_org",
+    "wan1_isp",
+    "wan2_isp",
+    "uplink_isp",
+    "isp_organization",
     "wan1_interface_name",
     "wan2_interface_name",
     "name",

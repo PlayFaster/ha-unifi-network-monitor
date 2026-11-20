@@ -150,6 +150,21 @@
       "gateway_wan1_public_ip": {
         "default": "mdi:ip"
       },
+      "gateway_wan1_public_ipv6": {
+        "default": "mdi:ip-network"
+      },
+      "gateway_wan2_public_ipv6": {
+        "default": "mdi:ip-network"
+      },
+      "gateway_wan1_isp": {
+        "default": "mdi:printer-pos-network-outline"
+      },
+      "gateway_wan2_isp": {
+        "default": "mdi:printer-pos-network-outline"
+      },
+      "gateway_uplink_isp": {
+        "default": "mdi:printer-pos-network-outline"
+      },
       "gateway_wan2_local_ip": {
         "default": "mdi:ip"
       },
@@ -296,12 +311,6 @@
       },
       "gateway_wan2_speedtest_lastrun": {
         "default": "mdi:clock-outline"
-      },
-      "health_wan_isp_name": {
-        "default": "mdi:printer-pos-network-outline"
-      },
-      "health_wan_isp_org": {
-        "default": "mdi:domain"
       },
       "health_wan_num_sta": {
         "default": "mdi:account-multiple"

@@ -124,6 +124,21 @@
       "gateway_wan1_public_ip": {
         "name": "WAN1 Public IP Address"
       },
+      "gateway_wan1_public_ipv6": {
+        "name": "WAN1 Public IPv6 Address"
+      },
+      "gateway_wan2_public_ipv6": {
+        "name": "WAN2 Public IPv6 Address"
+      },
+      "gateway_wan1_isp": {
+        "name": "WAN1 ISP"
+      },
+      "gateway_wan2_isp": {
+        "name": "WAN2 ISP"
+      },
+      "gateway_uplink_isp": {
+        "name": "Uplink ISP"
+      },
       "gateway_wan2_local_ip": {
         "name": "WAN2 Local IP Address"
       },
@@ -300,12 +315,6 @@
       },
       "gateway_wan2_interface_name": {
         "name": "WAN2 Name"
-      },
-      "health_wan_isp_name": {
-        "name": "ISP Name"
-      },
-      "health_wan_isp_org": {
-        "name": "ISP Organization"
       },
       "health_wan_gw_version": {
         "name": "UniFi OS Version"

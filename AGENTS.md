@@ -209,7 +209,7 @@ Standard for all integration projects — see shared conventions §3 (`.shared/d
 **Nothing is recorded here, and nothing should be.** This project's open work lives in `.notes/todo.md`, `.notes/tasks/`, the cross-project chore register, the cross-project queue and [`docs/ROADMAP.md`](docs/ROADMAP.md). One command reads all of them, from `dev-workbench/`:
 
 ```bash
-uv run python scripts/check_queue_format.py --open ha-unifi-network-monitor
+uv run python workbench/check_queue_format.py --open ha-unifi-network-monitor
 ```
 
 **Which one a new item belongs in, and how to add, check and close it, is `issue_tracking_workflow.md` (`.shared/issues/issue_tracking_workflow.md`)** — authoritative, with the summary at shared conventions §8 (`.shared/dev_std/agent_conventions.md`).

@@ -54,6 +54,7 @@ class UnifiBinarySensorEntityDescription(BinarySensorEntityDescription):
     value_fn: Callable[[dict[str, Any]], bool | None]
     device_key: str = "gateway"
     enable_in_standalone: bool = False
+    about: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -85,6 +86,11 @@ GATEWAY_BINARY_SENSORS: Final[tuple[UnifiBinarySensorEntityDescription, ...]] = 
         device_class=BinarySensorDeviceClass.CONNECTIVITY,
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda d: d.get("wan1_active"),
+        about=(
+            "On when the gateway uses WAN1 as its uplink. In failover mode, the "
+            "WAN carrying traffic. Under load balancing, the priority-1 WAN "
+            "only, although every WAN carries traffic."
+        ),
         device_key="internet",
     ),
     UnifiBinarySensorEntityDescription(
@@ -93,6 +99,11 @@ GATEWAY_BINARY_SENSORS: Final[tuple[UnifiBinarySensorEntityDescription, ...]] = 
         device_class=BinarySensorDeviceClass.CONNECTIVITY,
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda d: d.get("wan2_active"),
+        about=(
+            "On when the gateway uses WAN2 as its uplink. In failover mode, the "
+            "WAN carrying traffic. Under load balancing, the priority-1 WAN "
+            "only, although every WAN carries traffic."
+        ),
         device_key="internet",
     ),
     UnifiBinarySensorEntityDescription(
@@ -280,7 +291,7 @@ class UnifiBinarySensorBase(
         return self.entity_description.value_fn(self._raw_data())
 
 
-class UnifiGatewayBinarySensor(UnifiBinarySensorBase):
+class UnifiGatewayBinarySensor(UnifiAboutEntity, UnifiBinarySensorBase):
     """Binary sensor for the gateway device."""
 
     def __init__(

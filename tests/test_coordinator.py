@@ -377,7 +377,9 @@ def test_parse_health_wan_and_www() -> None:
     result = _parse_health(health_list, _now())
 
     assert result["wan_status"] == "ok"
-    assert result["wan_isp_name"] == "Test ISP"
+    # Retired in 1.1.2-dev4: the site-level ISP fields always described WAN1.
+    assert "wan_isp_name" not in result
+    assert "wan_isp_org" not in result
     assert result["wan1_availability"] == pytest.approx(100.0)
     assert result["wan1_latency_avg"] == 34
     assert result["wan2_availability"] == pytest.approx(99.5)
@@ -768,7 +770,7 @@ async def test_coordinator_parses_wan_and_security_configs(
     result = await coordinator._async_update_data()
 
     gateway = result["gateway"]
-    assert gateway["wan_mode"] == "weighted"
+    assert gateway["wan_mode"] == "load_balancing"
     assert gateway["wan1_weight"] == 55
     assert gateway["wan2_weight"] == 45
     assert gateway["ips_mode"] == "block"
@@ -3980,3 +3982,85 @@ async def test_modern_stats_missing_site_and_empty_series_and_guard_band_branche
     coordinator.data = None
     coordinator.report_guard_band("u1", "cpu", True)
     assert coordinator.health_snapshot["severity"] == "warning"
+
+
+def _wan(group: str, kind: str, priority: int, weight: int) -> dict[str, Any]:
+    """One WAN networkconf object as `rest/networkconf` returns it."""
+    return {
+        "purpose": "wan",
+        "wan_networkgroup": group,
+        "wan_load_balance_type": kind,
+        "wan_failover_priority": priority,
+        "wan_load_balance_weight": weight,
+    }
+
+
+@pytest.mark.parametrize(
+    ("wans", "expected"),
+    [
+        # The three configurations measured on the UDM Pro, 2026-11-18.
+        (
+            [_wan("WAN", "weighted", 1, 50), _wan("WAN2", "failover-only", 2, 50)],
+            "failover",
+        ),
+        (
+            [_wan("WAN", "failover-only", 2, 50), _wan("WAN2", "weighted", 1, 50)],
+            "failover",
+        ),
+        (
+            [_wan("WAN", "weighted", 1, 75), _wan("WAN2", "weighted", 2, 25)],
+            "load_balancing",
+        ),
+        # A third WAN on standby makes the site failover.
+        (
+            [
+                _wan("WAN", "weighted", 1, 50),
+                _wan("WAN2", "weighted", 2, 50),
+                _wan("WAN3", "failover-only", 3, 0),
+            ],
+            "failover",
+        ),
+        # A single WAN keeps the controller's raw value.
+        ([_wan("WAN", "weighted", 1, 100)], "weighted"),
+    ],
+)
+async def test_wan_mode_reads_every_wans_setting(
+    hass: Any,
+    mock_config_entry: Any,
+    aioclient_mock: Any,
+    wans: list[dict[str, Any]],
+    expected: str,
+) -> None:
+    """HTTP-seam: WAN Mode is derived from every WAN, with each WAN's role."""
+    from .transport import ControllerFake, real_api
+
+    mock_config_entry.add_to_hass(hass)
+    fake = ControllerFake(aioclient_mock)
+    fake.serve(networkconf=[*wans, {"purpose": "corporate", "vlan": 10}])
+    coordinator = UnifiNetworkDataUpdateCoordinator(
+        hass, mock_config_entry, real_api(hass)
+    )
+    gateway = (await coordinator._async_update_data())["gateway"]
+    assert gateway["wan_mode"] == expected
+    assert gateway["wan_mode_wans"] == {
+        w["wan_networkgroup"]: {
+            "wan_load_balance_type": w["wan_load_balance_type"],
+            "wan_failover_priority": w["wan_failover_priority"],
+            "wan_load_balance_weight": w["wan_load_balance_weight"],
+        }
+        for w in wans
+    }
+
+
+def test_wan_mode_with_two_wans_of_unknown_type_keeps_a_raw_value() -> None:
+    """Two WANs that are neither all weighted nor failover report the first raw value."""
+    from custom_components.unifi_network_monitor.coordinator import (
+        _wan_mode_from_networkconf,
+    )
+
+    mode, detail = _wan_mode_from_networkconf(
+        [_wan("WAN", "", 1, 50), _wan("WAN2", "custom", 2, 50)]
+    )
+    assert mode == "custom"
+    assert set(detail) == {"WAN", "WAN2"}
+    assert _wan_mode_from_networkconf(None) == (None, {})

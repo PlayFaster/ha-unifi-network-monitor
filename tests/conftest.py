@@ -174,8 +174,6 @@ MOCK_COORDINATOR_DATA: dict[str, Any] = {
     },
     "health": {
         "wan_status": "ok",
-        "wan_isp_name": "Test ISP",
-        "wan_isp_org": "Test ISP Ltd",
         "wan_gw_version": MOCK_SW_VERSION,
         "wan_num_sta": 162,
         "wan_cpu": 37.2,

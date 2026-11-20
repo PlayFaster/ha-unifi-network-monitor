@@ -211,13 +211,13 @@ def test_gateway_sensor_reads_last_updated() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_health_sensor_reads_wan_isp_name() -> None:
-    """UnifiHealthSensor reads wan_isp_name from health sub-dict."""
+def test_health_sensor_reads_wan_num_sta() -> None:
+    """UnifiHealthSensor reads wan_num_sta from health sub-dict."""
     coordinator = _make_coordinator(MOCK_COORDINATOR_DATA)
     entry = _make_entry()
-    desc = next(d for d in HEALTH_SENSORS if d.key == "wan_isp_name")
-    sensor = UnifiHealthSensor(coordinator, entry, desc, "health_wan_isp_name")
-    assert sensor.native_value == "Test ISP"
+    desc = next(d for d in HEALTH_SENSORS if d.key == "wan_num_sta")
+    sensor = UnifiHealthSensor(coordinator, entry, desc, "health_wan_num_sta")
+    assert sensor.native_value == 162
 
 
 def test_health_sensor_reads_wlan_num_user() -> None:
@@ -251,8 +251,8 @@ def test_health_sensor_returns_none_on_no_data() -> None:
     """UnifiHealthSensor returns None when coordinator has no data."""
     coordinator = _make_coordinator(None)
     entry = _make_entry()
-    desc = next(d for d in HEALTH_SENSORS if d.key == "wan_isp_name")
-    sensor = UnifiHealthSensor(coordinator, entry, desc, "health_wan_isp_name")
+    desc = next(d for d in HEALTH_SENSORS if d.key == "wan_num_sta")
+    sensor = UnifiHealthSensor(coordinator, entry, desc, "health_wan_num_sta")
     assert sensor.native_value is None
 
 
@@ -356,9 +356,9 @@ def test_health_sensor_unique_id() -> None:
     """Health sensor unique_id includes health_ prefix."""
     coordinator = _make_coordinator(MOCK_COORDINATOR_DATA)
     entry = _make_entry("aa:bb:cc:dd:ee:ff")
-    desc = next(d for d in HEALTH_SENSORS if d.key == "wan_isp_name")
-    sensor = UnifiHealthSensor(coordinator, entry, desc, "health_wan_isp_name")
-    assert sensor.unique_id == "aa:bb:cc:dd:ee:ff_health_wan_isp_name"
+    desc = next(d for d in HEALTH_SENSORS if d.key == "wan_num_sta")
+    sensor = UnifiHealthSensor(coordinator, entry, desc, "health_wan_num_sta")
+    assert sensor.unique_id == "aa:bb:cc:dd:ee:ff_health_wan_num_sta"
 
 
 # ---------------------------------------------------------------------------
@@ -745,3 +745,32 @@ def test_missing_health_and_device_values_return_none_in_sensors() -> None:
 
     sw_descs = {d.key: d for d in SWITCH_SENSORS}
     assert sw_descs["ports_used"].value_fn({"ports_used": None}) is None
+
+
+def test_wan_mode_publishes_each_wans_role_with_about() -> None:
+    """WAN Mode carries each WAN's type, priority and weight, and its own about note."""
+    wans = {
+        "WAN": {
+            "wan_load_balance_type": "weighted",
+            "wan_failover_priority": 1,
+            "wan_load_balance_weight": 50,
+        },
+        "WAN2": {
+            "wan_load_balance_type": "failover-only",
+            "wan_failover_priority": 2,
+            "wan_load_balance_weight": 50,
+        },
+    }
+    data = {**MOCK_COORDINATOR_DATA}
+    data["gateway"] = {**data["gateway"], "wan_mode": "failover", "wan_mode_wans": wans}
+    desc = next(d for d in GATEWAY_SENSORS if d.key == "wan_mode")
+    sensor = UnifiGatewaySensor(
+        _make_coordinator(data), _make_entry(), desc, "wan_mode"
+    )
+    attrs = sensor.extra_state_attributes
+    assert sensor.native_value == "failover"
+    assert attrs is not None
+    assert attrs["wans"] == wans
+    assert attrs["about"].startswith("Failover when any WAN is set to failover only")
+    storage = next(d for d in GATEWAY_SENSORS if d.key == "storage_used_pct")
+    assert storage.about is not None and "/persistent" in storage.about

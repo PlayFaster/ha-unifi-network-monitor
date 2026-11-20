@@ -290,6 +290,24 @@ Issue #23: on a Cloud Gateway Ultra (`UDRULT`), which the model list lacked, the
 - Setup trusts a selection confirmed by one signal alone, which identity correction would not move.
 - Two entries both set up with no gateway share the `(DOMAIN, "")` device identifiers until each is corrected. On Home Assistant before 2026.8, identifiers are unique across config entries, so the two entries share one device, and correcting one entry also moves that shared device; from 2026.8 each entry owns its own device and only its own moves.
 
+### WAN Mode derivation (1.1.2)
+
+UniFi stores the WAN mode per WAN (`wan_load_balance_type` on each `purpose: wan` object in `rest/networkconf`), so no single WAN's value is the site's mode. `_wan_mode_from_networkconf` reads every WAN object: with two or more WANs, any `failover-only` WAN gives `failover` and every WAN `weighted` gives `load_balancing`; a single WAN, or a mix matching neither rule, keeps the first non-empty raw value. Each WAN's `wan_load_balance_type`, `wan_failover_priority` and `wan_load_balance_weight` are published on the sensor as the unrecorded `wans` attribute, keyed by WAN group, so a third WAN follows without code changes.
+
+**Breaking change.** Before `1.1.2-dev4` the sensor showed WAN1's raw value, falling back to WAN2's, which read `weighted` in failover with WAN1 as primary (measured 2026-11-18, Network 11.0.99). Dual-WAN automations on `weighted` or `failover-only` need updating to `load_balancing` or `failover`.
+
+### ISP per WAN and retired entities (1.1.2)
+
+The site-level `stat/health` `wan` subsystem's `isp_name` and `isp_organization` described WAN1 in every configuration, including while WAN2 carried traffic (measured 2026-11-17 and 2026-11-18, Network 11.0.99). `_isp_by_wan` reads the gateway's per-WAN blocks in `stat/device` instead: `geo_info`, `active_geo_info` and `last_geo_info`, merged in that order with an earlier block's value never overwritten, blank strings treated as absent. Only `isp_name`, `isp_organization` and `asn` are read; the blocks' location fields are not. `_uplink_group` picks the uplink WAN from each WAN's `is_uplink`, falling back to `uplink.comment`. Under load balancing `is_uplink` names the priority-1 WAN only, although every WAN carries traffic. `_geo_field` reads the public IP from the same blocks and treats a block that is not a mapping as absent, so a changed payload shape leaves the field unknown instead of failing the gateway parse.
+
+`RETIRED_KEYS` in `const.py` lists unique-id suffixes no version creates any more (`health_wan_isp_name`, `health_wan_isp_org`). `plan_device_cleanup` removes any still registered, so the cleanup button and service clear them after an upgrade. `wan2_isp` is in `WAN2_KEYS`, so single-WAN setups do not create it.
+
+### Route key inventory in the diagnostics download (1.1.2)
+
+`UnifiNetworkAPI._key_inventory` records, on each answered route in `api.routes`, the sorted union of key names across the answer's records: a record's own keys, a nested object's keys as `parent.child`, and the keys of objects in a nested list as `parent[].child`. Names only, never values. The field is `keys`, which `diagnostics.py` treats as gated (`DISCOVERY_METADATA_GATED`), so the scrubber tokenizes MAC-shaped and learned names before publication. Any user's download therefore shows the field spellings of their gateway model, which cross-model verification needs. On the development UDM Pro (15 adopted devices) the `stat/device` inventory holds 936 names.
+
+`scripts/diag_check.py` requires the `stat/device` route to carry an inventory containing `system-stats`, and scans the inventory case-sensitively: controller field names are lower case, and a network named like a field (`Guest` beside `guest`) matched them under the case-insensitive scan on 2026-11-20.
+
 ### Integration Health & Self-Diagnosis (§19 of shared dev_standards)
 
 `_compute_integration_health(opts, raw_drift)` builds a health snapshot (`problem`/`severity`/`issues`/`degraded_capabilities`/`drift`/`auth_mode`/…), surfaced by the **Integration Health** `PROBLEM` binary sensor. It catches **silent** failures HA misses:
@@ -527,3 +545,4 @@ The fallback branches therefore only break when those APIs are **removed in HA C
 | 1.1.1 | 2026-11-09 | Test harness: CI's HA is the version `pytest-homeassistant` pins exactly. From the dev-workbench v302 plan, I5 |
 | 1.1.2 | 2026-11-19 | Foundation and quick wins (`[1.1.2-dev2]`): `PLC0415` import hoists, suppression removals, `DeviceInfo` 2026.11 keyword construction, `_check_write_rc` refusal check, gateway `sw_version` registry sync, `is_adopted` and `_is_mesh_or_ap_mode` filtering, and 100% branch coverage (`1124` tests). |
 | 1.1.2 | 2026-11-19 | Network 11 statistics engine & data integrity (`[1.1.2-dev3]`): `stats/source` + `stats/recent/series` (`wanBySite`) WAN usage with `<11.0.89` version gate and `_stats_diagnostics`; omitted AP/switch/health fields return `None` (`unknown`) instead of substitute `0`/`100.0`; non-ephemeral empty-source `degraded` detection; guard-band `warning` reporting and AP `-1` score normalization (`1135` tests, 100% branch coverage). |
+| 1.1.2 | 2026-11-20 | WAN mode, ISP and IPv6 per WAN, raw key inventory (`[1.1.2-dev4]`): WAN Mode derived from every WAN's `wan_load_balance_type` (`failover` / `load_balancing`, breaking for dual-WAN automations); WAN1 ISP, WAN2 ISP and Uplink ISP from each WAN's geo blocks, retiring ISP Name and ISP Organization through `RETIRED_KEYS`; WAN1/WAN2 Public IPv6 Address from the first global entry of `wan<x>.ipv6` (`_global_ipv6`); per-route raw key inventory in the diagnostics download (`_key_inventory`). |

@@ -144,6 +144,36 @@ class UnifiNetworkAPI:
             return None
         return text if isinstance(text, str) else None
 
+    @staticmethod
+    def _key_inventory(data: Any) -> list[str] | None:
+        """Key names across an answer's records, one nested level down, no values.
+
+        A record's own keys are listed as they are; a nested object's keys as
+        ``parent.child``, and the keys of objects in a nested list as
+        ``parent[].child``. Deduplicated and sorted, so a second gateway model's
+        field spellings can be read from any user's download. Identifier-shaped
+        names, such as maps keyed by MAC, are tokenized by the diagnostics
+        scrubber, which reads this field as gated.
+        """
+        if not isinstance(data, list):
+            return None
+        names: set[str] = set()
+        for record in data:
+            if not isinstance(record, dict):
+                continue
+            for key, value in record.items():
+                names.add(str(key))
+                if isinstance(value, dict):
+                    names.update(f"{key}.{name}" for name in value)
+                elif isinstance(value, list):
+                    names.update(
+                        f"{key}[].{name}"
+                        for item in value
+                        if isinstance(item, dict)
+                        for name in item
+                    )
+        return sorted(names)
+
     def _record_route(self, method: str, path: str, **fields: Any) -> None:
         """Record the latest outcome of one route, names and counts only."""
         route = route_of(path)
@@ -176,6 +206,7 @@ class UnifiNetworkAPI:
             msg=msg,
             records=records,
             populated=populated,
+            keys=self._key_inventory(data),
         )
         if rc == "error":
             self._record_verdict(method, path, status, body, "rc_error")

@@ -229,6 +229,65 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         device_key="internet",
     ),
     UnifiSensorEntityDescription(
+        key="wan1_public_ipv6",
+        translation_key="gateway_wan1_public_ipv6",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda d: d.get("wan1_public_ipv6"),
+        about=(
+            "The IPv6 address the ISP assigned to this WAN. Unknown when the "
+            "WAN has no global IPv6 address."
+        ),
+        device_key="internet",
+    ),
+    UnifiSensorEntityDescription(
+        key="wan2_public_ipv6",
+        translation_key="gateway_wan2_public_ipv6",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda d: d.get("wan2_public_ipv6"),
+        about=(
+            "The IPv6 address the ISP assigned to this WAN. Unknown when the "
+            "WAN has no global IPv6 address."
+        ),
+        device_key="internet",
+    ),
+    UnifiSensorEntityDescription(
+        key="wan1_isp",
+        translation_key="gateway_wan1_isp",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda d: d.get("wan1_isp"),
+        about=(
+            "The provider of WAN1 as the gateway identifies it from the WAN "
+            "address. The isp_organization attribute is the registered owner "
+            "of the address block, often a parent company or wholesale carrier."
+        ),
+        device_key="internet",
+    ),
+    UnifiSensorEntityDescription(
+        key="wan2_isp",
+        translation_key="gateway_wan2_isp",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda d: d.get("wan2_isp"),
+        about=(
+            "The provider of WAN2 as the gateway identifies it from the WAN "
+            "address. The isp_organization attribute is the registered owner "
+            "of the address block, often a parent company or wholesale carrier."
+        ),
+        device_key="internet",
+    ),
+    UnifiSensorEntityDescription(
+        key="uplink_isp",
+        translation_key="gateway_uplink_isp",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda d: d.get("uplink_isp"),
+        about=(
+            "The provider of the WAN the gateway uses as its uplink. In "
+            "failover mode this is the WAN carrying traffic. Under load "
+            "balancing it is the priority-1 WAN, and the other WANs also carry "
+            "traffic."
+        ),
+        device_key="internet",
+    ),
+    UnifiSensorEntityDescription(
         key="wan2_local_ip",
         translation_key="gateway_wan2_local_ip",
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -287,6 +346,11 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         min_limit=0.0,
         max_limit=100.0,
         value_fn=lambda d: d.get("storage_used_pct"),
+        about=(
+            "Fill level of the gateway's /persistent partition, which holds "
+            "logs and settings rather than recordings. Sustained high values "
+            "usually mean log growth."
+        ),
     ),
     UnifiSensorEntityDescription(
         key="wan_mode",
@@ -294,9 +358,11 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda d: d.get("wan_mode"),
         about=(
-            "Fill level of the gateway's /persistent partition, which holds "
-            "logs and settings rather than recordings. Sustained high values "
-            "usually mean log growth."
+            "Failover when any WAN is set to failover only, so one WAN carries "
+            "traffic and the others stand by. Load balancing when every WAN is "
+            "weighted, so new connections are spread across the WANs by weight. "
+            "On a single-WAN setup the controller still populates its raw value, "
+            "though multi-WAN routing does not apply."
         ),
         device_key="system",
     ),
@@ -983,31 +1049,6 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
 HEALTH_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
     # WAN
     UnifiSensorEntityDescription(
-        key="wan_isp_name",
-        translation_key="health_wan_isp_name",
-        entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda d: d.get("wan_isp_name"),
-        about=(
-            "The ISP as UniFi identifies it from the WAN address. ISP "
-            "Organization is the registered owner of the address block, which "
-            "is often a parent company or a wholesale carrier rather than the "
-            "company billing you."
-        ),
-        device_key="internet",
-    ),
-    UnifiSensorEntityDescription(
-        key="wan_isp_org",
-        translation_key="health_wan_isp_org",
-        entity_category=EntityCategory.DIAGNOSTIC,
-        entity_registry_enabled_default=False,
-        value_fn=lambda d: d.get("wan_isp_org"),
-        about=(
-            "Registered owner of the WAN address block. Frequently differs from "
-            "ISP Name — a reseller's customers show the wholesaler here."
-        ),
-        device_key="internet",
-    ),
-    UnifiSensorEntityDescription(
         key="wan_gw_version",
         translation_key="health_wan_gw_version",
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -1552,6 +1593,9 @@ class UnifiGatewaySensor(UnifiSensorBase):
             "application_version",
             "application_build",
             "device_type",
+            "wans",
+            "isp_organization",
+            "asn",
         }
     )
 
@@ -1625,6 +1669,12 @@ class UnifiGatewaySensor(UnifiSensorBase):
             return self._with_about(
                 gw.get(f"{self.entity_description.key}_attrs") or None
             )
+        if self.entity_description.key in ("wan1_isp", "wan2_isp", "uplink_isp"):
+            return self._with_about(
+                gw.get(f"{self.entity_description.key}_attrs") or None
+            )
+        if self.entity_description.key == "wan_mode":
+            return self._with_about({"wans": gw.get("wan_mode_wans") or {}})
         if self.entity_description.key == "last_high":
             return self._with_about(gw.get("last_high_attrs"))
         if self.entity_description.key == "last_very_high":

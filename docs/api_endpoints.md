@@ -38,6 +38,8 @@ These endpoints are called during regular polling cycles or user actions.
   - **WAN2 Local IP**: Extracted from `wan2.ip`.
   - **WAN1 Public IP**: Extracted from `geo_info.WAN.address` or `active_geo_info.WAN.address`.
   - **WAN2 Public IP**: Extracted from `geo_info.WAN2.address` or `active_geo_info.WAN2.address`.
+  - **WAN1 / WAN2 Public IPv6 Address**: the first global entry of `wan1.ipv6` / `wan2.ipv6`, a list; link-local (`fe80::/10`) and unique-local (`fc00::/7`) entries are skipped. No other endpoint carries a WAN IPv6 address (`stat/health`, `rest/networkconf` and the Integration API `wans` were checked on 2026-11-18).
+  - **WAN1 ISP, WAN2 ISP, Uplink ISP**: `isp_name`, `isp_organization` and `asn` per WAN group, merged from `geo_info`, `active_geo_info` and `last_geo_info` in that order, an earlier block's value never overwritten. The uplink WAN is the one whose `wan1`/`wan2` `is_uplink` is set, else `uplink.comment`. The blocks also carry `address`, `latitude`, `longitude`, `city`, `country_name`, `country_code`, `continent_code`, `timezone` and `accuracy`; the location fields are never read.
 
 ### `GET /proxy/network/api/s/{site}/stat/health`
 

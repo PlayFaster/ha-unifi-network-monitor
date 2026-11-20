@@ -6,6 +6,7 @@ import asyncio
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime, timedelta
 from fnmatch import fnmatchcase
+import ipaddress
 import logging
 from typing import Any, Literal
 
@@ -547,6 +548,134 @@ def _extract_wan_networkconf(
     return wan1, wan2
 
 
+# The gateway's per-WAN ISP lookups, merged in this order with an earlier
+# block's value never overwritten (the order holdestmade/Unifi-WAN uses).
+_GEO_INFO_BLOCKS = ("geo_info", "active_geo_info", "last_geo_info")
+# Only these fields are read. Location fields (address, coordinates, city,
+# accuracy) identify the subscriber and are never published.
+_ISP_FIELDS = ("isp_name", "isp_organization", "asn")
+
+
+def _isp_by_wan(device: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Each WAN group's ISP name, organization and ASN from the geo blocks.
+
+    Blank strings count as absent, so a WAN the gateway has not looked up reads
+    unknown rather than an empty state.
+    """
+    merged: dict[str, dict[str, Any]] = {}
+    for block_key in _GEO_INFO_BLOCKS:
+        block = device.get(block_key)
+        if not isinstance(block, dict):
+            continue
+        for group, info in block.items():
+            if not isinstance(info, dict):
+                continue
+            target = merged.setdefault(str(group), dict.fromkeys(_ISP_FIELDS))
+            for field_name in _ISP_FIELDS:
+                if target[field_name] is not None:
+                    continue
+                value = info.get(field_name)
+                if isinstance(value, str):
+                    value = value.strip() or None
+                target[field_name] = value
+    return merged
+
+
+def _geo_field(device: dict[str, Any], group: str, field_name: str) -> Any:
+    """One field of a WAN's geo record, from geo_info then active_geo_info.
+
+    A block or WAN entry that is not a mapping counts as absent, so a changed
+    payload shape leaves the field unknown instead of failing the gateway parse.
+    """
+    for block_key in ("geo_info", "active_geo_info"):
+        block = device.get(block_key)
+        info = block.get(group) if isinstance(block, dict) else None
+        value = info.get(field_name) if isinstance(info, dict) else None
+        if value:
+            return value
+    return None
+
+
+# Unique-local IPv6 addresses (RFC 4193) are not public.
+_UNIQUE_LOCAL = ipaddress.IPv6Network("fc00::/7")
+
+
+def _global_ipv6(wan: dict[str, Any]) -> str | None:
+    """The first global IPv6 address in a WAN's ``ipv6`` list, or None.
+
+    Link-local (fe80::/10) and unique-local (fc00::/7) entries are skipped, as
+    are entries that do not parse, so a WAN without a global address reads
+    unknown. A zone or prefix length on an entry is ignored for the test.
+    """
+    entries = wan.get("ipv6")
+    if not isinstance(entries, list):
+        return None
+    for entry in entries:
+        if not isinstance(entry, str):
+            continue
+        text = entry.strip().split("%", 1)[0].split("/", 1)[0]
+        try:
+            address = ipaddress.IPv6Address(text)
+        except ValueError:
+            continue
+        if not address.is_link_local and address not in _UNIQUE_LOCAL:
+            return text
+    return None
+
+
+def _isp_values(info: dict[str, Any] | None) -> tuple[Any, dict[str, Any]]:
+    """Split one WAN's ISP record into the state and its attributes."""
+    info = info or {}
+    return info.get("isp_name"), {
+        "isp_organization": info.get("isp_organization"),
+        "asn": info.get("asn"),
+    }
+
+
+def _uplink_group(
+    wan1: dict[str, Any], wan2: dict[str, Any], uplink: dict[str, Any]
+) -> str | None:
+    """The WAN group the gateway uses as its uplink, from each WAN's flag."""
+    if wan1.get("is_uplink"):
+        return "WAN"
+    if wan2.get("is_uplink"):
+        return "WAN2"
+    comment = uplink.get("comment")
+    return comment if comment in ("WAN", "WAN2") else None
+
+
+def _wan_mode_from_networkconf(
+    raw: list[dict[str, Any]] | None,
+) -> tuple[str | None, dict[str, dict[str, Any]]]:
+    """Derive WAN Mode from every WAN's setting, with each WAN's role.
+
+    UniFi stores the mode per WAN, so no single WAN's value is the mode. With
+    two or more WANs, any ``failover-only`` WAN means failover and every WAN
+    ``weighted`` means load balancing; a single WAN reports its own raw value.
+    The second element maps each WAN group to its type, priority and weight.
+    """
+    wans = [
+        net
+        for net in raw or []
+        if net.get("purpose") == "wan" and net.get("wan_networkgroup")
+    ]
+    detail: dict[str, dict[str, Any]] = {
+        str(net["wan_networkgroup"]): {
+            "wan_load_balance_type": net.get("wan_load_balance_type"),
+            "wan_failover_priority": _safe_int(net.get("wan_failover_priority")),
+            "wan_load_balance_weight": _safe_int(net.get("wan_load_balance_weight")),
+        }
+        for net in wans
+    }
+    types = [net.get("wan_load_balance_type") for net in wans]
+    if len(wans) >= 2:
+        if "failover-only" in types:
+            return "failover", detail
+        if all(t == "weighted" for t in types):
+            return "load_balancing", detail
+    return next((t for t in types if t), None), detail
+
+
 def _sum_optional(rx: float | None, tx: float | None) -> float | None:
     """Total two byte counters, or None when neither side reported.
 
@@ -676,18 +805,24 @@ def _parse_gateway(
     wan1_data = device.get("wan1") or {}
     wan2_data = device.get("wan2") or {}
 
-    geo_info = device.get("geo_info") or {}
-    active_geo_info = device.get("active_geo_info") or {}
+    wan1_public_ip = _geo_field(device, "WAN", "address")
+    wan2_public_ip = _geo_field(device, "WAN2", "address")
 
-    wan1_geo = geo_info.get("WAN") or {}
-    wan1_active_geo = active_geo_info.get("WAN") or {}
-    wan1_public_ip = wan1_geo.get("address") or wan1_active_geo.get("address")
-
-    wan2_geo = geo_info.get("WAN2") or {}
-    wan2_active_geo = active_geo_info.get("WAN2") or {}
-    wan2_public_ip = wan2_geo.get("address") or wan2_active_geo.get("address")
+    isp = _isp_by_wan(device)
+    wan1_isp, wan1_isp_attrs = _isp_values(isp.get("WAN"))
+    wan2_isp, wan2_isp_attrs = _isp_values(isp.get("WAN2"))
+    group = _uplink_group(wan1_data, wan2_data, uplink)
+    uplink_isp, uplink_isp_attrs = _isp_values(isp.get(group) if group else None)
 
     return {
+        "wan1_public_ipv6": _global_ipv6(wan1_data),
+        "wan2_public_ipv6": _global_ipv6(wan2_data),
+        "wan1_isp": wan1_isp,
+        "wan1_isp_attrs": wan1_isp_attrs,
+        "wan2_isp": wan2_isp,
+        "wan2_isp_attrs": wan2_isp_attrs,
+        "uplink_isp": uplink_isp,
+        "uplink_isp_attrs": uplink_isp_attrs,
         "mac": device.get("mac", "").lower(),
         "name": device.get("name", "UDM Pro"),
         "model": device.get("model", "UDM Pro"),
@@ -815,8 +950,6 @@ def _parse_health(
         if subsystem == "wan":
             health["wan_status"] = h.get("status", "unknown")
             # None (→ HA "unknown") when absent, rather than a blank "" state.
-            health["wan_isp_name"] = h.get("isp_name") or None
-            health["wan_isp_org"] = h.get("isp_organization") or None
             health["wan_gw_version"] = h.get("gw_version", "")
             health["wan_num_sta"] = _safe_int(h.get("num_sta"))
             gw_stats = h.get("gw_system-stats") or {}
@@ -2170,18 +2303,15 @@ class UnifiNetworkDataUpdateCoordinator(
                 health = _parse_health(health_raw, update_time, self)
 
                 # Parse load-balancing configs from networkconf
-                wan_mode: str | None = None
                 wan1_weight: int | None = None
                 wan2_weight: int | None = None
+                wan_mode, wan_mode_wans = _wan_mode_from_networkconf(networkconf_raw)
                 wan1_net, wan2_net = _extract_wan_networkconf(networkconf_raw)
                 if wan1_net is not None:
                     wan1_weight = _safe_int(wan1_net.get("wan_load_balance_weight"))
-                    wan_mode = wan1_net.get("wan_load_balance_type")
                     self._networkconf_wan = wan1_net
                 if wan2_net is not None:
                     wan2_weight = _safe_int(wan2_net.get("wan_load_balance_weight"))
-                    if not wan_mode:
-                        wan_mode = wan2_net.get("wan_load_balance_type")
                     self._networkconf_wan2 = wan2_net
 
                 # Parse threat management settings
@@ -2625,6 +2755,7 @@ class UnifiNetworkDataUpdateCoordinator(
                     gateway_data.update(
                         {
                             "wan_mode": wan_mode,
+                            "wan_mode_wans": wan_mode_wans,
                             "last_high": last_high,
                             "last_high_attrs": last_high_attrs,
                             "last_very_high": last_very_high,

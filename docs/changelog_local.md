@@ -17,6 +17,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: UniFi Network Monitor](#internal-detailed-changelog-unifi-network-monitor)
+  - [\[1.1.2-dev4\] - 2026-11-20 - WAN Mode From Every WAN, ISP and IPv6 per WAN, Raw Key Inventory, and Network 11 Compatibility](#112-dev4---2026-11-20---wan-mode-from-every-wan-isp-and-ipv6-per-wan-raw-key-inventory-and-network-11-compatibility)
   - [\[1.1.2-dev3\] - 2026-11-19 - Network 11 Statistics Engine, Missing Values as Unknown, Empty-Source Health, and Guard-Band Suppression](#112-dev3---2026-11-19---network-11-statistics-engine-missing-values-as-unknown-empty-source-health-and-guard-band-suppression)
   - [\[1.1.2-dev2\] - 2026-11-19 - Foundation, Validation, and Quick Fixes: PyHA Verification, Ruff PLC0415, Suppression Cleanup, Write Refusal, HA 2026.11 DeviceInfo, Firmware Sync, Adoption/Mesh Guards](#112-dev2---2026-11-19---foundation-validation-and-quick-fixes-pyha-verification-ruff-plc0415-suppression-cleanup-write-refusal-ha-202611-deviceinfo-firmware-sync-adoptionmesh-guards)
   - [\[1.1.2-dev1\] - 2026-11-17 - Toolchain & Standards: Test Harness Migration, Shared Tooling Sync, and Documentation Alignment](#112-dev1---2026-11-17---toolchain--standards-test-harness-migration-shared-tooling-sync-and-documentation-alignment)
@@ -60,6 +61,58 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.1-dev1\] - 2026-07-26 - Documentation and Tooling: Health Automation Example, AGENTS Structure, and CI Bumps](#101-dev1---2026-07-26---documentation-and-tooling-health-automation-example-agents-structure-and-ci-bumps)
   - [\[1.0.0\] - 2026-07-22 - Initial Public Release](#100---2026-07-22---initial-public-release)
   - [Document Audit Status](#document-audit-status)
+
+---
+
+## [1.1.2-dev4] - 2026-11-20 - WAN Mode From Every WAN, ISP and IPv6 per WAN, Raw Key Inventory, and Network 11 Compatibility
+
+### Summary
+
+Derives WAN Mode from every WAN's `wan_load_balance_type` (`failover` / `load_balancing`), adds WAN1 ISP, WAN2 ISP and Uplink ISP from the gateway's per-WAN geo blocks and retires the site-level ISP Name and ISP Organization, adds WAN1 and WAN2 Public IPv6 Address, records a per-route raw key inventory in the diagnostics download, and states the Network 11 tested setup in the README.
+
+### Added
+
+- `coordinator.py`: `_wan_mode_from_networkconf` (mode and per-WAN `wan_load_balance_type`, `wan_failover_priority`, `wan_load_balance_weight`, published as `wan_mode_wans`); `_isp_by_wan`, `_isp_values` and `_uplink_group` (`wan1_isp`, `wan2_isp`, `uplink_isp` with `isp_organization` and `asn` attributes); `_global_ipv6` (`wan1_public_ipv6`, `wan2_public_ipv6`); `_geo_field`.
+- `sensor.py`: five sensors (`wan1_isp`, `wan2_isp`, `uplink_isp`, `wan1_public_ipv6`, `wan2_public_ipv6`) with `about` notes; `wans`, `isp_organization` and `asn` added to the gateway sensor's unrecorded attributes.
+- `binary_sensor.py`: `about` field on `UnifiBinarySensorEntityDescription`; `UnifiGatewayBinarySensor` takes the `UnifiAboutEntity` mixin; `about` notes on `wan1_active` and `wan2_active`.
+- `api.py`: `_key_inventory`, recorded as `keys` on each answered route (record keys, `parent.child` and `parent[].child`, names only).
+- `const.py`: `RETIRED_KEYS` (`health_wan_isp_name`, `health_wan_isp_org`); `wan2_isp` and `wan2_public_ipv6` in `WAN2_KEYS`.
+- `cleanup.py`: retired-key pass in `plan_device_cleanup`.
+
+### Changed
+
+- **WAN Mode (breaking for dual-WAN automations)**: reports `failover` or `load_balancing` instead of WAN1's raw value, which read `weighted` in failover with WAN1 as primary.
+- `sensor.py`: the `/persistent` storage `about` note moved from `wan_mode` to `storage_used_pct`.
+- `diagnostics.py`: the new ISP and IPv6 keys added to `TO_REDACT`; the ISP keys added to `_LITERAL_KEYS`.
+- `scripts/diag_check.py`: requires the `stat/device` route's key inventory (with `system-stats`), and scans key inventories case-sensitively.
+
+### Removed
+
+- `sensor.py`: ISP Name (`wan_isp_name`) and ISP Organization (`wan_isp_org`); `coordinator.py` no longer parses the site-level `stat/health` ISP fields, which always described WAN1. `cleanup_unused_entities` removes the registered entities.
+
+### Fixed
+
+- **Gateway parse failed on a non-mapping geo block**: a `geo_info` or `active_geo_info` block, or a WAN entry in one, that was not a mapping raised in the public IP read and skipped the gateway; `_geo_field` treats it as absent. Found by `tests/test_isp_per_wan.py` during this build.
+- **Location fields not redacted in diagnostics**: `address`, `latitude`, `longitude`, `city` and `accuracy` added to `TO_REDACT`, as the ISP task required; no live path published them. Found by plan verification.
+- **IPv6 filter stricter than specified**: `_global_ipv6` now skips link-local and unique-local addresses, as the IPv6 task specified, instead of keeping only `is_global` addresses; test values use the documentation placeholders. Found by plan verification and the local leak check.
+- **Diagnostics leak scan false positive**: the first `Hardware: Check Diagnostics Download` run reported a `network_name` hit in the new `stat/device` key inventory, where a network named like a lower-case controller field matched it case-insensitively; `scripts/diag_check.py` now scans the inventory case-sensitively.
+
+### Tests
+
+- Full test suite: `1170 passed, 0 failed, 0 warnings`, `100.00%` line and branch coverage (`3993` statements, `1276` branches, `0` missed); new `tests/test_isp_per_wan.py`, `tests/test_wan_ipv6.py` and `tests/test_key_inventory.py`.
+- `Assertion Audit`: `PASSED`; `Test Depth Check`: `PASSED`; 19 mutation proofs across WAN Mode, ISP per WAN, IPv6 and the key inventory, each failing its tests.
+
+### Verified
+
+- Live, on the development UDM Pro (Network `11.0.99`, UniFi OS `6.0.17`): WAN Mode `load_balancing` with per-WAN attributes; WAN1 ISP and WAN2 ISP name different providers and Uplink ISP names WAN1's under load balancing; the two retired entities removed by the cleanup service; both IPv6 entities `unknown` with IPv6 off on both WANs; `Hardware: Check Diagnostics Download` PASSED; `Sensor Manifest: PASSED` with 131 entities.
+
+### Known
+
+- The failover configurations (WAN Mode, Uplink ISP during failover) and a global IPv6 address were not shown live: each needs a write to the live gateway's WAN configuration. HTTP-seam tests serve the measured payloads.
+
+### Deferred
+
+- Integration Health `issues` wording and its move to `strings.json` (plan I5 and I6) are parked: both cross-project items are marked not viable as written.
 
 ---
 

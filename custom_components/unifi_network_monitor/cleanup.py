@@ -26,6 +26,7 @@ from .const import (
     EP_ROGUE,
     EP_SPEEDTEST,
     EP_VPN_TUNNELS,
+    RETIRED_KEYS,
     disabled_device_keys,
     dual_wan_enabled,
     single_wan_excluded_keys,
@@ -84,6 +85,20 @@ def _feature_source(uid: str, unique_id: str) -> str | None:
     return None
 
 
+def _retired_entity_ids(
+    uid: str, registered: list[er.RegistryEntry], already: set[str]
+) -> list[str]:
+    """Registered entities whose unique-id suffix is in ``RETIRED_KEYS``."""
+    prefix = f"{uid}_"
+    return [
+        reg_entry.entity_id
+        for reg_entry in registered
+        if reg_entry.entity_id not in already
+        and reg_entry.unique_id.startswith(prefix)
+        and reg_entry.unique_id[len(prefix) :] in RETIRED_KEYS
+    ]
+
+
 @callback
 def plan_device_cleanup(
     hass: HomeAssistant,
@@ -138,6 +153,9 @@ def plan_device_cleanup(
                 continue
             if reg_entry.unique_id[len(prefix) :] in excluded:
                 plan.entity_ids.append(reg_entry.entity_id)
+
+    # Entities this version no longer creates.
+    plan.entity_ids.extend(_retired_entity_ids(uid, registered, set(plan.entity_ids)))
 
     # Card-owned sub-devices whose feature toggle is off: remove EVERY entity on
     # the card (regardless of source — catches health-fed entities that the

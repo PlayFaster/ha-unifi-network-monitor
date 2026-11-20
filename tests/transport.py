@@ -117,6 +117,7 @@ class ControllerFake:
         sysinfo: list[dict[str, Any]] | None = None,
         devices: list[dict[str, Any]] | None = None,
         health: list[dict[str, Any]] | None = None,
+        networkconf: list[dict[str, Any]] | None = None,
     ) -> None:
         """Arm the controller for one or more cycles.
 
@@ -134,6 +135,8 @@ class ControllerFake:
                 body = _envelope(sysinfo)
             elif path == "stat/health" and health is not None:
                 body = _envelope(health)
+            elif path == "rest/networkconf" and networkconf is not None:
+                body = _envelope(networkconf)
             else:
                 body = _envelope([])
             self._answer("get", f"{CLASSIC}/{path}", body)

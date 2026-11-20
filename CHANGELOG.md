@@ -4,19 +4,6 @@ All notable changes to the UniFi Network Monitor project will be documented in t
 
 ---
 
-## [Unreleased]
-
-### Added
-
-- **UniFi Network 11 statistics engine support**: Automatically probes `/proxy/network/v2/api/stats/source` and routes daily/monthly WAN usage to `/proxy/network/v2/api/stats/recent/series` (`wanBySite`) on Network 11.0.89+ controllers while preserving legacy `stat/report/*.gw` fallback.
-
-### Changed
-
-- **Missing controller fields report `unknown`**: Omitted AP, switch, and network health counts/latencies/availability/uptime fields now return `None` (`unknown`) instead of substitute `0` or `100.0` defaults; missing uptime holds existing boot-time latches.
-- **Integration Health empty-source & guard-band detection**: Previously populated non-ephemeral sources that silently return no data for 3 consecutive polls now raise `degraded` (`empty_capabilities`); sensor guard-band suppressions raise `warning` (`guard_band_suppressed`) and clear on recovery, while uncomputed AP `-1` satisfaction scores normalize to `unknown` without tripping the guard band.
-
----
-
 ## [1.1.1] - 2026-10-16 - Release: Gateway Uptime, Diagnostics Privacy Hardening, and Single-WAN Fixes
 
 ### Summary
