@@ -1,7 +1,7 @@
 # SYNCED FILE — DO NOT EDIT IN A PROJECT.
 # Edit dev-workbench/workbench/python/pyproject_common.toml and re-sync.
 
-required-version = ">=0.17.4"
+required-version = ">=0.17.5"
 target-version = "py313"
 line-length = 88
 extend-exclude = [

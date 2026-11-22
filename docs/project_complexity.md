@@ -1,6 +1,6 @@
 # Project Complexity & Health: ha-unifi-network-monitor
 
-**Last Measured:** 2026-11-20T16:22:39.950633+00:00 · **Release:** `1.1.2` · **Dev Version:** `1.1.2-dev4`
+**Last Measured:** 2026-11-22T16:42:46.309561+00:00 · **Release:** `1.1.2` · **Dev Version:** `1.1.2-dev4`
 
 ## 1. Executive Summary
 
@@ -30,7 +30,7 @@
 | **Test Decision Density** | **0.92 tests/branch** | 1170 tests across 1276 branches (Target $\ge 0.80$ · Strong regression depth) |
 | **Assertion Completeness** | **100.0%** | 1070 test functions, 0 unasserted (`test_assertions.txt`) |
 | **Dynamic Sequence Depth** | **7 consecutive polls** | Deepest test lifecycle without stubbed seams (`test_depth.txt`) |
-| **Pytest Duration** | **308.01s** | Full test suite wall-clock execution time |
+| **Pytest Duration** | **291.88s** | Full test suite wall-clock execution time |
 
 ## 2. High Complexity Routines ($\ge 10$)
 

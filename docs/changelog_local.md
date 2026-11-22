@@ -17,10 +17,11 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: UniFi Network Monitor](#internal-detailed-changelog-unifi-network-monitor)
+  - [\[1.1.2-dev5\] - 2026-11-22 - CI Bump ruff hypothesis](#112-dev5---2026-11-22---ci-bump-ruff-hypothesis)
   - [\[1.1.2-dev4\] - 2026-11-20 - WAN Mode From Every WAN, ISP and IPv6 per WAN, Raw Key Inventory, and Network 11 Compatibility](#112-dev4---2026-11-20---wan-mode-from-every-wan-isp-and-ipv6-per-wan-raw-key-inventory-and-network-11-compatibility)
   - [\[1.1.2-dev3\] - 2026-11-19 - Network 11 Statistics Engine, Missing Values as Unknown, Empty-Source Health, and Guard-Band Suppression](#112-dev3---2026-11-19---network-11-statistics-engine-missing-values-as-unknown-empty-source-health-and-guard-band-suppression)
   - [\[1.1.2-dev2\] - 2026-11-19 - Foundation, Validation, and Quick Fixes: PyHA Verification, Ruff PLC0415, Suppression Cleanup, Write Refusal, HA 2026.11 DeviceInfo, Firmware Sync, Adoption/Mesh Guards](#112-dev2---2026-11-19---foundation-validation-and-quick-fixes-pyha-verification-ruff-plc0415-suppression-cleanup-write-refusal-ha-202611-deviceinfo-firmware-sync-adoptionmesh-guards)
-  - [\[1.1.2-dev1\] - 2026-11-17 - Toolchain & Standards: Test Harness Migration, Shared Tooling Sync, and Documentation Alignment](#112-dev1---2026-11-17---toolchain--standards-test-harness-migration-shared-tooling-sync-and-documentation-alignment)
+  - [\[1.1.2-dev1\] - 2026-11-17 - Toolchain \& Standards: Test Harness Migration, Shared Tooling Sync, and Documentation Alignment](#112-dev1---2026-11-17---toolchain--standards-test-harness-migration-shared-tooling-sync-and-documentation-alignment)
   - [\[1.1.1\] - 2026-10-16 - Release: Gateway Uptime, Diagnostics Privacy Hardening, and Single-WAN Fixes](#111---2026-10-16---release-gateway-uptime-diagnostics-privacy-hardening-and-single-wan-fixes)
   - [\[1.1.1-dev3\] - 2026-10-15 - Tests: Real Polls Over the HTTP Seam, Contract Sweeps, Entity Hygiene Sweeps; Action Icons Nested; Masked-Errors Audit](#111-dev3---2026-10-15---tests-real-polls-over-the-http-seam-contract-sweeps-entity-hygiene-sweeps-action-icons-nested-masked-errors-audit)
   - [\[1.1.1-dev2\] - 2026-10-15 - Uptime: Device Boot Times From the Controller, Link Latch Reconciles; WAN Totals and Weight Fixed; Health Severity Values](#111-dev2---2026-10-15---uptime-device-boot-times-from-the-controller-link-latch-reconciles-wan-totals-and-weight-fixed-health-severity-values)
@@ -63,6 +64,13 @@ All changes to this project will be documented in this file. This is the detaile
   - [Document Audit Status](#document-audit-status)
 
 ---
+
+## [1.1.2-dev5] - 2026-11-22 - CI Bump ruff hypothesis
+
+### Bumps
+
+- **Validate Bump**: Update `ruff` from 0.17.4 to 0.17.5
+- **Validate Bump**: Update `hypothesis` from 6.170.15 to 6.170.17
 
 ## [1.1.2-dev4] - 2026-11-20 - WAN Mode From Every WAN, ISP and IPv6 per WAN, Raw Key Inventory, and Network 11 Compatibility
 

@@ -14,7 +14,7 @@
     },
     "hypothesis": {
       "pins": ["dockerfile", "requirements_test"],
-      "version": "6.170.15"
+      "version": "6.170.17"
     },
     "mutmut": {
       "pins": ["dockerfile", "requirements_test"],
@@ -42,7 +42,7 @@
     },
     "ruff": {
       "pins": ["pre-commit", "dockerfile", "requirements_test"],
-      "version": "0.17.4"
+      "version": "0.17.5"
     },
     "yamllint": {
       "pins": ["pre-commit", "dockerfile", "requirements_test"],
