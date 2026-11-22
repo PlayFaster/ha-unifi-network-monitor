@@ -17,6 +17,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: UniFi Network Monitor](#internal-detailed-changelog-unifi-network-monitor)
+  - [\[1.1.2-dev7\] - 2026-11-22 - Documentation Sync: Release Changelog, Capabilities, Sensor Review, and README Fixes](#112-dev7---2026-11-22---documentation-sync-release-changelog-capabilities-sensor-review-and-readme-fixes)
   - [\[1.1.2-dev6\] - 2026-11-22 - About Notes Review, Shared Workflow Sync, and Complexity Scorecard](#112-dev6---2026-11-22---about-notes-review-shared-workflow-sync-and-complexity-scorecard)
   - [\[1.1.2-dev5\] - 2026-11-22 - CI Bump ruff hypothesis](#112-dev5---2026-11-22---ci-bump-ruff-hypothesis)
   - [\[1.1.2-dev4\] - 2026-11-20 - WAN Mode From Every WAN, ISP and IPv6 per WAN, Raw Key Inventory, and Network 11 Compatibility](#112-dev4---2026-11-20---wan-mode-from-every-wan-isp-and-ipv6-per-wan-raw-key-inventory-and-network-11-compatibility)
@@ -65,6 +66,26 @@ All changes to this project will be documented in this file. This is the detaile
   - [Document Audit Status](#document-audit-status)
 
 ---
+
+## [1.1.2-dev7] - 2026-11-22 - Documentation Sync: Release Changelog, Capabilities, Sensor Review, and README Fixes
+
+### Summary
+
+Reconciles user-facing and manifest documentation for `v1.1.2`: updates `CHANGELOG.md` and `docs/CAPABILITIES.md`, runs `sensor_review.md` (`Via_HAB`, 133 live entities), validates all 17 `README.md` example automations, and applies `readme_review.md` fixes.
+
+### Documentation
+
+- **Release Changelog (`CHANGELOG.md`)**: Added the `[1.1.2]` release summary (`Added`, `Changed`, `Fixed`, `Removed`, `Under the Hood`) via `changelog_summary.md`.
+- **Capabilities Dossier (`docs/CAPABILITIES.md`)**: Updated capabilities for `v1.1.2` (Network 11 statistics engine, per-WAN ISP and IPv6, WAN Mode multi-WAN derivation, guard-band `Integration Health` warning, and retired site-level ISP sensors).
+- **Entity Manifest (`docs/all_sensors.md`)**: Added `Clean Up Unused Entities` (`cleanup_unused_entities`) to `System Sub-Device` (18 → 19; total 131 → 132), added `## Services (7 Actions)` for all 7 `unifi_network_monitor.*` actions, appended data-availability notes to 8 `unknown`-state entities, and added the `About` (`✔` / `—`) column to Part I tables.
+- **About Attribute List (`docs/about_attribute_list.md`)**: Added `Clean Up Unused Entities` to `## Entities without an about note` (74 → 75) and updated `Last Updated:` to `2026-11-22`.
+- **README (`README.md`)**: Reconciled `## 🔍 What You Get` sub-device and base-install totals (`110 / 132` standalone, `104 / 132` with Core UniFi), corrected unsupported v3 endpoint fallback wording (`unavailable` → `unknown`), added the Network `11.0.89+` WAN usage note in `Known Limitations`, and removed inline `1.1.2` migration notes from `Use Cases`.
+- **Agent Guidance (`AGENTS.md`)**: Updated the stale test and branch-coverage counts (`1135` → `1170` tests, `3993` statements, `1276` branches, `0` partial branches).
+- **Sensor Review Report (`.notes/sensors_states/ha_sensor_review_20261122_2233.md`)**: Recorded full live `Via_HAB` reconciliation across all 133 entities and 7 actions, then restored all 25 temporarily enabled entities.
+
+### Verified
+
+- **README Automations (`readme_automation_validate.md`)**: `VALIDATE_MODE=Full` passed via `Via_HAB` (`17` README + `2` theme automations loaded cleanly with `0` log/repair errors, `0` read-back diffs, and `37/37` Jinja templates rendered cleanly).
 
 ## [1.1.2-dev6] - 2026-11-22 - About Notes Review, Shared Workflow Sync, and Complexity Scorecard
 

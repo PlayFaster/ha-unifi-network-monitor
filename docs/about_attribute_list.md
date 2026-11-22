@@ -114,7 +114,7 @@ The `about` attribute is a plain-language note attached to key entities to provi
 | Show 2.4 GHz rogues | Switch | `rogue_show_24ghz` | On: include 2.4 GHz rogue APs in detection. Off: drop them from all rogue sensors. |
 | Show 5 GHz rogues | Switch | `rogue_show_5ghz` | On: include 5 GHz rogue APs in detection. Off: drop them from all rogue sensors. |
 
-## Entities without an `about` note (74)
+## Entities without an `about` note (75)
 
 The following entities carry no `about` attribute (self-explanatory or intentionally unannotated):
 
@@ -192,6 +192,7 @@ The following entities carry no `about` attribute (self-explanatory or intention
 | WiFi IoT Devices | Sensor | `wlan_num_iot` | Status |
 | WiFi Devices | Sensor | `wlan_num_user` | Status |
 | Polling Interval | Number | `scan_interval` | System |
+| Clean Up Unused Entities | Button | `cleanup_unused_entities` | System |
 | WAN1 Load Balance | Sensor | `wan1_weight` | System |
 | WAN2 Load Balance | Sensor | `wan2_weight` | System |
 
@@ -202,4 +203,4 @@ The following entities carry no `about` attribute (self-explanatory or intention
 _Note: The source of truth for these notes is the `about=` fields and `_attr_about` declarations in the component code. This file is generated dynamically from the live HA state attributes and should not be hand-edited._
 
 - **Created:** 2026-08-08
-- **Last Updated:** 2026-08-08
+- **Last Updated:** 2026-11-22

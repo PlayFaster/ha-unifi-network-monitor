@@ -2,9 +2,9 @@
 
 An architectural reference and at-a-glance inventory of verified capabilities, interfaces, technical guarantees, and version lineage for `ha-unifi-network-monitor`.
 
-**Current Through:** `v1.1.1` (covering `v1.0.0` to `v1.1.1`) · **Last Audited:** 2026-10-16 · **Status:** `Active`
+**Current Through:** `v1.1.2` (covering `v1.0.0` to `v1.1.2`) · **Last Audited:** 2026-11-22 · **Status:** `Active`
 
-Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series and `1.1.0-dev3` to `1.1.0-dev14` series shipped together as public `v1.1.0` on 2026-10-12; the `1.1.1-dev1` to `1.1.1-dev3` series shipped as `v1.1.1` on 2026-10-16. Capabilities that predate the detailed changelog are recorded as `v1.0.0 verified`, the earliest verified release.
+Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series and `1.1.0-dev3` to `1.1.0-dev14` series shipped together as public `v1.1.0` on 2026-10-12; the `1.1.1-dev1` to `1.1.1-dev3` series shipped as `v1.1.1` on 2026-10-16; the `1.1.2-dev1` to `1.1.2-dev6` series shipped as `v1.1.2` on 2026-11-22. Capabilities that predate the detailed changelog are recorded as `v1.0.0 verified`, the earliest verified release.
 
 ---
 
@@ -68,10 +68,12 @@ Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series and `1.1.0-dev3` to `1
 - **Entities & Interfaces**: `gateway.py` (`select_gateway`, `has_wan_signature`, `is_gateway_type`); `const.py` (`GATEWAY_TYPES`, `GATEWAY_MODELS`).
 - **Technical Guarantees**:
   - A device carrying a non-empty `wan1` or `wan2` object is prioritized as the gateway signature.
+  - Devices pending adoption (`adopted: false`) and devices in `device_mode_override` `mesh` or `ap` mode are excluded ahead of every candidate list (`is_adopted` in `gateway.py`).
   - Ties are resolved through gateway `type` codes (`udm`, `ugw`, `usg`, `ucg`, `uxg`), online state, and listed models, falling back to stored MAC.
   - An unrecognized gateway state (`ambiguous` or `none`) surfaces an ERROR-level repair issue after 3 consecutive polls rather than misidentifying a switch or AP.
 - **Lifecycle Timeline**:
   - `v1.1.0`: Introduced (`1.1.0-dev12`).
+  - `v1.1.2`: Pending-adoption and AP/mesh-mode exclusions added (`1.1.2-dev2`).
 
 ### Automatic Gateway Identity Correction
 
@@ -81,8 +83,19 @@ Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series and `1.1.0-dev3` to `1
   - Validated on the first poll of setup using two of three confirmation signals (WAN object, gateway type, catalog model).
   - Automatically rewrites entity unique IDs and device identifiers across a single scheduled reload, keeping existing entity IDs, history, and dashboards.
   - Detects identity collisions with other config entries and raises a repair without corrupting existing device registries.
+  - Gateway firmware version changes reported by `stat/sysinfo` update `sw_version` in the Home Assistant device registry immediately without requiring a reload (`coordinator.py`).
 - **Lifecycle Timeline**:
   - `v1.1.0`: Introduced (`1.1.0-dev12`).
+  - `v1.1.2`: Device registry `sw_version` sync on firmware updates (`1.1.2-dev2`).
+
+### Write-Refusal Guard
+
+- **Purpose**: Ensures controller write commands never silently report success when the gateway refuses the request.
+- **Entities & Interfaces**: `api.py` (`_check_write_rc` on `trigger_speedtest` and `update_networkconf`).
+- **Technical Guarantees**:
+  - Raises on HTTP errors and on HTTP `200` responses carrying `meta.rc == "error"`.
+- **Lifecycle Timeline**:
+  - `v1.1.2`: Introduced (`1.1.2-dev2`).
 
 ---
 
@@ -96,10 +109,12 @@ Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series and `1.1.0-dev3` to `1
   - Counters carry raw bytes with `native_unit_of_measurement=BYTES`; unit conversion is left to Home Assistant.
   - Every accumulating counter uses `TOTAL_INCREASING`; `SensorStateClass.TOTAL` is banned by `test_no_sensor_uses_the_total_state_class`, because these counters reset without publishing `last_reset`.
   - A high-water mark persisted in `Store` (`{DOMAIN}.{entry_id}.usage_watermark`) keeps the UDM's bucket apportionment from publishing a lower value after a restart.
+  - Automatically selects the Network 11 statistics engine (`stats/source` + `stats/recent/series` `wanBySite`) on Network `11.0.89+` while keeping legacy `stat/report` queries on `<11`; Network 11 builds below `11.0.89` leave usage `unknown` with a one-time warning (`_is_modern_stats_supported`).
 - **Lifecycle Timeline**:
   - `v1.0.0 verified`: Daily and monthly usage per WAN; persisted high-water mark.
   - `v1.1.0`: `TOTAL` state-class ban and no-upper-bound sweep on accumulating counters (`1.0.1-dev13`).
   - `v1.1.1`: Month total calculation treats unconfigured secondary WAN as zero on single-WAN gateways (`1.1.1-dev2`).
+  - `v1.1.2`: Network 11 statistics engine support with `11.0.89+` version gate (`1.1.2-dev3`).
 
 ### Projected Monthly Usage
 
@@ -114,9 +129,10 @@ Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series and `1.1.0-dev3` to `1
 
 ### Dual-WAN Status and Load-Balance Weight Control
 
-- **Purpose**: Reports per-WAN active and link state, latency, availability, local and public IP and interface names, and sets the WAN1/WAN2 load-balance weight.
-- **Entities & Interfaces**: WAN active and up binary sensors; `sensor.unifi_network_system_wan1_load_balance`, `sensor.unifi_network_system_wan2_load_balance`; `number.unifi_network_system_wan1_load_balance_weight`.
+- **Purpose**: Reports per-WAN active and link state, latency, availability, local and public IP and interface names, Multi-WAN Mode, and sets the WAN1/WAN2 load-balance weight.
+- **Entities & Interfaces**: WAN active and up binary sensors; `sensor.unifi_network_system_multi_wan_mode` (`wans` attribute); `sensor.unifi_network_system_wan1_load_balance`, `sensor.unifi_network_system_wan2_load_balance`; `number.unifi_network_system_wan1_load_balance_weight`.
 - **Technical Guarantees**:
+  - Multi-WAN Mode evaluates every configured WAN (`_wan_mode_from_networkconf`), reporting `failover` when any WAN is failover-only and `load_balancing` when all are weighted, with per-WAN roles, priorities, and weights in `wans`.
   - The weight write is composed from a fresh `networkconf` read immediately before the PUT, never from coordinator-held state (`coordinator.py:954`).
   - The WAN1 and WAN2 PUTs run under `asyncio.shield`, so a cancelled debounce cannot leave the pair not summing to 100.
   - The number entity publishes the newly set value immediately, maintaining the slider position until controller confirmation and reverting if the write fails.
@@ -126,6 +142,17 @@ Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series and `1.1.0-dev3` to `1
   - `v1.0.0 verified`: Dual-WAN status and weight control.
   - `v1.1.0`: Fresh-read composition, shielded pair write and read-back (`1.0.1-dev12`).
   - `v1.1.1`: Optimistic UI slider holding across update cycles until confirmation (`1.1.1-dev2`).
+  - `v1.1.2`: Multi-WAN Mode derived from all configured WANs with per-WAN `wans` attributes (`1.1.2-dev4`).
+
+### Per-WAN ISP, Uplink ISP, and Public IPv6
+
+- **Purpose**: Reports each WAN's ISP, organization, ASN, and global IPv6 address, plus the active uplink's ISP.
+- **Entities & Interfaces**: `wan1_isp`, `wan2_isp`, `uplink_isp` (`isp_organization` and `asn` attributes); `wan1_public_ipv6`, `wan2_public_ipv6`.
+- **Technical Guarantees**:
+  - ISP fields merge `geo_info`, `active_geo_info` and `last_geo_info` per WAN group (`_isp_by_wan`, `_uplink_group`); site-level `wan_isp_name` and `wan_isp_org` are retired.
+  - `_global_ipv6` skips link-local (`fe80::/10`) and unique-local (`fc00::/7`) addresses, returning `unknown` when no global IPv6 address is present.
+- **Lifecycle Timeline**:
+  - `v1.1.2`: Introduced (`1.1.2-dev4`).
 
 ### Speedtest Results and Manual Runs
 
@@ -144,9 +171,10 @@ Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series and `1.1.0-dev3` to `1
 ### Gateway, Status and System Data
 
 - **Purpose**: Reports gateway CPU, memory, temperatures, storage, uptime, firmware and backup state, subsystem health, configuration counts (VLANs, VPNs, firewall rules, WiFi networks) and client counts.
-- **Entities & Interfaces**: Gateway (34), Status (22) and System (15) sub-devices.
+- **Entities & Interfaces**: Gateway (18), Status (22) and System (18) sub-devices.
 - **Technical Guarantees**:
   - Numeric values are rounded to 3 decimal places at parse time by `_safe_float` / `_safe_int`, separately from `suggested_display_precision`.
+  - Omitted AP, switch, and health fields return `None` (`unknown`) rather than substitute `0`/`100.0` defaults, and uncomputed AP satisfaction scores (`-1`) normalize to `None`.
   - Device boot times (gateway and adopted hardware) are published from `startup_timestamp`, eliminating the frozen per-device latch.
   - Every numeric sensor declares a lower guard band or is listed on a named allow-list; percentage sensors also declare an upper band (`test_standards_guards.py`).
   - Guard bands are documented per sensor in `docs/value_min_max.md`.
@@ -154,6 +182,7 @@ Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series and `1.1.0-dev3` to `1
   - `v1.0.0 verified`: Gateway, status and system sensors.
   - `v1.1.0`: Guard-band sweeps (`1.0.1-dev13`); all 34 previously undocumented guard bands documented (`1.0.1-dev16`).
   - `v1.1.1`: Gateway boot time published from controller `startup_timestamp` (`1.1.1-dev2`).
+  - `v1.1.2`: Omitted fields return `unknown` and AP `-1` scores normalize to `None` (`1.1.2-dev3`).
 
 ### System and Link Uptime Drift-Corrected Latching
 
@@ -209,7 +238,7 @@ Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series and `1.1.0-dev3` to `1
 ### Sub-Device Architecture and Per-Device Sensors
 
 - **Purpose**: Groups the integration's entities into seven sub-devices under a gateway device and, on request, adds one sub-device per adopted access point and switch.
-- **Entities & Interfaces**: Sub-devices Alerts, Gateway, Internet, Security, Speedtest, Status and System (141 static entities); option `unifi_device_mode` with `none`, `satisfaction_only` and `all`.
+- **Entities & Interfaces**: Sub-devices Alerts, Gateway, Internet, Security, Speedtest, Status and System (131 static entities); option `unifi_device_mode` with `none`, `satisfaction_only` and `all`; `manifest.json` `categories`.
 - **Technical Guarantees**:
   - Per-device entities are opt-in (`DEFAULT_UNIFI_DEVICE_MODE = "none"`).
   - Defaults depend on whether the core `unifi` integration is installed (`"unifi" in hass.config_entries.async_domains()`); with core present, duplicated gateway diagnostics and per-device entities are created disabled.
@@ -225,18 +254,21 @@ Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series and `1.1.0-dev3` to `1
   - Each surface is feature-detected on Home Assistant classes, not instances, so a mock registry cannot mislead detection.
   - Covers the `async_get_device(identifiers=…)`, `DeviceEntry.config_entries` and `via_device` tuple deprecations, removed in 2027.8 and 2027.10.
   - `owning_entry_ids()` accepts both `DeviceEntry` and the 2026.9 `ChildDeviceEntry`.
+  - `helpers.py` constructs `DeviceInfo(..., **via_device_link(...))` directly for HA 2026.11 dataclass compatibility while preserving the `2025.2.0` floor.
 - **Lifecycle Timeline**:
   - `v1.0.0 verified`: All three shims; this project is the family's reference implementation.
   - `v1.1.0-dev11`: `ChildDeviceEntry` accepted; tests moved off `DeviceRegistry.devices` mapping access, which raises from 2026.10.
+  - `v1.1.2`: Direct `DeviceInfo` keyword construction for HA 2026.11 (`1.1.2-dev2`).
 
 ### Explicit Entity Cleanup
 
-- **Purpose**: Removes entities and devices that the current options no longer create.
-- **Entities & Interfaces**: Action `cleanup_unused_entities`; `button.unifi_network_system_clean_up_unused_entities`.
+- **Purpose**: Removes entities and devices that the current options no longer create or that have been retired.
+- **Entities & Interfaces**: Action `cleanup_unused_entities`; `button.unifi_network_system_clean_up_unused_entities`; `RETIRED_KEYS` (`health_wan_isp_name`, `health_wan_isp_org`).
 - **Technical Guarantees**:
   - Runs only when requested; setup and option changes never delete registry entries.
 - **Lifecycle Timeline**:
   - `v1.0.0 verified`: Cleanup action and button.
+  - `v1.1.2`: `RETIRED_KEYS` cleanup pass added for retired site-level ISP entities (`1.1.2-dev4`).
 
 ---
 
@@ -275,9 +307,10 @@ Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series and `1.1.0-dev3` to `1
 - **Purpose**: Produces a comprehensive config-entry diagnostics download with endpoint and error context that can be shared publicly safely.
 - **Entities & Interfaces**: Home Assistant **Download diagnostics**; `diagnostics.py`, `api.py` (`last_rejection`, `login_metadata`), `coordinator.py` (`endpoint_outcomes`).
 - **Technical Guarantees**:
-  - `TO_REDACT` masks credentials, host, MACs, local and public IPs, ISP name and organization, and BSSIDs.
+  - `TO_REDACT` masks credentials, host, MACs, local and public IPs (including IPv6), ISP names and organizations, location keys (`address`, `latitude`, `longitude`, `city`, `accuracy`), and BSSIDs.
   - `_Scrubber` assigns stable pseudonymous tokens, scrubs identifiers from alert parameters and messages, blanks `ISP_ASN`, and redacts non-default site names.
   - Dictionary keys in state maps (SSIDs, VPN tunnel names) are tokenized to prevent leaks through object keys.
+  - `api.py` (`_key_inventory`) records top-level and one-level-nested key names per answered route (`keys`, with identifier-like keys tokenized and zero values), plus `_coordinator_block["stats"]` (`engine`, `daily_buckets`, `monthly_buckets`).
   - Text substitution uses single-pass whole-word replacement to prevent redaction marker corruption.
   - Decomposed into modular helper blocks under McCabe complexity 20 without `# noqa: C901` exemptions.
   - Dedicated capture blocks (`endpoints`, `last_rejection`, `login`, `gateway`, `uptime`) capture reachability status, login headers, and error structures without storing values.
@@ -286,16 +319,18 @@ Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series and `1.1.0-dev3` to `1
   - `v1.0.0 verified`: Redaction in place.
   - `v1.1.0`: Token scrubbing mutation-tested (`1.0.1-dev19`); verified against a live capture (`1.0.1-dev22`); structured captures (`endpoints`, `last_rejection`, `login`, `gateway`) added and leak-checked against 1,204 controller values across 21 categories (`1.1.0-dev14`).
   - `v1.1.1`: State-map keys tokenized, nested alert parameters scrubbed, IPv6 address masking added, and pipeline decomposed under complexity 20 (`1.1.1-dev1`).
+  - `v1.1.2`: Network 11 `stats` diagnostics (`1.1.2-dev3`), per-route raw key inventory (`1.1.2-dev4`), and location keys in `TO_REDACT` (`1.1.2-dev4`).
 
 ### Recorder Hygiene and About Notes
 
 - **Purpose**: Keeps bulky and explanatory attributes out of the recorder database.
-- **Entities & Interfaces**: Unrecorded `about` attribute on 46 entities via `UnifiAboutEntity`.
+- **Entities & Interfaces**: Unrecorded `about` attribute on 57 entities via `UnifiAboutEntity` (`sensor.py`, `binary_sensor.py`).
 - **Technical Guarantees**:
   - A runtime sweep (`test_no_entity_publishes_a_recorded_attribute`) sets up the integration and fails if any live entity publishes an attribute that is not unrecorded.
 - **Lifecycle Timeline**:
   - `v1.0.0 verified`: `about` notes.
   - `v1.1.0`: Five attributes removed from the recorder and the runtime sweep added (`1.0.1-dev4`); `about` coverage raised from 23 to 46 entities (`1.0.1-dev17`).
+  - `v1.1.2`: `UnifiAboutEntity` extended to `binary_sensor.py` (`wan1_active`, `wan2_active`), new ISP/IPv6 notes added, and `57/131` notes aligned to US spelling and displayed entity names (`1.1.2-dev4`, `1.1.2-dev6`).
 
 ---
 
@@ -308,6 +343,7 @@ Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series and `1.1.0-dev3` to `1
 - **Lifecycle Timeline**:
   - `v1.1.0`: 100% branch coverage with 0 partial branches (`1.0.1-dev18`); `fail_under = 100` enforced from `1.1.0-dev10`; 967 tests at 100% line and branch coverage (`1.1.0-dev14`).
   - `v1.1.1`: Expanded to 1,103 tests at 100% line and branch coverage (0 partial branches); added `transport.py` HTTP seam (`1.1.1-dev3`).
+  - `v1.1.2`: Migrated to `pytest-homeassistant` (`1.1.2-dev1`) and expanded to 1,170 passing tests at 100.00% line and branch coverage (`3,993` statements, `1,276` branches, `0` missed; `1.1.2-dev4`).
 
 ### Standards Guard Sweeps
 
@@ -316,6 +352,7 @@ Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series and `1.1.0-dev3` to `1
 - **Lifecycle Timeline**:
   - `v1.1.0`: Introduced across `1.0.1-dev4`, `1.0.1-dev13` and `1.0.1-dev16`.
   - `v1.1.1`: Added entity hygiene sweep (135 entities, device association, icon/class presence, nested action icons) (`1.1.1-dev3`).
+  - `v1.1.2`: Enforced `Ruff PLC0415` top-level imports, clean `mypy --strict` across `20` files, and reduced suppressions to `22` approved directives (`1.1.2-dev2`).
 
 ### Mutation Testing
 
@@ -323,6 +360,7 @@ Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series and `1.1.0-dev3` to `1
 - **Interfaces**: `mutmut`; `.validate/mutmut_modules.txt`; `setup.cfg` `also_copy`.
 - **Lifecycle Timeline**:
   - `v1.1.0`: Introduced (`1.0.1-dev8`); `diagnostics.py` survivors reduced from 87 to 8, all triaged (`1.0.1-dev19`).
+  - `v1.1.2`: `19` mutation proofs verified across WAN Mode, ISP, IPv6, and key inventory (`1.1.2-dev4`).
 
 ### Write Register and Hardware Check
 
@@ -333,6 +371,7 @@ Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series and `1.1.0-dev3` to `1
   - `v1.1.0-dev11`: Hardware check reads `/config/.storage`, resolves the WAN port name and prints a verdict banner; `PASSED (1/1)` against a UDM Pro.
   - `v1.1.0-dev14`: Diagnostics check introduced: two real downloads compared, block contents checked, and a leak scan against the controller's own lists; `PASSED` against a UDM Pro.
   - `v1.1.1`: Leak scan updated to walk dictionary keys; verified 0 leaks over 1,191 values (`1.1.1-dev1`).
+  - `v1.1.2`: `diag_check.py` requires `stat/device` key inventory with `system-stats`, scans inventories case-sensitively, and verified `0` leaks over `1,169` values in `21` categories (`1.1.2-dev4`).
 
 ### Complexity Scorecard and Compatibility Ledger
 
@@ -343,6 +382,7 @@ Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series and `1.1.0-dev3` to `1
   - `v1.1.0-dev7`: Scorecard added; PlayFaster Health Index 33/100 at `1.1.0-dev11`.
   - `v1.1.0-dev8`: Minimum Home Assistant 2025.2.0 (Python 3.13); tested against 2026.10.1 at `1.1.0-dev11`.
   - `v1.1.1`: `async_get_config_entry_diagnostics` decomposed into helpers under complexity 20; `# noqa: C901` removed (`1.1.1-dev1`).
+  - `v1.1.2`: Tested against HA `2026.11.2`; `project_complexity.md` updated at `1.1.2-dev6` (`0.92` tests/branch, `100.0%` assertion completeness, `332.96s` pytest).
 
 ### Sensor Manifest Synchronization
 
@@ -350,7 +390,8 @@ Version lineage: the `1.0.1-dev1` to `1.0.1-dev22` series and `1.1.0-dev3` to `1
 - **Interfaces**: `.workbench/check_sensor_manifest.py --sync-docs` and `--verify-ha`; `docs/all_sensors.md`, `docs/about_attribute_list.md`, `docs/value_min_max.md`.
 - **Lifecycle Timeline**:
   - `v1.1.0-dev10`: Documents regenerated from the manifest; 141 static entities in sync.
+  - `v1.1.2`: `131` static entities and `57/131` `about` notes in sync (`1.1.2-dev6`).
 
 ---
 
-*Capabilities dossier audited against codebase and changelogs up to `v1.1.1` on 2026-10-16. Maintained via `capabilities_build.md`.*
+*Capabilities dossier audited against codebase and changelogs up to `v1.1.2` on 2026-11-22. Maintained via `capabilities_build.md`.*

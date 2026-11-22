@@ -29,176 +29,189 @@ This document is split into two logical parts:
 | **Security** | 13 | Security entities. |
 | **Speedtest** | 12 | Speedtest entities. |
 | **Status** | 22 | Status entities. |
-| **System** | 18 | System entities. |
-| **Total** | **131** | Total static entities. |
+| **System** | 19 | System entities. |
+| **Total** | **132** | Total static entities. |
 
 ## Alerts Sub-Device (4 Entities)
 
-| Name | Key | Type | Unit | Category | Notes |
-| :-- | :-- | :-- | :-- | :-- | :-- |
-| High Sev3 Qty Last 24h | `alerts_high_24h` | Sensor | - | - | LTS: `measurement` |
-| Very High Sev4 Qty Last 24h | `alerts_very_high_24h` | Sensor | - | - | LTS: `measurement` |
-| Last High Sev3 | `last_high` | Sensor | - | - | - |
-| Last Very High Sev4 | `last_very_high` | Sensor | - | - | - |
+| Name | Key | Type | Unit | Category | Notes | About |
+| :-- | :-- | :-- | :-- | :-- | :-- | :-- |
+| High Sev3 Qty Last 24h | `alerts_high_24h` | Sensor | - | - | LTS: `measurement` | ✔ |
+| Very High Sev4 Qty Last 24h | `alerts_very_high_24h` | Sensor | - | - | LTS: `measurement` | ✔ |
+| Last High Sev3 | `last_high` | Sensor | - | - | - | ✔ |
+| Last Very High Sev4 | `last_very_high` | Sensor | - | - | - | ✔ |
 
 ## Gateway Sub-Device (18 Entities)
 
-| Name | Key | Type | Unit | Category | Notes |
-| :-- | :-- | :-- | :-- | :-- | :-- |
-| Update Available | `update_available` | Binary Sensor | - | Diagnostic | **Disabled by default.** |
-| Application Version | `application_version` | Sensor | - | Diagnostic | - |
-| Board Temperature | `board_temp` | Sensor | °C | Diagnostic | **Disabled by default.** LTS: `measurement` |
-| CPU utilization | `cpu` | Sensor | % | Diagnostic | **Disabled by default.** LTS: `measurement` |
-| CPU temperature | `cpu_temp` | Sensor | °C | Diagnostic | **Disabled by default.** LTS: `measurement` |
-| Last Backup | `last_backup` | Sensor | - | Diagnostic | - |
-| Memory utilization | `ram` | Sensor | % | Diagnostic | **Disabled by default.** LTS: `measurement` |
-| Storage Total | `storage_size` | Sensor | B | Diagnostic | **Disabled by default.** |
-| Storage Used | `storage_used` | Sensor | B | Diagnostic | - |
-| Storage Utilization | `storage_used_pct` | Sensor | % | Diagnostic | LTS: `measurement` |
-| Uptime | `uptime` | Sensor | - | Diagnostic | **Disabled by default.** |
-| WAN1 SFP Part Number | `wan1_sfp_part` | Sensor | - | Diagnostic | **Disabled by default.** |
-| WAN1 SFP Serial Number | `wan1_sfp_serial` | Sensor | - | Diagnostic | **Disabled by default.** |
-| WAN1 SFP Vendor | `wan1_sfp_vendor` | Sensor | - | Diagnostic | **Disabled by default.** |
-| WAN2 SFP Part Number | `wan2_sfp_part` | Sensor | - | Diagnostic | **Disabled by default.** |
-| WAN2 SFP Serial Number | `wan2_sfp_serial` | Sensor | - | Diagnostic | **Disabled by default.** |
-| WAN2 SFP Vendor | `wan2_sfp_vendor` | Sensor | - | Diagnostic | **Disabled by default.** |
-| UniFi OS Version | `wan_gw_version` | Sensor | - | Diagnostic | - |
+| Name | Key | Type | Unit | Category | Notes | About |
+| :-- | :-- | :-- | :-- | :-- | :-- | :-- |
+| Update Available | `update_available` | Binary Sensor | - | Diagnostic | **Disabled by default.** | — |
+| Application Version | `application_version` | Sensor | - | Diagnostic | - | — |
+| Board Temperature | `board_temp` | Sensor | °C | Diagnostic | **Disabled by default.** LTS: `measurement` | ✔ |
+| CPU utilization | `cpu` | Sensor | % | Diagnostic | **Disabled by default.** LTS: `measurement` | — |
+| CPU temperature | `cpu_temp` | Sensor | °C | Diagnostic | **Disabled by default.** LTS: `measurement` | — |
+| Last Backup | `last_backup` | Sensor | - | Diagnostic | - | — |
+| Memory utilization | `ram` | Sensor | % | Diagnostic | **Disabled by default.** LTS: `measurement` | — |
+| Storage Total | `storage_size` | Sensor | B | Diagnostic | **Disabled by default.** Data may not be available in all configurations. | — |
+| Storage Used | `storage_used` | Sensor | B | Diagnostic | - | — |
+| Storage Utilization | `storage_used_pct` | Sensor | % | Diagnostic | LTS: `measurement` | ✔ |
+| Uptime | `uptime` | Sensor | - | Diagnostic | **Disabled by default.** | — |
+| WAN1 SFP Part Number | `wan1_sfp_part` | Sensor | - | Diagnostic | **Disabled by default.** Data may not be available in all configurations. | — |
+| WAN1 SFP Serial Number | `wan1_sfp_serial` | Sensor | - | Diagnostic | **Disabled by default.** Data may not be available in all configurations. | — |
+| WAN1 SFP Vendor | `wan1_sfp_vendor` | Sensor | - | Diagnostic | **Disabled by default.** Data may not be available in all configurations. | — |
+| WAN2 SFP Part Number | `wan2_sfp_part` | Sensor | - | Diagnostic | **Disabled by default.** | — |
+| WAN2 SFP Serial Number | `wan2_sfp_serial` | Sensor | - | Diagnostic | **Disabled by default.** | — |
+| WAN2 SFP Vendor | `wan2_sfp_vendor` | Sensor | - | Diagnostic | **Disabled by default.** | — |
+| UniFi OS Version | `wan_gw_version` | Sensor | - | Diagnostic | - | — |
 
 ## Internet Sub-Device (44 Entities)
 
-| Name | Key | Type | Unit | Category | Notes |
-| :-- | :-- | :-- | :-- | :-- | :-- |
-| Internet Connected | `internet` | Binary Sensor | - | Diagnostic | - |
-| WAN1 Active Uplink | `wan1_active` | Binary Sensor | - | Diagnostic | - |
-| WAN1 Link Connected | `wan1_up` | Binary Sensor | - | Diagnostic | - |
-| WAN2 Active Uplink | `wan2_active` | Binary Sensor | - | Diagnostic | - |
-| WAN2 Link Connected | `wan2_up` | Binary Sensor | - | Diagnostic | - |
-| Internet OK | `www_ok` | Binary Sensor | - | Diagnostic | **Disabled by default.** |
-| Month Total | `month_total` | Sensor | B | - | LTS: `total_increasing` |
-| Uplink ISP | `uplink_isp` | Sensor | - | Diagnostic | - |
-| WAN1 Availability | `wan1_availability` | Sensor | % | Diagnostic | - |
-| WAN1 Last Restart | `wan1_boot_time` | Sensor | - | Diagnostic | - |
-| WAN1 Name | `wan1_interface_name` | Sensor | - | Diagnostic | - |
-| WAN1 ISP | `wan1_isp` | Sensor | - | Diagnostic | - |
-| WAN1 Latency | `wan1_latency_avg` | Sensor | ms | Diagnostic | LTS: `measurement` |
-| WAN1 Local IP Address | `wan1_local_ip` | Sensor | - | Diagnostic | - |
-| WAN1 Projected Usage | `wan1_month_projected` | Sensor | B | - | - |
-| WAN1 Month Download | `wan1_month_rx` | Sensor | B | - | LTS: `total_increasing` |
-| WAN1 Month Total | `wan1_month_total` | Sensor | B | - | LTS: `total_increasing` |
-| WAN1 Month Upload | `wan1_month_tx` | Sensor | B | - | LTS: `total_increasing` |
-| WAN1 Public IP Address | `wan1_public_ip` | Sensor | - | Diagnostic | - |
-| WAN1 Public IPv6 Address | `wan1_public_ipv6` | Sensor | - | Diagnostic | - |
-| WAN1 Today Download | `wan1_today_rx` | Sensor | B | - | LTS: `total_increasing` |
-| WAN1 Today Total | `wan1_today_total` | Sensor | B | - | LTS: `total_increasing` |
-| WAN1 Today Upload | `wan1_today_tx` | Sensor | B | - | LTS: `total_increasing` |
-| WAN1 Uptime Duration | `wan1_uptime` | Sensor | s | Diagnostic | **Disabled by default.** |
-| WAN2 Availability | `wan2_availability` | Sensor | % | Diagnostic | - |
-| WAN2 Last Restart | `wan2_boot_time` | Sensor | - | Diagnostic | - |
-| WAN2 Name | `wan2_interface_name` | Sensor | - | Diagnostic | - |
-| WAN2 ISP | `wan2_isp` | Sensor | - | Diagnostic | - |
-| WAN2 Latency | `wan2_latency_avg` | Sensor | ms | Diagnostic | LTS: `measurement` |
-| WAN2 Local IP Address | `wan2_local_ip` | Sensor | - | Diagnostic | - |
-| WAN2 Projected Usage | `wan2_month_projected` | Sensor | B | - | - |
-| WAN2 Month Download | `wan2_month_rx` | Sensor | B | - | LTS: `total_increasing` |
-| WAN2 Month Total | `wan2_month_total` | Sensor | B | - | LTS: `total_increasing` |
-| WAN2 Month Upload | `wan2_month_tx` | Sensor | B | - | LTS: `total_increasing` |
-| WAN2 Public IP Address | `wan2_public_ip` | Sensor | - | Diagnostic | - |
-| WAN2 Public IPv6 Address | `wan2_public_ipv6` | Sensor | - | Diagnostic | - |
-| WAN2 Today Download | `wan2_today_rx` | Sensor | B | - | LTS: `total_increasing` |
-| WAN2 Today Total | `wan2_today_total` | Sensor | B | - | LTS: `total_increasing` |
-| WAN2 Today Upload | `wan2_today_tx` | Sensor | B | - | LTS: `total_increasing` |
-| WAN2 Uptime Duration | `wan2_uptime` | Sensor | s | Diagnostic | **Disabled by default.** |
-| Internet Online Since | `www_boot_time` | Sensor | - | Diagnostic | - |
-| Internet Drops | `www_drops` | Sensor | - | Diagnostic | LTS: `measurement` |
-| Internet Latency | `www_latency` | Sensor | ms | Diagnostic | LTS: `measurement` |
-| Internet Uptime Duration | `www_uptime` | Sensor | s | Diagnostic | **Disabled by default.** |
+| Name | Key | Type | Unit | Category | Notes | About |
+| :-- | :-- | :-- | :-- | :-- | :-- | :-- |
+| Internet Connected | `internet` | Binary Sensor | - | Diagnostic | - | — |
+| WAN1 Active Uplink | `wan1_active` | Binary Sensor | - | Diagnostic | - | ✔ |
+| WAN1 Link Connected | `wan1_up` | Binary Sensor | - | Diagnostic | - | — |
+| WAN2 Active Uplink | `wan2_active` | Binary Sensor | - | Diagnostic | - | ✔ |
+| WAN2 Link Connected | `wan2_up` | Binary Sensor | - | Diagnostic | - | — |
+| Internet OK | `www_ok` | Binary Sensor | - | Diagnostic | **Disabled by default.** | — |
+| Month Total | `month_total` | Sensor | B | - | LTS: `total_increasing` | ✔ |
+| Uplink ISP | `uplink_isp` | Sensor | - | Diagnostic | - | ✔ |
+| WAN1 Availability | `wan1_availability` | Sensor | % | Diagnostic | - | ✔ |
+| WAN1 Last Restart | `wan1_boot_time` | Sensor | - | Diagnostic | - | ✔ |
+| WAN1 Name | `wan1_interface_name` | Sensor | - | Diagnostic | - | ✔ |
+| WAN1 ISP | `wan1_isp` | Sensor | - | Diagnostic | - | ✔ |
+| WAN1 Latency | `wan1_latency_avg` | Sensor | ms | Diagnostic | LTS: `measurement` | ✔ |
+| WAN1 Local IP Address | `wan1_local_ip` | Sensor | - | Diagnostic | - | ✔ |
+| WAN1 Projected Usage | `wan1_month_projected` | Sensor | B | - | - | ✔ |
+| WAN1 Month Download | `wan1_month_rx` | Sensor | B | - | LTS: `total_increasing` | — |
+| WAN1 Month Total | `wan1_month_total` | Sensor | B | - | LTS: `total_increasing` | ✔ |
+| WAN1 Month Upload | `wan1_month_tx` | Sensor | B | - | LTS: `total_increasing` | — |
+| WAN1 Public IP Address | `wan1_public_ip` | Sensor | - | Diagnostic | - | ✔ |
+| WAN1 Public IPv6 Address | `wan1_public_ipv6` | Sensor | - | Diagnostic | Data may not be available in all configurations. | ✔ |
+| WAN1 Today Download | `wan1_today_rx` | Sensor | B | - | LTS: `total_increasing` | — |
+| WAN1 Today Total | `wan1_today_total` | Sensor | B | - | LTS: `total_increasing` | ✔ |
+| WAN1 Today Upload | `wan1_today_tx` | Sensor | B | - | LTS: `total_increasing` | — |
+| WAN1 Uptime Duration | `wan1_uptime` | Sensor | s | Diagnostic | **Disabled by default.** | ✔ |
+| WAN2 Availability | `wan2_availability` | Sensor | % | Diagnostic | - | ✔ |
+| WAN2 Last Restart | `wan2_boot_time` | Sensor | - | Diagnostic | - | — |
+| WAN2 Name | `wan2_interface_name` | Sensor | - | Diagnostic | - | — |
+| WAN2 ISP | `wan2_isp` | Sensor | - | Diagnostic | - | ✔ |
+| WAN2 Latency | `wan2_latency_avg` | Sensor | ms | Diagnostic | LTS: `measurement` | ✔ |
+| WAN2 Local IP Address | `wan2_local_ip` | Sensor | - | Diagnostic | - | — |
+| WAN2 Projected Usage | `wan2_month_projected` | Sensor | B | - | - | ✔ |
+| WAN2 Month Download | `wan2_month_rx` | Sensor | B | - | LTS: `total_increasing` | — |
+| WAN2 Month Total | `wan2_month_total` | Sensor | B | - | LTS: `total_increasing` | — |
+| WAN2 Month Upload | `wan2_month_tx` | Sensor | B | - | LTS: `total_increasing` | — |
+| WAN2 Public IP Address | `wan2_public_ip` | Sensor | - | Diagnostic | - | — |
+| WAN2 Public IPv6 Address | `wan2_public_ipv6` | Sensor | - | Diagnostic | Data may not be available in all configurations. | ✔ |
+| WAN2 Today Download | `wan2_today_rx` | Sensor | B | - | LTS: `total_increasing` | — |
+| WAN2 Today Total | `wan2_today_total` | Sensor | B | - | LTS: `total_increasing` | — |
+| WAN2 Today Upload | `wan2_today_tx` | Sensor | B | - | LTS: `total_increasing` | — |
+| WAN2 Uptime Duration | `wan2_uptime` | Sensor | s | Diagnostic | **Disabled by default.** | — |
+| Internet Online Since | `www_boot_time` | Sensor | - | Diagnostic | - | — |
+| Internet Drops | `www_drops` | Sensor | - | Diagnostic | LTS: `measurement` | ✔ |
+| Internet Latency | `www_latency` | Sensor | ms | Diagnostic | LTS: `measurement` | ✔ |
+| Internet Uptime Duration | `www_uptime` | Sensor | s | Diagnostic | **Disabled by default.** | — |
 
 ## Security Sub-Device (13 Entities)
 
-| Name | Key | Type | Unit | Category | Notes |
-| :-- | :-- | :-- | :-- | :-- | :-- |
-| Ad Blocking | `ad_blocking` | Binary Sensor | - | Diagnostic | - |
-| Honeypot | `honeypot` | Binary Sensor | - | Diagnostic | - |
-| Threat Management Mode | `ips_mode` | Sensor | - | Diagnostic | - |
-| Rogue Access Points | `rogue_ap_count` | Sensor | - | - | LTS: `measurement` |
-| Rogue APs New 24h | `rogue_new_24h` | Sensor | - | - | LTS: `measurement` |
-| Rogue APs All 24h | `rogue_raw_24h` | Sensor | - | Diagnostic | LTS: `measurement` |
-| Rules Active | `rules_active` | Sensor | - | - | LTS: `measurement` |
-| Rules Configured | `rules_configured` | Sensor | - | Diagnostic | - |
-| Rules Disabled | `rules_disabled` | Sensor | - | - | LTS: `measurement` |
-| Strongest Rogue RSSI | `strongest_rogue_rssi` | Sensor | dBm | - | LTS: `measurement` |
-| Strongest Rogue SSID | `strongest_rogue_ssid` | Sensor | - | - | - |
-| VPN Connections Active | `vpn_connections_active` | Sensor | - | - | LTS: `measurement` |
-| VPN Connections Total | `vpn_connections_total` | Sensor | - | Diagnostic | - |
+| Name | Key | Type | Unit | Category | Notes | About |
+| :-- | :-- | :-- | :-- | :-- | :-- | :-- |
+| Ad Blocking | `ad_blocking` | Binary Sensor | - | Diagnostic | - | — |
+| Honeypot | `honeypot` | Binary Sensor | - | Diagnostic | - | — |
+| Threat Management Mode | `ips_mode` | Sensor | - | Diagnostic | - | — |
+| Rogue Access Points | `rogue_ap_count` | Sensor | - | - | LTS: `measurement` | ✔ |
+| Rogue APs New 24h | `rogue_new_24h` | Sensor | - | - | LTS: `measurement` | ✔ |
+| Rogue APs All 24h | `rogue_raw_24h` | Sensor | - | Diagnostic | LTS: `measurement` | ✔ |
+| Rules Active | `rules_active` | Sensor | - | - | LTS: `measurement` | — |
+| Rules Configured | `rules_configured` | Sensor | - | Diagnostic | - | — |
+| Rules Disabled | `rules_disabled` | Sensor | - | - | LTS: `measurement` | — |
+| Strongest Rogue RSSI | `strongest_rogue_rssi` | Sensor | dBm | - | LTS: `measurement` Data may not be available in all configurations. | ✔ |
+| Strongest Rogue SSID | `strongest_rogue_ssid` | Sensor | - | - | - | ✔ |
+| VPN Connections Active | `vpn_connections_active` | Sensor | - | - | LTS: `measurement` | — |
+| VPN Connections Total | `vpn_connections_total` | Sensor | - | Diagnostic | - | — |
 
 ## Speedtest Sub-Device (12 Entities)
 
-| Name | Key | Type | Unit | Category | Notes |
-| :-- | :-- | :-- | :-- | :-- | :-- |
-| Last Run Problem | `speedtest_pass` | Binary Sensor | - | Diagnostic | - |
-| WAN1 Download | `wan1_speedtest_download` | Sensor | Mbit/s | - | LTS: `measurement` |
-| WAN1 Last Run | `wan1_speedtest_lastrun` | Sensor | - | Diagnostic | - |
-| WAN1 Ping | `wan1_speedtest_ping` | Sensor | ms | Diagnostic | LTS: `measurement` |
-| WAN1 Upload | `wan1_speedtest_upload` | Sensor | Mbit/s | - | LTS: `measurement` |
-| WAN1 Monitoring Period | `wan1_time_period` | Sensor | s | Diagnostic | - |
-| WAN2 Download | `wan2_speedtest_download` | Sensor | Mbit/s | - | LTS: `measurement` |
-| WAN2 Last Run | `wan2_speedtest_lastrun` | Sensor | - | Diagnostic | - |
-| WAN2 Ping | `wan2_speedtest_ping` | Sensor | ms | Diagnostic | LTS: `measurement` |
-| WAN2 Upload | `wan2_speedtest_upload` | Sensor | Mbit/s | - | LTS: `measurement` |
-| WAN2 Monitoring Period | `wan2_time_period` | Sensor | s | Diagnostic | - |
-| Last Run Status | `www_speedtest_status` | Sensor | - | Diagnostic | - |
+| Name | Key | Type | Unit | Category | Notes | About |
+| :-- | :-- | :-- | :-- | :-- | :-- | :-- |
+| Last Run Problem | `speedtest_pass` | Binary Sensor | - | Diagnostic | - | — |
+| WAN1 Download | `wan1_speedtest_download` | Sensor | Mbit/s | - | LTS: `measurement` | ✔ |
+| WAN1 Last Run | `wan1_speedtest_lastrun` | Sensor | - | Diagnostic | - | ✔ |
+| WAN1 Ping | `wan1_speedtest_ping` | Sensor | ms | Diagnostic | LTS: `measurement` | ✔ |
+| WAN1 Upload | `wan1_speedtest_upload` | Sensor | Mbit/s | - | LTS: `measurement` | ✔ |
+| WAN1 Monitoring Period | `wan1_time_period` | Sensor | s | Diagnostic | - | — |
+| WAN2 Download | `wan2_speedtest_download` | Sensor | Mbit/s | - | LTS: `measurement` | — |
+| WAN2 Last Run | `wan2_speedtest_lastrun` | Sensor | - | Diagnostic | - | — |
+| WAN2 Ping | `wan2_speedtest_ping` | Sensor | ms | Diagnostic | LTS: `measurement` | — |
+| WAN2 Upload | `wan2_speedtest_upload` | Sensor | Mbit/s | - | LTS: `measurement` | — |
+| WAN2 Monitoring Period | `wan2_time_period` | Sensor | s | Diagnostic | - | — |
+| Last Run Status | `www_speedtest_status` | Sensor | - | Diagnostic | - | — |
 
 ## Status Sub-Device (22 Entities)
 
-| Name | Key | Type | Unit | Category | Notes |
-| :-- | :-- | :-- | :-- | :-- | :-- |
-| Network Problem | `all_ok` | Binary Sensor | - | Diagnostic | - |
-| LAN OK | `lan_ok` | Binary Sensor | - | Diagnostic | **Disabled by default.** |
-| VPN Tunnel Status | `vpn_tunnel_name` | Binary Sensor | - | Diagnostic | - |
-| WAN OK | `wan_ok` | Binary Sensor | - | Diagnostic | **Disabled by default.** |
-| WiFi Status | `wifi_ssid` | Binary Sensor | - | Diagnostic | - |
-| WiFi OK | `wlan_ok` | Binary Sensor | - | Diagnostic | **Disabled by default.** |
-| Configured VLANs | `configured_vlans` | Sensor | - | Diagnostic | **Disabled by default.** |
-| Guest Users | `guest_user_count` | Sensor | - | Diagnostic | **Disabled by default.** LTS: `measurement` |
-| Adopted Devices | `lan_num_adopted` | Sensor | - | Diagnostic | **Disabled by default.** |
-| LAN IoT Devices | `lan_num_iot` | Sensor | - | Diagnostic | **Disabled by default.** |
-| Switches | `lan_num_sw` | Sensor | - | Diagnostic | **Disabled by default.** |
-| Wired Devices | `lan_num_user` | Sensor | - | - | LTS: `measurement` |
-| VLANs Active | `vlans_active` | Sensor | - | - | LTS: `measurement` |
-| VLANs Total | `vlans_total` | Sensor | - | Diagnostic | - |
-| VPN Status | `vpn_status` | Sensor | - | Diagnostic | **Disabled by default.** |
-| Total Devices | `wan_num_sta` | Sensor | - | - | LTS: `measurement` |
-| WiFi Networks Active | `wifi_networks_active` | Sensor | - | - | LTS: `measurement` |
-| WiFi Networks Total | `wifi_networks_total` | Sensor | - | Diagnostic | - |
-| Access Points | `wlan_num_ap` | Sensor | - | Diagnostic | **Disabled by default.** |
-| WiFi Guests | `wlan_num_guest` | Sensor | - | - | LTS: `measurement` |
-| WiFi IoT Devices | `wlan_num_iot` | Sensor | - | Diagnostic | **Disabled by default.** |
-| WiFi Devices | `wlan_num_user` | Sensor | - | - | LTS: `measurement` |
+| Name | Key | Type | Unit | Category | Notes | About |
+| :-- | :-- | :-- | :-- | :-- | :-- | :-- |
+| Network Problem | `all_ok` | Binary Sensor | - | Diagnostic | - | — |
+| LAN OK | `lan_ok` | Binary Sensor | - | Diagnostic | **Disabled by default.** | — |
+| VPN Tunnel Status | `vpn_tunnel_name` | Binary Sensor | - | Diagnostic | - | — |
+| WAN OK | `wan_ok` | Binary Sensor | - | Diagnostic | **Disabled by default.** | — |
+| WiFi Status | `wifi_ssid` | Binary Sensor | - | Diagnostic | - | — |
+| WiFi OK | `wlan_ok` | Binary Sensor | - | Diagnostic | **Disabled by default.** | — |
+| Configured VLANs | `configured_vlans` | Sensor | - | Diagnostic | **Disabled by default.** | — |
+| Guest Users | `guest_user_count` | Sensor | - | Diagnostic | **Disabled by default.** LTS: `measurement` | ✔ |
+| Adopted Devices | `lan_num_adopted` | Sensor | - | Diagnostic | **Disabled by default.** | — |
+| LAN IoT Devices | `lan_num_iot` | Sensor | - | Diagnostic | **Disabled by default.** | — |
+| Switches | `lan_num_sw` | Sensor | - | Diagnostic | **Disabled by default.** | — |
+| Wired Devices | `lan_num_user` | Sensor | - | - | LTS: `measurement` | — |
+| VLANs Active | `vlans_active` | Sensor | - | - | LTS: `measurement` | ✔ |
+| VLANs Total | `vlans_total` | Sensor | - | Diagnostic | - | — |
+| VPN Status | `vpn_status` | Sensor | - | Diagnostic | **Disabled by default.** Data may not be available in all configurations. | — |
+| Total Devices | `wan_num_sta` | Sensor | - | - | LTS: `measurement` | — |
+| WiFi Networks Active | `wifi_networks_active` | Sensor | - | - | LTS: `measurement` | ✔ |
+| WiFi Networks Total | `wifi_networks_total` | Sensor | - | Diagnostic | - | — |
+| Access Points | `wlan_num_ap` | Sensor | - | Diagnostic | **Disabled by default.** | — |
+| WiFi Guests | `wlan_num_guest` | Sensor | - | - | LTS: `measurement` | ✔ |
+| WiFi IoT Devices | `wlan_num_iot` | Sensor | - | Diagnostic | **Disabled by default.** | — |
+| WiFi Devices | `wlan_num_user` | Sensor | - | - | LTS: `measurement` | — |
 
-## System Sub-Device (18 Entities)
+## System Sub-Device (19 Entities)
 
-| Name | Key | Type | Unit | Category | Notes |
-| :-- | :-- | :-- | :-- | :-- | :-- |
-| Rogue AP Proximity Alert | `gateway_rogue_proximity_alert` | Binary Sensor | - | Diagnostic | - |
-| Integration Health | `integration_health` | Binary Sensor | - | Diagnostic | - |
-| Refresh Now | `refresh` | Button | - | Config | - |
-| WAN1 Run | `wan1_speedtest` | Button | - | - | - |
-| WAN2 Run | `wan2_speedtest` | Button | - | - | - |
-| Rogue Proximity Threshold | `rogue_proximity_rssi_threshold` | Number | dBm | Config | - |
-| Polling Interval | `scan_interval` | Number | s | Config | - |
-| WAN1 Load Balance Weight | `wan1_load_balance_weight` | Number | % | Config | - |
-| Rogue Detection Period | `rogue_period` | Select | - | Config | - |
-| Last Updated | `last_updated` | Sensor | - | Diagnostic | - |
-| WAN1 Load Balance | `wan1_weight` | Sensor | % | - | LTS: `measurement` |
-| WAN2 Load Balance | `wan2_weight` | Sensor | % | - | - |
-| Multi-WAN Mode | `wan_mode` | Sensor | - | Diagnostic | - |
-| Pause polling | `pause_polling` | Switch | - | Config | - |
-| Apply AP ignore list | `rogue_apply_ap_ignore` | Switch | - | Config | - |
-| Apply SSID ignore list | `rogue_apply_ssid_ignore` | Switch | - | Config | - |
-| Show 2.4 GHz rogues | `rogue_show_24ghz` | Switch | - | Config | - |
-| Show 5 GHz rogues | `rogue_show_5ghz` | Switch | - | Config | - |
+| Name | Key | Type | Unit | Category | Notes | About |
+| :-- | :-- | :-- | :-- | :-- | :-- | :-- |
+| Rogue AP Proximity Alert | `gateway_rogue_proximity_alert` | Binary Sensor | - | Diagnostic | - | ✔ |
+| Integration Health | `integration_health` | Binary Sensor | - | Diagnostic | - | ✔ |
+| Clean Up Unused Entities | `cleanup_unused_entities` | Button | - | Config | - | — |
+| Refresh Now | `refresh` | Button | - | Config | - | ✔ |
+| WAN1 Run | `wan1_speedtest` | Button | - | - | - | ✔ |
+| WAN2 Run | `wan2_speedtest` | Button | - | - | - | ✔ |
+| Rogue Proximity Threshold | `rogue_proximity_rssi_threshold` | Number | dBm | Config | - | ✔ |
+| Polling Interval | `scan_interval` | Number | s | Config | - | — |
+| WAN1 Load Balance Weight | `wan1_load_balance_weight` | Number | % | Config | - | ✔ |
+| Rogue Detection Period | `rogue_period` | Select | - | Config | - | ✔ |
+| Last Updated | `last_updated` | Sensor | - | Diagnostic | - | ✔ |
+| WAN1 Load Balance | `wan1_weight` | Sensor | % | - | LTS: `measurement` | — |
+| WAN2 Load Balance | `wan2_weight` | Sensor | % | - | - | — |
+| Multi-WAN Mode | `wan_mode` | Sensor | - | Diagnostic | - | ✔ |
+| Pause polling | `pause_polling` | Switch | - | Config | - | ✔ |
+| Apply AP ignore list | `rogue_apply_ap_ignore` | Switch | - | Config | - | ✔ |
+| Apply SSID ignore list | `rogue_apply_ssid_ignore` | Switch | - | Config | - | ✔ |
+| Show 2.4 GHz rogues | `rogue_show_24ghz` | Switch | - | Config | - | ✔ |
+| Show 5 GHz rogues | `rogue_show_5ghz` | Switch | - | Config | - | ✔ |
 
 <!-- GENERATED:end -->
+
+## Services (7 Actions)
+
+| Name | Key | Type | Unit | Category | Notes |
+| :-- | :-- | :-- | :-- | :-- | :-- |
+| Add rogue ignore | `add_rogue_ignore` | Service | — | — | — |
+| Clean up unused entities | `cleanup_unused_entities` | Service | — | — | — |
+| Clear rogue history | `clear_rogue_history` | Service | — | — | — |
+| Get alerts | `get_alerts` | Service | — | — | — |
+| Get rogue APs | `get_rogue_aps` | Service | — | — | — |
+| Remove rogue ignore | `remove_rogue_ignore` | Service | — | — | — |
+| Set rogue ignore | `set_rogue_ignore` | Service | — | — | — |
 
 <!-- GENERATED:per-device:start -->
 
