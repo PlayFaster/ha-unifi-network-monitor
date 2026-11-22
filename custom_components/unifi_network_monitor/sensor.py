@@ -699,9 +699,9 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         device_key="security",
         about=(
             "Count of rogue BSSIDs first seen by Home Assistant within the last "
-            "24 hours — brand-new neighbours/devices, distinct from long-standing "
+            "24 hours — brand-new neighbors/devices, distinct from long-standing "
             "ones. Tracked across restarts. Note: on first enable everything "
-            "counts as new for the first 24h, and BSSID-randomising devices "
+            "counts as new for the first 24h, and BSSID-randomizing devices "
             "appear new on each rotation."
         ),
     ),
@@ -796,7 +796,7 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         value_fn=lambda d: d.get("wan1_speedtest_download"),
         about=(
             "Download speed from the last speedtest UniFi ran — not a live "
-            "measurement. Check WAN1 Speedtest Last Run before acting on it; a "
+            "measurement. Check WAN1 Last Run before acting on it; a "
             "figure hours old says nothing about now."
         ),
         device_key="speedtest",
@@ -811,8 +811,8 @@ GATEWAY_SENSORS: Final[tuple[UnifiSensorEntityDescription, ...]] = (
         min_limit=0.0,
         value_fn=lambda d: d.get("wan1_speedtest_upload"),
         about=(
-            "Upload speed from the same run as WAN1 Speedtest Download. Both "
-            "are as old as WAN1 Speedtest Last Run."
+            "Upload speed from the same run as WAN1 Download. Both "
+            "are as old as WAN1 Last Run."
         ),
         device_key="speedtest",
     ),

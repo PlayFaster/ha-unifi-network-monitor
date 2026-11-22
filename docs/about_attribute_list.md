@@ -14,7 +14,7 @@ Most entities in this integration carry a short built-in **`about`** note — a 
 
 The `about` attribute is a plain-language note attached to key entities to provide context or instructions to the user directly in the Home Assistant More Info dialog. They are stored directly in the state machine as entity attributes and do not write to long-term statistics or DB storage.
 
-**42 of the 141 static base entities carry a note.** Self-explanatory entities deliberately do not carry notes, as a note on every entity trains users to ignore them. Omissions are listed at the end.
+**57 of the 131 static base entities carry a note.** Self-explanatory entities deliberately do not carry notes, as a note on every entity trains users to ignore them. Omissions are listed at the end.
 
 ᴰ = **disabled by default.** Enable it from the entity's settings if you want it; it is hidden to keep the default entity list manageable.
 
@@ -71,7 +71,7 @@ The `about` attribute is a plain-language note attached to key entities to provi
 | Entity | Platform | Key | Note |
 | :-- | :-- | :-- | :-- |
 | Rogue Access Points | Sensor | `rogue_ap_count` | Filtered count of unique rogue APs after your band, SSID and UniFi AP ignore settings are applied. See 'Rogue APs All 24h' for unfiltered volume. |
-| Rogue APs New 24h | Sensor | `rogue_new_24h` | Count of rogue BSSIDs first seen by Home Assistant within the last 24 hours — brand-new neighbours/devices, distinct from long-standing ones. Tracked across restarts. Note: on first enable everything counts as new for the first 24h, and BSSID-randomising devices appear new on each rotation. |
+| Rogue APs New 24h | Sensor | `rogue_new_24h` | Count of rogue BSSIDs first seen by Home Assistant within the last 24 hours — brand-new neighbors/devices, distinct from long-standing ones. Tracked across restarts. Note: on first enable everything counts as new for the first 24h, and BSSID-randomizing devices appear new on each rotation. |
 | Rogue APs All 24h | Sensor | `rogue_raw_24h` | Raw total rogue detections over a rolling 24-hour window, unaffected by any settings or ignore lists. Counts every detection by every UniFi AP — a gauge of background rogue noise/coverage, not unique rogues. |
 | Strongest Rogue RSSI | Sensor | `strongest_rogue_rssi` | Signal (dBm) of the strongest rogue AP among those left after your inclusion/exclusion settings. |
 | Strongest Rogue SSID | Sensor | `strongest_rogue_ssid` | SSID of the strongest rogue AP after your inclusion/exclusion settings. Full list via the Get Rogue APs action. |
@@ -80,10 +80,10 @@ The `about` attribute is a plain-language note attached to key entities to provi
 
 | Entity | Platform | Key | Note |
 | :-- | :-- | :-- | :-- |
-| WAN1 Download | Sensor | `wan1_speedtest_download` | Download speed from the last speedtest UniFi ran — not a live measurement. Check WAN1 Speedtest Last Run before acting on it; a figure hours old says nothing about now. |
+| WAN1 Download | Sensor | `wan1_speedtest_download` | Download speed from the last speedtest UniFi ran — not a live measurement. Check WAN1 Last Run before acting on it; a figure hours old says nothing about now. |
 | WAN1 Last Run | Sensor | `wan1_speedtest_lastrun` | When the last WAN1 speedtest completed. This is what makes the other speedtest sensors interpretable — a stale run is the usual explanation for a figure that looks wrong. |
 | WAN1 Ping | Sensor | `wan1_speedtest_ping` | Latency recorded during the speedtest, under load. Usually higher than Internet Latency, which is measured on an idle link. |
-| WAN1 Upload | Sensor | `wan1_speedtest_upload` | Upload speed from the same run as WAN1 Speedtest Download. Both are as old as WAN1 Speedtest Last Run. |
+| WAN1 Upload | Sensor | `wan1_speedtest_upload` | Upload speed from the same run as WAN1 Download. Both are as old as WAN1 Last Run. |
 
 ## Status (4)
 

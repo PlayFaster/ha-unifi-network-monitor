@@ -17,6 +17,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: UniFi Network Monitor](#internal-detailed-changelog-unifi-network-monitor)
+  - [\[1.1.2-dev6\] - 2026-11-22 - About Notes Review, Shared Workflow Sync, and Complexity Scorecard](#112-dev6---2026-11-22---about-notes-review-shared-workflow-sync-and-complexity-scorecard)
   - [\[1.1.2-dev5\] - 2026-11-22 - CI Bump ruff hypothesis](#112-dev5---2026-11-22---ci-bump-ruff-hypothesis)
   - [\[1.1.2-dev4\] - 2026-11-20 - WAN Mode From Every WAN, ISP and IPv6 per WAN, Raw Key Inventory, and Network 11 Compatibility](#112-dev4---2026-11-20---wan-mode-from-every-wan-isp-and-ipv6-per-wan-raw-key-inventory-and-network-11-compatibility)
   - [\[1.1.2-dev3\] - 2026-11-19 - Network 11 Statistics Engine, Missing Values as Unknown, Empty-Source Health, and Guard-Band Suppression](#112-dev3---2026-11-19---network-11-statistics-engine-missing-values-as-unknown-empty-source-health-and-guard-band-suppression)
@@ -64,6 +65,32 @@ All changes to this project will be documented in this file. This is the detaile
   - [Document Audit Status](#document-audit-status)
 
 ---
+
+## [1.1.2-dev6] - 2026-11-22 - About Notes Review, Shared Workflow Sync, and Complexity Scorecard
+
+### Summary
+
+Audits all 57 entity `about` notes under `about_notes_review.md` (`sensor.py` and `docs/about_attribute_list.md`), syncs shared `.github` workflows to `v2.0.21` and `.validate/pyproject_common.toml`, and regenerates the `1.1.2-dev6` complexity scorecard.
+
+### Fixed
+
+- **Rogue APs New 24h (`sensor.py:700-706`)**: Replaced UK spellings `neighbours` and `BSSID-randomising` with `neighbors` and `BSSID-randomizing` in `rogue_new_24h` `about` text.
+- **Speedtest Entity Cross-References (`sensor.py:797-801`, `:813-816`)**: Updated `wan1_speedtest_download` and `wan1_speedtest_upload` `about` notes to reference the displayed entity names `WAN1 Last Run` and `WAN1 Download` (`strings.json:262-272`) instead of `WAN1 Speedtest Last Run` and `WAN1 Speedtest Download`.
+
+### Bumps
+
+- **CI Bump**: Update shared `.github` reusable workflows (`.github/workflows/codeql.yml`, `.github/workflows/release.yaml`, `.github/workflows/validate.yaml`) from `v2.0.19` (`0c410f3b`) to `v2.0.21` (`377ce919`).
+- **Validate Bump**: Align `.validate/pyproject_common.toml` `required-version` from `>=0.17.5` to `>=0.17.4`.
+
+### Documentation
+
+- **About Attribute List (`docs/about_attribute_list.md`)**: Synchronized generated `about` notes and `sensor_manifest_latest.json` via `check_sensor_manifest.py --sync-docs`, and updated the intro count (`57 of the 131 static base entities carry a note.`).
+- **Complexity Scorecard (`docs/project_complexity.md`)**: Regenerated complexity and health scorecard for `1.1.2-dev6` (`Pytest Duration` `332.96s`).
+- **Audit Report (`.notes/sensors_states/about_notes_review_20261122_1931.md`)**: Recorded findings across all 57 entity notes (`54` clean, `3` updated).
+
+### Verified
+
+- **Validation (`unifi-netw-monitor-dev`)**: `Fix All Fast` passed (`19 step(s), 0 failed`), including `Sensor Manifest: PASSED` (`131` entities, `57/131` about notes), `Ruff Format Fix`, `Ruff Lint Fix`, `Markdown Lint Fix`, `Codespell Fix`, and `Queue Format: PASSED`.
 
 ## [1.1.2-dev5] - 2026-11-22 - CI Bump ruff hypothesis
 
