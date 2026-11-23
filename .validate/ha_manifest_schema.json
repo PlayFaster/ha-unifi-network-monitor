@@ -1,6 +1,21 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "additionalProperties": true,
+  "dependencies": {
+    "lorawan": {
+      "properties": {
+        "config_flow": {
+          "const": true
+        },
+        "dependencies": {
+          "contains": {
+            "const": "lorawan"
+          }
+        }
+      },
+      "required": ["config_flow", "dependencies"]
+    }
+  },
   "description": "Validation for Home Assistant integration manifest.json files.",
   "properties": {
     "after_dependencies": {
@@ -17,6 +32,17 @@
       },
       "type": "array"
     },
+    "categories": {
+      "description": "Categories of the integration, primary first (for example `energy` or `energy.ev_charging`). hassfest only warns a custom integration about an unknown category; the HACS action rejects categories missing from its own list.",
+      "items": {
+        "pattern": "^[a-z0-9_]+(\\.[a-z0-9_]+)?$",
+        "type": "string"
+      },
+      "maxItems": 3,
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
     "codeowners": {
       "description": "GitHub usernames of the maintainers.",
       "items": {
@@ -28,6 +54,16 @@
     "config_flow": {
       "description": "Whether the integration uses a UI-based configuration flow.",
       "type": "boolean"
+    },
+    "connectivity": {
+      "description": "How the integration connects to its devices or services (for example `zigbee` or `cloud`). hassfest only warns a custom integration about an unknown value.",
+      "items": {
+        "pattern": "^[a-z0-9_]+$",
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
     },
     "dependencies": {
       "description": "Other integrations that must be loaded first.",
@@ -118,6 +154,35 @@
         "type": "string"
       },
       "type": "array"
+    },
+    "lorawan": {
+      "description": "LoRaWAN matchers: each is a pair of the network server stack and the brand ID it uses for the vendor. Requires `config_flow` to be true and `lorawan` in `dependencies`.",
+      "items": {
+        "additionalItems": false,
+        "items": [
+          {
+            "minLength": 1,
+            "type": "string"
+          },
+          {
+            "oneOf": [
+              {
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "minLength": 1,
+                "type": "string"
+              }
+            ]
+          }
+        ],
+        "minItems": 2,
+        "type": "array"
+      },
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
     },
     "mqtt": {
       "description": "MQTT discovery topics.",

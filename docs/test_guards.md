@@ -64,9 +64,9 @@ Never seed it from stored options — not as `default` and not as `suggested_val
 
 ### A new write command in `api.py`
 
-**Tests:** `test_every_write_is_classified`, `test_every_entry_carries_a_written_reason`
+**Tests:** `test_every_write_is_classified`, `test_every_entry_carries_a_written_reason`, `test_a_refused_write_raises`, `test_every_write_is_in_the_refusal_sweep`, `test_every_write_is_annotated_to_return_none`, `test_no_write_contains_a_bare_return_of_a_value`
 
-Add it to `scripts/write_classification.py` as `SAFE`, `ATTENDED` or `NEVER_AUTOMATED`, **with a written reason**. Classify it `SAFE` and `test_every_safe_write_is_exercised_by_the_hardware_check` additionally requires `scripts/hardware_check.py` to actually send it. The detector keys on the **endpoint, not the verb** — this controller answers queries with `POST`, so five read methods would otherwise be reported as writes.
+Add it to `scripts/write_classification.py` as `SAFE`, `ATTENDED` or `NEVER_AUTOMATED`, **with a written reason**. Classify it `SAFE` and `test_every_safe_write_is_exercised_by_the_hardware_check` additionally requires `scripts/hardware_check.py` to actually send it. The detector keys on the **endpoint, not the verb** — this controller answers queries with `POST`, so five read methods would otherwise be reported as writes. `tests/test_write_refusal.py` additionally enforces that every public write returns `None`, raises `UnifiConnectionError` on HTTP errors and HTTP `200` `meta.rc == "error"`, and stays covered in `_CALLS`.
 
 ### A new repair issue
 

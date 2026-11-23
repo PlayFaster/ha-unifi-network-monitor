@@ -6,7 +6,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant.common import MockConfigEntry
 
 from custom_components.unifi_network_monitor.api import (
     UnifiAuthError,
@@ -1050,7 +1050,7 @@ async def test_options_flow_auth_required(hass: Any) -> None:
 @pytest.mark.usefixtures("socket_enabled")
 async def test_device_mode_selector_core_present(hass: Any) -> None:
     """_device_mode_selector includes satisfaction with core present."""
-    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from pytest_homeassistant.common import MockConfigEntry
 
     core_entry = MockConfigEntry(
         domain="unifi",
@@ -1092,7 +1092,7 @@ async def test_device_mode_selector_core_not_present(hass: Any) -> None:
 @pytest.mark.usefixtures("socket_enabled")
 async def test_options_flow_core_present(hass: Any) -> None:
     """Options includes satisfaction_only when core integration present."""
-    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from pytest_homeassistant.common import MockConfigEntry
 
     core_entry = MockConfigEntry(
         domain="unifi",

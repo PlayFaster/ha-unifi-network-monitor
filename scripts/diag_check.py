@@ -10,7 +10,8 @@ code that builds it (improve_diagnostics_on_bad_payload_data.md §5.6):
     with list positions ignored and a listed set of sections that legitimately
     come and go.
   * **Each block holds what a healthy run holds.** ``endpoints`` lists an outcome
-    for every endpoint; ``gateway`` carries a selection reason and the uptime and
+    for every endpoint, and the ``stat/device`` route carries its key inventory
+    (``system-stats`` among the names); ``gateway`` carries a selection reason and the uptime and
     timezone keys; ``last_rejection`` is present and ``null``; ``login`` is
     present, and empty in API-key mode, where ``login()`` never runs.
   * **Leak scan.** The controller's own client, device, WLAN, network, rogue and
@@ -43,16 +44,15 @@ import re
 import sys
 from typing import Any
 
+import aiohttp
+
 # Installs probatio as `voluptuous` before the package imports it (C-036).
 import homeassistant  # noqa: F401
 
 _PROJECT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_PROJECT))
 
-from custom_components.unifi_network_monitor.api import (  # noqa: E402
-    UnifiError,
-    UnifiNetworkAPI,
-)
+from custom_components.unifi_network_monitor.api import UnifiError, UnifiNetworkAPI  # noqa: E402
 from custom_components.unifi_network_monitor.const import DOMAIN  # noqa: E402
 
 # Colour is on unless `NO_COLOR` is set, matching the Huawei and ZTE scripts:
@@ -180,6 +180,13 @@ def block_problems(download: dict[str, Any], api_key_mode: bool) -> list[str]:
         for key in ("startup_timestamp", "controller_timezone", "published_boot_time")
         if key not in gateway
     )
+    routes = (download.get("endpoints") or {}).get("routes") or {}
+    for route, record in routes.items():
+        if not str(route).endswith("/stat/device"):
+            continue
+        keys = record.get("keys") if isinstance(record, dict) else None
+        if not isinstance(keys, list) or "system-stats" not in keys:
+            problems.append(f"endpoints.routes.{route} has no key inventory")
     if download.get("last_rejection") is not None:
         problems.append("last_rejection is set on a healthy run")
     if api_key_mode and download.get("login") is not None:
@@ -213,10 +220,20 @@ def leaves(value: Any, prefix: str = "") -> list[tuple[str, str]]:
     return out
 
 
+# A route's key inventory: ``endpoints.routes.<route>.keys[]``.
+_INVENTORY_PATH = re.compile(r"\.routes\.[^\[]*\.keys\[\]$")
+
+
 def leak_hits(
     download: dict[str, Any], secrets: dict[str, set[str]]
 ) -> dict[str, list[str]]:
-    """Return, per category, the paths where a listed value appears as a word."""
+    """Return, per category, the paths where a listed value appears as a word.
+
+    Matching ignores case, except in a route's key inventory: that lists the
+    controller's own field names, which are lower case, and a network or SSID
+    named like a field (``Guest`` beside ``guest``) is not a leak there. A map
+    keyed by a real name keeps the name's own case, so it is still found.
+    """
     found: dict[str, list[str]] = {}
     strings = leaves(download)
     patterns = [
@@ -226,8 +243,10 @@ def leak_hits(
         if len(value) >= _MIN_VALUE_LEN
     ]
     for category, pattern in patterns:
+        exact = re.compile(pattern.pattern)
         for path, text in strings:
-            if pattern.search(text):
+            matcher = exact if _INVENTORY_PATH.search(path) else pattern
+            if matcher.search(text):
                 found.setdefault(category, []).append(_mask(path, patterns))
     return found
 
@@ -350,8 +369,6 @@ async def _download(session: Any, token: str) -> dict[str, Any]:
 
 
 async def _main() -> int:
-    import aiohttp
-
     options = _load_options()
     token = _TOKEN.read_text(encoding="utf-8").strip()
     api_key = (options.get("api_key") or "").strip() or None

@@ -2,7 +2,7 @@
 
 # UniFi Network Monitor for Home Assistant
 
-[![HACS Integration](https://img.shields.io/badge/HACS-Integration-orange.svg)](https://hacs.xyz/) [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5?logo=homeassistant&logoColor=white)](https://hacs.xyz/docs/faq/custom_repositories) [![Latest Release](https://img.shields.io/github/v/release/PlayFaster/ha-unifi-network-monitor?label=Release&logo=github)](https://github.com/PlayFaster/ha-unifi-network-monitor/releases) [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0) [![Validate](https://github.com/PlayFaster/ha-unifi-network-monitor/actions/workflows/validate.yaml/badge.svg)](https://github.com/PlayFaster/ha-unifi-network-monitor/actions/workflows/validate.yaml) ![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/PlayFaster/a26a356246076e5172fc9342fb019361/raw/coverage.json) [![Last Commit](https://img.shields.io/github/last-commit/PlayFaster/ha-unifi-network-monitor?label=Last%20commit)](https://github.com/PlayFaster/ha-unifi-network-monitor/commits/main)
+[![Marketplace Integration](https://img.shields.io/badge/Marketplace-Integration-orange.svg)](https://hacs.xyz/) [![Marketplace Custom](https://img.shields.io/badge/Marketplace-Custom-41BDF5?logo=home-assistant&logoColor=white)](https://www.home-assistant.io/integrations/marketplace/#custom-repositories) [![Latest Release](https://img.shields.io/github/v/release/PlayFaster/ha-unifi-network-monitor?label=Release&logo=github)](https://github.com/PlayFaster/ha-unifi-network-monitor/releases) [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0) [![Validate](https://github.com/PlayFaster/ha-unifi-network-monitor/actions/workflows/validate.yaml/badge.svg)](https://github.com/PlayFaster/ha-unifi-network-monitor/actions/workflows/validate.yaml) ![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/PlayFaster/a26a356246076e5172fc9342fb019361/raw/coverage.json) [![Last Commit](https://img.shields.io/github/last-commit/PlayFaster/ha-unifi-network-monitor?label=Last%20commit)](https://github.com/PlayFaster/ha-unifi-network-monitor/commits/main)
 
 ---
 
@@ -57,12 +57,13 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
   - [📝 Maintenance Status](#-maintenance-status)
   - [🤝 Contributors \& Acknowledgements](#-contributors--acknowledgements)
   - [📄 License](#-license)
+  - [🧩 Other Home Assistant Projects by PlayFaster](#-other-home-assistant-projects-by-playfaster)
 
 ## 🔧 Compatibility & Tested Devices
 
 **📟 Gateway Hardware:**
 
-- **Fully Tested**: **UDM Pro** - tested on **UniFi OS `5.1.19`** with **Network application `10.4`**.
+- **Fully Tested**: **UDM Pro** - tested on **UniFi OS `6.0.17`** with **Network application `11.0.99`** (UniFi Network 11), and previously on UniFi OS `5.1.19` with Network application `10.4`.
 - **Expected Compatible**: Other UniFi gateways running the Network application: the Dream Machine range (UDM, UDM-SE, UDM-Pro-Max), Cloud Gateways (UCG-Ultra, UCG-Max, UCG-Fiber), Dream Routers and Express (UDR, UDR7, UX, UX7), Enterprise Fortress Gateways, next-generation gateways (UXG) and Security Gateways (USG). These are untested.
 - **Gateway Detection**: The gateway is the device that reports WAN interface data; where several or none do, its UniFi device type and then its model decide, so a new gateway model is detected without an update. The gateway's device card shows the product name, or the model code where the model is not yet known.
 - **Single-WAN Gateways**: WAN2 Active and WAN2 Up report unknown, not off, on a gateway that has no second WAN, and the **Run WAN2 Speedtest** button reports that the gateway has no WAN2 port.
@@ -91,7 +92,9 @@ A Home Assistant integration to connect to your **Ubiquiti UniFi Network** via y
 - **WAN/dual-WAN & Internet Quality**: Monitor WAN1/WAN2 up/active status, latency, uptime, and the active routing interface; drive failover automations and dashboards. → [WAN Failover / Restore](#-wan-failover--restore-dual-wan), [Internet / WAN Down Alert](#-internet--wan-down-alert), and [High Internet / WAN Latency](#-high-internet--wan-latency) examples.
 - **Speedtest History**: Keep a per-WAN record of speedtests run directly from the gateway - download/upload/ping. Trigger on-demand tests from HA. → [Scheduled Speedtests](#-scheduled-speedtests) and [Trigger Diagnostic Speedtest](#-trigger-diagnostic-speedtest) examples.
 - **Network Security Awareness**: Detect nearby **rogue access points** and raise a **Proximity Alert** when an unknown AP is nearby (strong signal) - useful for spotting rogue/evil-twin APs or resetting smart home devices. → [Rogue AP Proximity Alert](#-rogue-ap-proximity-alert) and [New / Reset Smart-Home Device Nearby](#-new--reset-smart-home-device-nearby) examples.
-- **Load Balancing Status**: In multi-WAN mode, shows if operating in failover or load-balancing mode. If using load-balancing, shows the weighted percentages and allows changing them. Useful if one of your ISPs has variable performance. → [Optimize WAN Weight on High Latency](#-optimize-wan-weight-on-high-latency) example.
+- **Public IPv6 per WAN**: WAN1 Public IPv6 Address and WAN2 Public IPv6 Address show the first global IPv6 address the ISP assigned to each WAN; link-local and unique-local addresses are ignored, so a WAN without IPv6 reads `unknown`.
+- **ISP per WAN**: WAN1 ISP and WAN2 ISP name each WAN's provider as the gateway identifies it from that WAN's address, with the address block's registered owner (`isp_organization`) and `asn` as attributes. Uplink ISP names the provider of the WAN the gateway uses as its uplink: in failover, the WAN carrying traffic; under load balancing, the priority-1 WAN, although every WAN carries traffic. WAN1 Active Uplink and WAN2 Active Uplink follow the same rule.
+- **Load Balancing Status**: In multi-WAN mode, the Multi-WAN Mode sensor reads `failover` when any WAN is set to failover only and `load_balancing` when every WAN is weighted, with each WAN's type, failover priority and weight in its `wans` attribute; a single WAN keeps the controller's own value. If using load-balancing, shows the weighted percentages and allows changing them. Useful if one of your ISPs has variable performance. → [Optimize WAN Weight on High Latency](#-optimize-wan-weight-on-high-latency) example.
 - **Augment the Official Integration**: Runs well alongside the official HA UniFi Network integration to provide additional information. Also works without the official integration present and, optionally, can provide additional info on UniFi devices like Access Points and Switches.
 
 ## ✅ Features
@@ -191,12 +194,12 @@ Each sub-device appears as its own device card in Home Assistant, and entity IDs
 | :---------------------------- | :-------------: | :-------------: | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 🚨 **Alerts**                 |      4 / 4      |        —        | Last High Sev3, Last Very High Sev4, and High Sev3 / Very High Sev4 Qty Last 24h                                                                                                                                                                                         |
 | 🖥️ **Gateway**                |     11 / 18     |   **5 / 18**    | Storage (used/total/%), UniFi OS & Network application versions, WAN1/WAN2 SFP diagnostics (**plus** disabled with core) CPU, Memory, CPU Temperature, Board Temperature, Uptime, Update Available                                                                       |
-| 🌐 **Internet**               |     36 / 41     |        —        | WAN1/WAN2 active-uplink & link-up, Local/Public IPs, WAN names, availability, latency, last-restart/uptime, ISP name/org, daily/monthly data usage, and WAN1/WAN2 Projected Usage; plus Internet Connected / OK, drops, latency, online-since                            |
-| 🛡️ **Security**               |     20 / 20     |        —        | Rogue AP Count, Rogue APs New 24h, Strongest Rogue SSID/RSSI, Rogue APs All 24h, Proximity Alert (+ threshold), Rogue Detection Period, Show 2.4/5 GHz + Apply-ignore switches, Threat-Management mode, Ad-blocking, Honeypot, and VPN-connection & firewall-rule counts |
-| ⚡ **Speedtest**              |     14 / 14     |        —        | WAN1/WAN2 Download, Upload, Ping, Last Run, Monitoring Period, Last Run Status/Problem; Run WAN1/WAN2 Speedtest buttons                                                                                                                                                  |
-| 📊 **Status**                 |     12 / 23     |        —        | Device/guest/WiFi client counts, VLAN & WiFi-network counts, per-SSID status, and the aggregate Network Problem + per-subsystem OK sensors (WAN/Internet/WiFi/LAN)                                                                                                       |
-| ⚙️ **System**                 |     10 / 10     |        —        | Integration Health (self-diagnosis), Multi-WAN mode, WAN1/WAN2 Load Balance, Polling Interval, Pause Polling, WAN1 Load-Balance Weight, Refresh Now, Clean Up Unused Entities, Last Updated                                                                              |
-| **Base install totals**       |  **107 / 130**  |  **101 / 130**  | The six differing entities are the Gateway diagnostics listed below                                                                                                                                                                                                      |
+| 🌐 **Internet**               |     40 / 44     |        —        | WAN1/WAN2 active-uplink & link-up, Local/Public IPs, Public IPv6 Addresses, WAN names, availability, latency, last-restart/uptime, WAN1/WAN2 ISP and Uplink ISP, daily/monthly data usage, and WAN1/WAN2 Projected Usage; plus Internet Connected / OK, drops, latency, online-since                            |
+| 🛡️ **Security**               |     13 / 13     |        —        | Rogue AP Count, Rogue APs New 24h, Strongest Rogue SSID/RSSI, Rogue APs All 24h, Threat-Management mode, Ad-blocking, Honeypot, and VPN-connection & firewall-rule counts                                                                                                                            |
+| ⚡ **Speedtest**              |     12 / 12     |        —        | WAN1/WAN2 Download, Upload, Ping, Last Run, Monitoring Period, Last Run Status/Problem                                                                                                                                                                                                                   |
+| 📊 **Status**                 |     11 / 22     |        —        | Device/guest/WiFi client counts, VLAN & WiFi-network counts, per-SSID status, and the aggregate Network Problem + per-subsystem OK sensors (WAN/Internet/WiFi/LAN)                                                                                                       |
+| ⚙️ **System**                 |     19 / 19     |        —        | Integration Health (self-diagnosis), Multi-WAN mode, WAN1/WAN2 Load Balance, Polling Interval, Pause Polling, WAN1 Load-Balance Weight, Rogue Proximity Alert (+ threshold), Rogue Detection Period, Show 2.4/5 GHz + Apply-ignore switches, Run WAN1/WAN2 Speedtest, Refresh Now, Clean Up Unused Entities, Last Updated |
+| **Base install totals**       |  **110 / 132**  |  **104 / 132**  | The six differing entities are the Gateway diagnostics listed below                                                                                                                                                                                                      |
 | 📶 **Per Device (AP/Switch)** |     opt-in      |     opt-in      | **11 per AP** (Satisfaction Score + 2.4/5 GHz scores, Clients, Guests, 2.4/5 GHz Clients, CPU, Memory, Uptime, Update Available) · **6 per switch** (Clients, CPU, Memory, Uptime, Model, Update Available) - created only when you choose `Add all device sensors`      |
 
 ---
@@ -1616,19 +1619,18 @@ actions:
 
 ## 📥 Installation
 
-### ✨ HACS (Recommended)
+### ✨ Marketplace / HACS (Recommended)
 
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=PlayFaster&repository=ha-unifi-network-monitor&category=integration)
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Marketplace.](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=PlayFaster&repository=ha-unifi-network-monitor&category=integration)
 
-Use the **shortcut badge** above, and then proceed to Step #3 or just ...
-
-1. Add this [repository](https://github.com/PlayFaster/ha-unifi-network-monitor) as a **Custom Repository** in HACS:
-   - Open HACS in Home Assistant
-   - Click **Custom repositories** (⋮ menu)
-   - Add repository URL and Type: `Integration`
-2. Search for "UniFi Network Monitor" and click **Download**
-3. Restart Home Assistant
-4. Go to **Settings > Devices & Services > Add Integration** and search for "UniFi Network Monitor"
+- **Marketplace (Home Assistant 2026.11+):**
+  1. In **Settings > Marketplace**, select **Add from link** in the upper-right corner, enter `https://github.com/PlayFaster/ha-unifi-network-monitor`, and click **Add** (prompts for GitHub device sign-in).
+  2. Click **Install** (or use the **shortcut badge** above, then click **Install**).
+  3. Add the integration when prompted (or restart if a repair appears under **Settings > System > Repairs**).
+- **HACS (Home Assistant < 2026.11):**
+  1. In **HACS**, open the `⋮` menu -> **Custom repositories**, and add `https://github.com/PlayFaster/ha-unifi-network-monitor` with Type `Integration`.
+  2. Search for "UniFi Network Monitor" and click **Download** (or use the **shortcut badge** above, then click **Download**).
+  3. Restart Home Assistant, then go to **Settings > Devices & Services > Add Integration** and search for "UniFi Network Monitor".
 
 ### 💾 Manual Installation
 
@@ -1643,7 +1645,7 @@ Specific to this integration:
 
 - If a release **removes** sensors, the old entities linger as `unavailable` - the same behavior as turning a feature group off. Clear them with the **Clean Up Unused Entities** button or action (see [Actions](#-actions-services)).
 
-Otherwise, standard HACS custom-repository integration update behavior:
+Otherwise, standard Marketplace / HACS custom-repository integration update behavior:
 
 <details>
 
@@ -1651,7 +1653,8 @@ Otherwise, standard HACS custom-repository integration update behavior:
 &nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
 </summary><br>
 
-- New releases show up in **HACS** as normal. Update there, then restart Home Assistant.
+- **Marketplace (Home Assistant 2026.11+):** New releases appear under **Settings > Updates** (checked every 48 hours when GitHub is connected; not checked automatically without it). Update there, then restart Home Assistant.
+- **HACS (Home Assistant < 2026.11):** New releases show up in **HACS** as normal. Update there, then restart Home Assistant.
 - For Manual installs: replace the `custom_components/unifi_network_monitor` folder and restart.
 - Your settings and entity customizations carry over - Configure options, connection details, renamed entities, enabled/disabled choices, dashboards.
 - New sensors in a release (if any), appear on the first restart after updating.
@@ -1797,7 +1800,7 @@ The integration blends two UniFi API generations for the best data:
 
 - **Detailed device metrics** come from the classic `/proxy/network/api/s/{site}/stat/*` endpoints (deep hardware metrics the lighter Official v3 `devices` payload omits).
 - **Structured configuration** (WAN interface names, VPN tunnels, firewall rules) comes from the Official v3 / integration endpoints, fetched concurrently via `asyncio.gather()`.
-- **Graceful degradation**: if the controller version doesn't support a v3 endpoint, that group degrades to `unavailable` rather than failing the whole update.
+- **Graceful degradation**: if the controller version doesn't support a v3 endpoint, that group degrades to `unknown` rather than failing the whole update.
 
 ### 🎬 Actions & Events (for automations)
 
@@ -1818,10 +1821,11 @@ This integration registers its **own separate device cards** - a Gateway device 
 
 Some failures are **silent** - a fetch succeeds but the data is wrong (e.g. a UniFi controller update renames a field and a sensor group quietly reads zero). The **Integration Health** sensor (a `problem` binary sensor on the System sub-device) watches for these:
 
-- **`on`, severity `degraded`,** when a data source is **unavailable and you didn't disable it** - the attributes name the affected capability (e.g. _Security / Rogue APs_).
+- **`on`, severity `degraded`,** when a data source is **unavailable and you didn't disable it**, or when a previously populated non-ephemeral source silently returns no data across multiple cycles (`empty_capabilities`) - the attributes name the affected capability (e.g. _Security / Rogue APs_, _WAN Usage_).
+- **`on`, severity `warning`,** when a sensor's guard band suppresses an out-of-range reading (`guard_band_suppressed`), clearing automatically when the reading returns to range or becomes `unknown`.
 - **`on`, severity `error`, + Repair Issue** when schema drift is detected (a non-empty response parsing to empty payloads across multiple cycles), raising a `schema_drift_detected` repair issue suggesting an integration update.
 
-It's deliberately cautious: it **ignores capabilities you turned off**, ignores v3/firewall/VPN under username-password auth (expected), and only flags drift after it persists (no single-cycle false alarms). Details - `issues`, `severity`, `degraded_capabilities`, `drift`, `auth_mode` - live in the sensor's attributes, with `severity` one of `ok`, `degraded` or `error`; put it on a dashboard or alert on it to catch breakage early instead of months later. See the [Integration Health Problem Alert](#-integration-health-problem-alert) example.
+It's deliberately cautious: it **ignores capabilities you turned off**, ignores v3/firewall/VPN under username-password auth (expected), and only flags drift or empty responses after they persist (no single-cycle false alarms). Details - `issues`, `severity`, `degraded_capabilities`, `empty_capabilities`, `guard_band_suppressed`, `drift`, `auth_mode` - live in the sensor's attributes, with `severity` one of `ok`, `degraded`, `warning` or `error`; put it on a dashboard or alert on it to catch breakage early instead of months later. See the [Integration Health Problem Alert](#-integration-health-problem-alert) example.
 
 ### 🔄 Data Polling & 3-Strike Resilience
 
@@ -2142,7 +2146,7 @@ Also note: an entity ID is reused unless a **different, still-existing** entity 
 </summary><br>
 
 - **Tested hardware**: developed and tested on the **UDM Pro** only; other UniFi OS gateways are expected-compatible but unverified.
-- **Firmware/endpoint variance**: available data depends on your UniFi OS / Network application version; some v3 configuration sensors require newer controllers.
+- **Firmware/endpoint variance**: available data depends on your UniFi OS / Network application version; some v3 configuration sensors require newer controllers, and UniFi Network 11 WAN usage requires Network `11.0.89+`.
 - **Auth mode gates the v3 sensors**: the UniFi Integration (v3) API is API-key only. Under **username / password** auth, some sensors are permanently unavailable. Use an API key to enable them. See [FAQ](#-why-are-my-firewall-vpn-or-wan-name-sensors-unknown).
 - **Client tracking is out of scope**: this integration monitors infrastructure. For per-client device tracking, use the **official Home Assistant UniFi integration** alongside it.
 - **Data Rates**: Current upload and download data rates (i.e. MBit/s) from WAN1 and WAN2 are available from the UniFi API, but are only useful if you are polling very _frequently_. That's not part of the design scope for this integration, so it is not planned to add data rates.
@@ -2181,7 +2185,7 @@ To remove the integration from Home Assistant:
 
 <br>
 
-To fully uninstall (HACS):
+To fully uninstall (Marketplace / HACS):
 
 <details>
 
@@ -2189,10 +2193,11 @@ To fully uninstall (HACS):
 &nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
 </summary><br>
 
-1. Go to **HACS**.
-2. Find **UniFi Network Monitor** and click into it.
-3. Click the **three dots** (⋮) at the top right and select **Remove**.
-4. **Restart** Home Assistant.
+- **Marketplace (Home Assistant 2026.11+):**
+  1. Go to **Settings > Marketplace**, open **UniFi Network Monitor**, click the **three dots** (⋮) at the top right, and select **Uninstall** (if the integration is still configured, choose **View integration** or **Delete and uninstall**).
+- **HACS (Home Assistant < 2026.11):**
+  1. Go to **HACS**, open **UniFi Network Monitor**, click the **three dots** (⋮) at the top right, and select **Remove**.
+  2. **Restart** Home Assistant.
 
 ---
 
@@ -2220,25 +2225,29 @@ This integration stands on the shoulders of several excellent open-source projec
 
 - 🙏 **[@superscouby](https://github.com/superscouby)**: For helping to enable support for the UniFi Cloud Gateway Ultra model, and identifying several compatibility, code and diagnostic bugs.
 
-- 🙏 **Home Assistant Core [UniFi Network Integration](https://www.home-assistant.io/integrations/unifi/)** (@Kane610 , and contributors)
+- 🙏 **Home Assistant Core [UniFi Network Integration](https://www.home-assistant.io/integrations/unifi/)** and its **[aiounifi](https://github.com/Kane610/aiounifi)** library (@Kane610 , and contributors): The built-in UniFi integration and the Python library behind it. Insight into the per WAN gateway data elements.
 
-- 🙏 **[UniFi API Browser](https://github.com/Art-of-WiFi/UniFi-API-browser)** Utility (@Art-of-WiFi , and contributors): The utility that allows a UDM gateway to be explored and interrogated.
+- 🙏 **[UniFi API Browser](https://github.com/Art-of-WiFi/UniFi-API-browser)** Utility and **[UniFi API Client](https://github.com/Art-of-WiFi/UniFi-API-client)** (@Art-of-WiFi , and contributors): A web tool and a PHP library for exploring and calling the UniFi controller API. These made it possible to interrogate a UDM gateway, and read its statistics.
 
-- 🙏 **[UniFi WAN](https://github.com/holdestmade/Unifi-WAN)** Custom Component (@holdestmade , and contributors): Insight into what Speedtest endpoints are available.
+- 🙏 **[UniFi WAN](https://github.com/holdestmade/Unifi-WAN)** Custom Component (@holdestmade , and contributors): WAN status, ISP and speedtest monitoring for UniFi gateways. Insight into the speedtest endpoints, per-WAN ISP details and WAN IPv6 addresses.
 
-- 🙏 **[UniFi Network Rules](https://github.com/sirkirby/unifi-network-rules)** Custom Component (@sirkirby , and contributors): Insight into the wide range of rules information available.
+- 🙏 **[UniFi Network Rules](https://github.com/sirkirby/unifi-network-rules)** Custom Component and **[UniFi MCP](https://github.com/sirkirby/unifi-mcp)** (@sirkirby , and contributors): Switches for UniFi firewall and traffic rules, and an MCP server for AI tools to work with UniFi. Insight into the wide range of rules information available, and into reading UniFi statistics.
 
-- **Personal prior work**: The structure and integration architecture draw on my own custom components [ZTE Router 5G](https://github.com/PlayFaster/ha-zte-router-5g-monitor) and [WiFi SSID](https://github.com/PlayFaster/ha-wifi-ssid-monitor) Monitors.
+- 🙏 **[UniFi Insights](https://github.com/tinkerologie/ha-unifi-insights)** Custom Component (@tinkerologie ,  @ruaan-deysel , and contributors): One integration covering UniFi Network, Protect and other UniFi applications. Its approach showed how to read WAN usage from the newer UniFi statistics.
 
-- This project was developed with the assistance of AI to ensure code quality and adherence to best practices.
+- 🧩 **Personal prior work**: The structure and integration architecture draw on my own custom components [ZTE Router 5G](https://github.com/PlayFaster/ha-zte-router-5g-monitor) , [Huawei Router 5G](https://github.com/PlayFaster/ha-huawei-router-5g-monitor) and [WiFi SSID](https://github.com/PlayFaster/ha-wifi-ssid-monitor) Monitors.
 
-### Other Integrations
+- 🤖 This project was developed with the assistance of AI to ensure code quality and adherence to best practices.
+
+### 🔀 Other Integrations
 
 Not directly referenced but also may be of interest to UniFi users:
 
 - 🙏 **[HA UniFi Network](https://github.com/wittypluck/ha-unifi-network)** Custom Component (@wittypluck , and contributors): If you want many of the features of the core UniFi Network integration in a separate component.
 
-- 🙏 **[UniFi Insights](https://github.com/ruaan-deysel/ha-unifi-insights)** Custom Component (@ruaan-deysel , and contributors): If you want many of the features of the core UniFi Network **and** UniFi Protect integrations in a single integrated component.
+- 🙏 **[UniFi Speedtest](https://github.com/biofects/HA-Unifi-Speedtest)** Custom Component (@biofects , and contributors): If you want speedtests run on a schedule from Home Assistant, with a device per WAN.
+
+- 🙏 **[UniFi Network Map](https://github.com/merlijntishauser/unifi-network-maps-ha)** Custom Component (@merlijntishauser , and contributors): If you want an interactive map of your UniFi network's topology.
 
 ---
 
@@ -2250,4 +2259,16 @@ This project is licensed under the Apache License, Version 2.0. See [LICENSE](LI
 
 ---
 
+⭐ **Find this useful?** Please consider starring the repository on GitHub — it helps other Home Assistant users discover it.
+
 💬 **Questions or Issues?** Visit the [GitHub repository](https://github.com/PlayFaster/ha-unifi-network-monitor).
+
+## 🧩 Other Home Assistant Projects by PlayFaster
+
+| Project | Description |
+| :--- | :--- |
+| [UniFi Network Monitor](https://github.com/PlayFaster/ha-unifi-network-monitor) | **[THIS REPO]** WAN data usage, speedtests, latency, load balancing, and rogue AP alerts for UniFi Gateways |
+| [Huawei Router 5G Monitor](https://github.com/PlayFaster/ha-huawei-router-5g-monitor) | 5G/LTE signal stats, data projections, connected clients, and SMS management |
+| [ZTE Router 5G Monitor](https://github.com/PlayFaster/ha-zte-router-5g-monitor) | 5G/LTE signal stats (RSRP, SINR, SNR), data projections, and SMS management for ZTE CPEs |
+| [WiFi SSID Monitor](https://github.com/PlayFaster/ha-wifi-ssid-monitor) | Nearby WiFi SSID scanner, rogue AP alerts, and smart-device setup AP detection |
+| [Very Dark Black HA Theme](https://github.com/PlayFaster/very-dark-black-ha-theme) | Pure-black / AMOLED dark mode theme with bold accent color variants |

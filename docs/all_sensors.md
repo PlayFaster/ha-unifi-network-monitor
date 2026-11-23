@@ -5,7 +5,7 @@
 This document is split into two logical parts:
 
 - **Part I: Base Gateway & Network Entities**: The default virtual devices (Alerts, Gateway, Internet, Security, Speedtest, Status, and System sub-devices) present in standard gateway-monitoring mode.
-- **Part II: Dynamic UniFi Devices (APs & Switches)**: Dynamic sensor entities generated for each physical UniFi Access Point and Switch monitored by the integration (~20 devices, adding ~160 entities when enabled).
+- **Part II: Per-Device Entities (Generated)**: Dynamic per-device entity descriptions generated from `PER_DEVICE_TUPLES` (`AP`, `Device`, and `Switch` tables inside `<!-- GENERATED:per-device:start/end -->`), created per adopted AP or switch when enabled.
 
 > **🔑 API-key-only sensors:** rows marked **_API-key only_** in the Notes column are served by the UniFi Integration (v3) API, which cannot be reached with username/password auth. Under username/password these seven sensors (Rules Active/Configured/Disabled, VPN Connections Active/Total, WAN1/WAN2 Name) are permanently `unknown`. Use an API key to enable them.
 >
@@ -24,13 +24,13 @@ This document is split into two logical parts:
 | Sub-Device | Entity Count | Description |
 | :-- | :-- | :-- |
 | **Alerts** | 4 | Alerts entities. |
-| **Gateway** | 34 | Gateway entities. |
-| **Internet** | 41 | Internet entities. |
+| **Gateway** | 18 | Gateway entities. |
+| **Internet** | 44 | Internet entities. |
 | **Security** | 13 | Security entities. |
 | **Speedtest** | 12 | Speedtest entities. |
 | **Status** | 22 | Status entities. |
-| **System** | 15 | System entities. |
-| **Total** | **141** | Total static entities. |
+| **System** | 18 | System entities. |
+| **Total** | **131** | Total static entities. |
 
 ## Alerts Sub-Device (4 Entities)
 
@@ -41,36 +41,20 @@ This document is split into two logical parts:
 | Last High Sev3 | `last_high` | Sensor | - | - | - |
 | Last Very High Sev4 | `last_very_high` | Sensor | - | - | - |
 
-## Gateway Sub-Device (34 Entities)
+## Gateway Sub-Device (18 Entities)
 
 | Name | Key | Type | Unit | Category | Notes |
 | :-- | :-- | :-- | :-- | :-- | :-- |
 | Update Available | `update_available` | Binary Sensor | - | Diagnostic | **Disabled by default.** |
-| Update Available | `update_available` | Binary Sensor | - | Diagnostic | **Disabled by default.** |
 | Application Version | `application_version` | Sensor | - | Diagnostic | - |
 | Board Temperature | `board_temp` | Sensor | °C | Diagnostic | **Disabled by default.** LTS: `measurement` |
-| Clients | `clients` | Sensor | - | Diagnostic | **Disabled by default.** LTS: `measurement` |
-| 2.4 GHz Clients | `clients_wifi0` | Sensor | - | Diagnostic | **Disabled by default.** LTS: `measurement` |
-| 5 GHz Clients | `clients_wifi1` | Sensor | - | Diagnostic | **Disabled by default.** LTS: `measurement` |
-| CPU utilization | `cpu` | Sensor | % | Diagnostic | **Disabled by default.** LTS: `measurement` |
-| CPU utilization | `cpu` | Sensor | % | Diagnostic | **Disabled by default.** LTS: `measurement` |
 | CPU utilization | `cpu` | Sensor | % | Diagnostic | **Disabled by default.** LTS: `measurement` |
 | CPU temperature | `cpu_temp` | Sensor | °C | Diagnostic | **Disabled by default.** LTS: `measurement` |
-| Guests | `guests` | Sensor | - | Diagnostic | **Disabled by default.** LTS: `measurement` |
 | Last Backup | `last_backup` | Sensor | - | Diagnostic | - |
-| Model | `model` | Sensor | - | Diagnostic | **Disabled by default.** |
-| Clients | `ports_used` | Sensor | - | Diagnostic | **Disabled by default.** LTS: `measurement` |
 | Memory utilization | `ram` | Sensor | % | Diagnostic | **Disabled by default.** LTS: `measurement` |
-| Memory utilization | `ram` | Sensor | % | Diagnostic | **Disabled by default.** LTS: `measurement` |
-| Memory utilization | `ram` | Sensor | % | Diagnostic | **Disabled by default.** LTS: `measurement` |
-| Satisfaction Score | `score` | Sensor | % | - | LTS: `measurement` |
-| 2.4 GHz Score | `score_wifi0` | Sensor | % | - | **Disabled by default.** LTS: `measurement` |
-| 5 GHz Score | `score_wifi1` | Sensor | % | - | **Disabled by default.** LTS: `measurement` |
 | Storage Total | `storage_size` | Sensor | B | Diagnostic | **Disabled by default.** |
 | Storage Used | `storage_used` | Sensor | B | Diagnostic | - |
 | Storage Utilization | `storage_used_pct` | Sensor | % | Diagnostic | LTS: `measurement` |
-| Uptime | `uptime` | Sensor | - | Diagnostic | **Disabled by default.** |
-| Uptime | `uptime` | Sensor | - | Diagnostic | **Disabled by default.** |
 | Uptime | `uptime` | Sensor | - | Diagnostic | **Disabled by default.** |
 | WAN1 SFP Part Number | `wan1_sfp_part` | Sensor | - | Diagnostic | **Disabled by default.** |
 | WAN1 SFP Serial Number | `wan1_sfp_serial` | Sensor | - | Diagnostic | **Disabled by default.** |
@@ -80,7 +64,7 @@ This document is split into two logical parts:
 | WAN2 SFP Vendor | `wan2_sfp_vendor` | Sensor | - | Diagnostic | **Disabled by default.** |
 | UniFi OS Version | `wan_gw_version` | Sensor | - | Diagnostic | - |
 
-## Internet Sub-Device (41 Entities)
+## Internet Sub-Device (44 Entities)
 
 | Name | Key | Type | Unit | Category | Notes |
 | :-- | :-- | :-- | :-- | :-- | :-- |
@@ -91,9 +75,11 @@ This document is split into two logical parts:
 | WAN2 Link Connected | `wan2_up` | Binary Sensor | - | Diagnostic | - |
 | Internet OK | `www_ok` | Binary Sensor | - | Diagnostic | **Disabled by default.** |
 | Month Total | `month_total` | Sensor | B | - | LTS: `total_increasing` |
+| Uplink ISP | `uplink_isp` | Sensor | - | Diagnostic | - |
 | WAN1 Availability | `wan1_availability` | Sensor | % | Diagnostic | - |
 | WAN1 Last Restart | `wan1_boot_time` | Sensor | - | Diagnostic | - |
 | WAN1 Name | `wan1_interface_name` | Sensor | - | Diagnostic | - |
+| WAN1 ISP | `wan1_isp` | Sensor | - | Diagnostic | - |
 | WAN1 Latency | `wan1_latency_avg` | Sensor | ms | Diagnostic | LTS: `measurement` |
 | WAN1 Local IP Address | `wan1_local_ip` | Sensor | - | Diagnostic | - |
 | WAN1 Projected Usage | `wan1_month_projected` | Sensor | B | - | - |
@@ -101,6 +87,7 @@ This document is split into two logical parts:
 | WAN1 Month Total | `wan1_month_total` | Sensor | B | - | LTS: `total_increasing` |
 | WAN1 Month Upload | `wan1_month_tx` | Sensor | B | - | LTS: `total_increasing` |
 | WAN1 Public IP Address | `wan1_public_ip` | Sensor | - | Diagnostic | - |
+| WAN1 Public IPv6 Address | `wan1_public_ipv6` | Sensor | - | Diagnostic | - |
 | WAN1 Today Download | `wan1_today_rx` | Sensor | B | - | LTS: `total_increasing` |
 | WAN1 Today Total | `wan1_today_total` | Sensor | B | - | LTS: `total_increasing` |
 | WAN1 Today Upload | `wan1_today_tx` | Sensor | B | - | LTS: `total_increasing` |
@@ -108,6 +95,7 @@ This document is split into two logical parts:
 | WAN2 Availability | `wan2_availability` | Sensor | % | Diagnostic | - |
 | WAN2 Last Restart | `wan2_boot_time` | Sensor | - | Diagnostic | - |
 | WAN2 Name | `wan2_interface_name` | Sensor | - | Diagnostic | - |
+| WAN2 ISP | `wan2_isp` | Sensor | - | Diagnostic | - |
 | WAN2 Latency | `wan2_latency_avg` | Sensor | ms | Diagnostic | LTS: `measurement` |
 | WAN2 Local IP Address | `wan2_local_ip` | Sensor | - | Diagnostic | - |
 | WAN2 Projected Usage | `wan2_month_projected` | Sensor | B | - | - |
@@ -115,12 +103,11 @@ This document is split into two logical parts:
 | WAN2 Month Total | `wan2_month_total` | Sensor | B | - | LTS: `total_increasing` |
 | WAN2 Month Upload | `wan2_month_tx` | Sensor | B | - | LTS: `total_increasing` |
 | WAN2 Public IP Address | `wan2_public_ip` | Sensor | - | Diagnostic | - |
+| WAN2 Public IPv6 Address | `wan2_public_ipv6` | Sensor | - | Diagnostic | - |
 | WAN2 Today Download | `wan2_today_rx` | Sensor | B | - | LTS: `total_increasing` |
 | WAN2 Today Total | `wan2_today_total` | Sensor | B | - | LTS: `total_increasing` |
 | WAN2 Today Upload | `wan2_today_tx` | Sensor | B | - | LTS: `total_increasing` |
 | WAN2 Uptime Duration | `wan2_uptime` | Sensor | s | Diagnostic | **Disabled by default.** |
-| ISP Name | `wan_isp_name` | Sensor | - | Diagnostic | - |
-| ISP Organization | `wan_isp_org` | Sensor | - | Diagnostic | **Disabled by default.** |
 | Internet Online Since | `www_boot_time` | Sensor | - | Diagnostic | - |
 | Internet Drops | `www_drops` | Sensor | - | Diagnostic | LTS: `measurement` |
 | Internet Latency | `www_latency` | Sensor | ms | Diagnostic | LTS: `measurement` |
@@ -188,16 +175,19 @@ This document is split into two logical parts:
 | WiFi IoT Devices | `wlan_num_iot` | Sensor | - | Diagnostic | **Disabled by default.** |
 | WiFi Devices | `wlan_num_user` | Sensor | - | - | LTS: `measurement` |
 
-## System Sub-Device (15 Entities)
+## System Sub-Device (18 Entities)
 
 | Name | Key | Type | Unit | Category | Notes |
 | :-- | :-- | :-- | :-- | :-- | :-- |
+| Rogue AP Proximity Alert | `gateway_rogue_proximity_alert` | Binary Sensor | - | Diagnostic | - |
+| Integration Health | `integration_health` | Binary Sensor | - | Diagnostic | - |
 | Refresh Now | `refresh` | Button | - | Config | - |
 | WAN1 Run | `wan1_speedtest` | Button | - | - | - |
 | WAN2 Run | `wan2_speedtest` | Button | - | - | - |
 | Rogue Proximity Threshold | `rogue_proximity_rssi_threshold` | Number | dBm | Config | - |
 | Polling Interval | `scan_interval` | Number | s | Config | - |
 | WAN1 Load Balance Weight | `wan1_load_balance_weight` | Number | % | Config | - |
+| Rogue Detection Period | `rogue_period` | Select | - | Config | - |
 | Last Updated | `last_updated` | Sensor | - | Diagnostic | - |
 | WAN1 Load Balance | `wan1_weight` | Sensor | % | - | LTS: `measurement` |
 | WAN2 Load Balance | `wan2_weight` | Sensor | % | - | - |
@@ -210,60 +200,52 @@ This document is split into two logical parts:
 
 <!-- GENERATED:end -->
 
-## Part II: Dynamic UniFi Devices (APs & Switches)
+## Services (7 Actions)
 
-These entities are **opt-in**, controlled by the _UniFi device (Access Point & Switch) sensors_ dropdown. One sub-device is created per adopted AP/switch; the entity set depends on the mode:
+| Name | Key | Type | Unit | Category | Notes |
+| :-- | :-- | :-- | :-- | :-- | :-- |
+| Add rogue ignore | `add_rogue_ignore` | Service | — | — | — |
+| Clean up unused entities | `cleanup_unused_entities` | Service | — | — | — |
+| Clear rogue history | `clear_rogue_history` | Service | — | — | — |
+| Get alerts | `get_alerts` | Service | — | — | — |
+| Get rogue APs | `get_rogue_aps` | Service | — | — | — |
+| Remove rogue ignore | `remove_rogue_ignore` | Service | — | — | — |
+| Set rogue ignore | `set_rogue_ignore` | Service | — | — | — |
 
-- **Don't add** (`none`, default): nothing. 7 base sub-devices only.
-- **AP Satisfaction Score only** (`satisfaction_only`, offered only when Core UniFi is installed): **3 per AP** — Satisfaction Score + 2.4/5 GHz Score — and **0 for switches** (switches have no score, so no switch sub-devices are created).
-- **Add all device sensors** (`all`): **11 per AP** and **6 per switch** (§6, §7 below).
+<!-- GENERATED:per-device:start -->
 
-**Enabled-by-default depends on Core UniFi** (whichever mode creates the entity):
+### Ap (10 Entities per Ap)
 
-> Every figure below moved by **+2** at `[1.0.1-dev16]` when the two **Projected Usage** sensors were added. They are enabled by default and do not duplicate anything Core UniFi provides, so they land in the registered _and_ both enabled columns in every mode.
+| Name | Key | Type | Unit | Default | Notes | About |
+| :-- | :-- | :-- | :-- | :-- | :-- | :-- |
+| Clients | `clients` | Sensor | - | Disabled | LTS: `measurement` | - |
+| 2.4 GHz Clients | `clients_wifi0` | Sensor | - | Disabled | LTS: `measurement` | - |
+| 5 GHz Clients | `clients_wifi1` | Sensor | - | Disabled | LTS: `measurement` | - |
+| CPU utilization | `cpu` | Sensor | % | Disabled | LTS: `measurement` | - |
+| Guests | `guests` | Sensor | - | Disabled | LTS: `measurement` | - |
+| Memory utilization | `ram` | Sensor | % | Disabled | LTS: `measurement` | - |
+| Satisfaction Score | `score` | Sensor | % | Enabled | LTS: `measurement` | - |
+| 2.4 GHz Score | `score_wifi0` | Sensor | % | Disabled | LTS: `measurement` | - |
+| 5 GHz Score | `score_wifi1` | Sensor | % | Disabled | LTS: `measurement` | - |
+| Uptime | `uptime` | Sensor | - | Disabled | - | - |
 
-| Mode (rig: 8 APs, 12 switches) | Devices | Registered | Enabled — no Core | Enabled — Core present |
-| :-- | :-: | :-: | :-: | :-: |
-| Don't add | 7 | 130 | 107 | 101 |
-| AP Satisfaction Score only | 15 | 154 | n/a¹ | 109 |
-| Add all device sensors | 27 | 290 | 267 | 109 |
+### Device (1 Entities per Device)
 
-¹ Satisfaction-only is only offered when Core is present. **Without Core**, all created per-device entities are enabled; **with Core**, only the AP **Satisfaction Score** is enabled (band scores + everything else, and all 6 switch sensors, are disabled — 1 enabled per AP, 0 per switch). So under Core, "Add all" enables the _same_ 105 as "Satisfaction only" — the extra 152 per-device entities are all disabled clutter. The **Don't add** base row is verified live (2026-07-14, standalone = 126/103); the per-device rows carry the prior live rig validation plus the +10 base delta (Alerts 4 + Rogue APs All 24h + 4 rogue switches + Rogue Detection Period select), which are all enabled-by-default and mode-independent. The `Default (Core present)` column in §8/§9 reflects the per-entity defaults.
+| Name | Key | Type | Unit | Default | Notes | About |
+| :-- | :-- | :-- | :-- | :-- | :-- | :-- |
+| Update Available | `update_available` | Binary Sensor | - | Disabled | - | - |
 
-> **Entity IDs:** each physical device is its own HA device card, so entity IDs use the **device name** as the prefix (e.g. `sensor.unifi_ap_ac_pro_garage_satisfaction_score`), **not** the `unifi_network_…` base prefix. The duplicate-of-core sensors get a `_mon` suffix on their entity ID (keeping the display name) so they don't collide with Core's equivalents on the merged card — on an **AP**: Clients, CPU, Memory, Uptime → `…_mon`; on a **switch**: Clients, CPU, Memory, Uptime → `…_mon`. The switch "Clients" sensor uses the `ports_used` key (value = `num_sta`, the client count), but its entity_id stem is `clients`, so it becomes `…_clients_mon` (not `…_ports_used_mon` or a `_2` collision).
+### Switch (5 Entities per Switch)
 
-### 8. Access Point Sub-Device (11 Entities per AP)
+| Name | Key | Type | Unit | Default | Notes | About |
+| :-- | :-- | :-- | :-- | :-- | :-- | :-- |
+| CPU utilization | `cpu` | Sensor | % | Disabled | LTS: `measurement` | - |
+| Model | `model` | Sensor | - | Disabled | - | - |
+| Clients | `ports_used` | Sensor | - | Disabled | LTS: `measurement` | - |
+| Memory utilization | `ram` | Sensor | % | Disabled | LTS: `measurement` | - |
+| Uptime | `uptime` | Sensor | - | Disabled | - | - |
 
-_Group: `ap`_
-
-| Name | Key | Type | Unit | Default (Core present) | Notes | About |
-| :-- | :-- | :-- | :-- | :-- | :-- | :-: |
-| Clients | `clients` | Sensor | — | Disabled | Entity ID gets `_mon` suffix. |  |
-| Guests | `guests` | Sensor | — | Disabled |  |  |
-| 2.4 GHz Clients | `clients_wifi0` | Sensor | — | Disabled |  |  |
-| 5 GHz Clients | `clients_wifi1` | Sensor | — | Disabled |  |  |
-| Satisfaction Score | `score` | Sensor | % | **Enabled** | In LTS (measurement). |  |
-| 2.4 GHz Score | `score_wifi0` | Sensor | % | Disabled | In LTS (measurement). |  |
-| 5 GHz Score | `score_wifi1` | Sensor | % | Disabled | In LTS (measurement). |  |
-| CPU utilization | `cpu` | Sensor | % | Disabled | Entity ID gets `_mon` suffix. |  |
-| Memory utilization | `ram` | Sensor | % | Disabled | Entity ID gets `_mon` suffix. |  |
-| Uptime | `uptime` | Sensor | — | Disabled | Entity ID gets `_mon` suffix. |  |
-| Update Available | `update_available` | Binary Sensor | — | Disabled |  |  |
-
----
-
-### 9. Switch Sub-Device (6 Entities per Switch)
-
-_Group: `switch`_
-
-| Name | Key | Type | Unit | Default (Core present) | Notes | About |
-| :-- | :-- | :-- | :-- | :-- | :-- | :-: |
-| Clients | `ports_used` | Sensor | — | Disabled | Value is `num_sta` (client count). Entity ID gets `_mon` suffix → `…_clients_mon`. |  |
-| CPU utilization | `cpu` | Sensor | % | Disabled | Entity ID gets `_mon` suffix. |  |
-| Memory utilization | `ram` | Sensor | % | Disabled | Entity ID gets `_mon` suffix. |  |
-| Uptime | `uptime` | Sensor | — | Disabled | Entity ID gets `_mon` suffix. |  |
-| Model | `model` | Sensor | — | Disabled |  |  |
-| Update Available | `update_available` | Binary Sensor | — | Disabled |  |  |
+<!-- GENERATED:per-device:end -->
 
 ---
 
@@ -321,6 +303,10 @@ Sensors are stored in their canonical **native** unit (so long-term statistics a
 
 ## Version Control
 
+| Version | Date | Change |
+| :-- | :-- | :-- |
+| 2.3.0 | 2026-11-20 | Retired hand-written Part II in favor of `<!-- GENERATED:per-device:start/end -->` tables generated by `check_sensor_manifest.py` (AP, Switch, and Device per-device groups). |
+
 - **v1.0.0** (2026-07-08) - Initial version. Created based on the exact entities registered for the UniFi Network Monitor.
 - **v1.1.0** (2026-07-08) - Restructured into Split-Part structure separating base entities from dynamic UniFi device entities. Added AP and Switch sub-device entity tables.
 - **v1.2.0** (2026-07-08) - Added the Long Term Statistics (LTS) Coverage section and flagged the 17 numeric sensors (14 base + 3 per-AP) that lack a `state_class` and are therefore excluded from LTS.
@@ -332,4 +318,5 @@ Sensors are stored in their canonical **native** unit (so long-term statistics a
 - **v1.7.0** (2026-07-08) - Validated the **default install on top of HA Core UniFi** (live). Documented that the base enabled count is **93 (no Core) / 87 (Core present)** — six gateway diagnostics (`cpu`, `ram`, `cpu_temp`, `board_temp`, `uptime`, `update_available`) are _Standalone-only enabled_; tagged those §1 rows. Added a **Coexistence with HA Core UniFi** section: gateway card merges into Core's device (adopting Core's name/firmware), other sub-devices stay separate, and the `switch.unifi_network_*` counting caveat (Core names its controller "UniFi Network").
 - **v2.0.0** (2026-07-14) - Restructured to **7 sub-devices** for the Alerts + rogue-action work: new **Alerts** sub-device (4 sensors) and new **Security** sub-device (19 entities — rogue/threat/VPN/firewall relocated off Status & System, plus **Rogue APs All 24h**, the rogue control switches, and the Rogue Detection Period select). Base grew **116 → 126**. Re-verified live on a fresh **standalone** default install (2026-07-14): **103 enabled / 23 disabled**; per-card enabled/total Alerts 4/4, Gateway 11/18, Internet 34/39, Security 19/19, Speedtest 14/14, Status 12/23, System 9/9. Updated the per-mode table (base +10, all enabled-by-default), added the Actions/Events/`about`-attribute note, and corrected the WAN Ping LTS rows (Speedtest, not System).
 - **v2.1.0** (2026-07-17) - Added 7 undocumented services as rows in the sub-device entity tables (Alerts, Security, System) to match live discovery. Appended data availability note to Strongest Rogue RSSI.
+- **v2.3.0** (2026-11-20) - Retired hand-written Part II in favor of `<!-- GENERATED:per-device:start/end -->` tables generated by `check_sensor_manifest.py` (AP, Switch, and Device per-device groups).
 - **v2.2.0** (2026-07-17) - Rogue expansion / history / self-diagnosis: **Rogue APs New 24h** sensor (Security) + **Integration Health** binary sensor (System); base **127 → 128**. **LTS Coverage section rewritten and corrected against code** — the previous list wrongly excluded the AP Satisfaction Scores, the daily "Today" usage sensors, and WAN Ping (all _do_ carry a `state_class`); those 11 per-row Notes flags were flipped to "In LTS". Documented the **deliberate LTS curation policy** (redundant/derivable/near-static siblings are intentionally omitted — e.g. `storage_used`/`_size` vs `storage_used_pct`, `wan2_weight` vs `wan1_weight`, `*_total` vs `*_active`, secondary `num_*` counts, availability/uptime-seconds vs the `boot_time` timestamp).

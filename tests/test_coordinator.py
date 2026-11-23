@@ -286,8 +286,8 @@ def test_parse_ap_empty_radio_stats() -> None:
         "is_access_point": True,
     }
     result = _parse_ap(device, _now())
-    assert result["clients_wifi0"] == 0
-    assert result["clients_wifi1"] == 0
+    assert result["clients_wifi0"] is None
+    assert result["clients_wifi1"] is None
     assert result["score_wifi0"] is None
     assert result["score_wifi1"] is None
 
@@ -377,7 +377,9 @@ def test_parse_health_wan_and_www() -> None:
     result = _parse_health(health_list, _now())
 
     assert result["wan_status"] == "ok"
-    assert result["wan_isp_name"] == "Test ISP"
+    # Retired in 1.1.2-dev4: the site-level ISP fields always described WAN1.
+    assert "wan_isp_name" not in result
+    assert "wan_isp_org" not in result
     assert result["wan1_availability"] == pytest.approx(100.0)
     assert result["wan1_latency_avg"] == 34
     assert result["wan2_availability"] == pytest.approx(99.5)
@@ -430,6 +432,7 @@ async def test_coordinator_holds_data_for_three_failures(
     """Coordinator returns cached data for up to 3 consecutive failures."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(side_effect=UnifiConnectionError("timeout"))
     api.get_health = AsyncMock(return_value=[])
     api.get_sysinfo = AsyncMock(return_value=[])
@@ -455,6 +458,7 @@ async def test_coordinator_raises_after_four_failures(
 
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(side_effect=UnifiConnectionError("timeout"))
     api.get_health = AsyncMock(return_value=[])
     api.get_sysinfo = AsyncMock(return_value=[])
@@ -475,11 +479,13 @@ async def test_coordinator_resets_failures_on_success(
     """Consecutive failure counter resets to zero on a successful fetch."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(return_value=[])
     api.get_health = AsyncMock(return_value=[])
     api.get_sysinfo = AsyncMock(return_value=[])
     api.get_networkconf = AsyncMock(return_value=[])
     api.get_settings = AsyncMock(return_value=[])
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
     api.get_daily_gateway = AsyncMock(return_value=[])
     api.get_monthly_gateway = AsyncMock(return_value=[])
     api.get_rogueaps = AsyncMock(return_value=[])
@@ -500,6 +506,7 @@ async def test_coordinator_handles_auth_error(
     """Coordinator handles UnifiAuthError with 3-strike logic."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(side_effect=UnifiAuthError("auth failed"))
     api.get_health = AsyncMock(return_value=[])
     api.get_sysinfo = AsyncMock(return_value=[])
@@ -520,11 +527,13 @@ async def test_coordinator_reconnects_after_failure(
     """Coordinator logs reconnection after failure->success transition."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(return_value=[])
     api.get_health = AsyncMock(return_value=[])
     api.get_sysinfo = AsyncMock(return_value=[])
     api.get_networkconf = AsyncMock(return_value=[])
     api.get_settings = AsyncMock(return_value=[])
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
     api.get_daily_gateway = AsyncMock(return_value=[])
     api.get_monthly_gateway = AsyncMock(return_value=[])
     api.get_rogueaps = AsyncMock(return_value=[])
@@ -546,6 +555,7 @@ async def test_coordinator_skips_offline_devices(
     """Coordinator skips devices with state == 0."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(
         return_value=[
             {"mac": "aa:bb:cc:dd:ee:ff", "model": "UDMPRO", "state": 1},
@@ -556,6 +566,7 @@ async def test_coordinator_skips_offline_devices(
     api.get_sysinfo = AsyncMock(return_value=[])
     api.get_networkconf = AsyncMock(return_value=[])
     api.get_settings = AsyncMock(return_value=[])
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
     api.get_daily_gateway = AsyncMock(return_value=[])
     api.get_monthly_gateway = AsyncMock(return_value=[])
     api.get_rogueaps = AsyncMock(return_value=[])
@@ -575,6 +586,7 @@ async def test_coordinator_unexpected_error_holds_data(
     """Coordinator holds data on unexpected errors within 3 strikes."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(side_effect=RuntimeError("unexpected"))
     api.get_health = AsyncMock(return_value=[])
     api.get_sysinfo = AsyncMock(return_value=[])
@@ -595,6 +607,7 @@ async def test_coordinator_parses_wan_and_security_configs(
     """Coordinator fetches and successfully parses networkconf and setting payloads."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(
         return_value=[
             {
@@ -658,6 +671,7 @@ async def test_coordinator_parses_wan_and_security_configs(
             }
         ]
     )
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
     api.get_daily_gateway = AsyncMock(
         return_value=[
             {
@@ -756,7 +770,7 @@ async def test_coordinator_parses_wan_and_security_configs(
     result = await coordinator._async_update_data()
 
     gateway = result["gateway"]
-    assert gateway["wan_mode"] == "weighted"
+    assert gateway["wan_mode"] == "load_balancing"
     assert gateway["wan1_weight"] == 55
     assert gateway["wan2_weight"] == 45
     assert gateway["ips_mode"] == "block"
@@ -835,11 +849,13 @@ async def test_coordinator_fetch_optional_supplementary_error(
     """Supplementary endpoint failure returns [] and does not crash update."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(return_value=[])
     api.get_health = AsyncMock(return_value=[])
     api.get_sysinfo = AsyncMock(return_value=[])
     api.get_networkconf = AsyncMock(return_value=[])
     api.get_settings = AsyncMock(return_value=[])
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
     api.get_daily_gateway = AsyncMock(side_effect=UnifiConnectionError("not available"))
     api.get_monthly_gateway = AsyncMock(side_effect=UnifiAuthError("not allowed"))
     api.get_rogueaps = AsyncMock(return_value=[])
@@ -858,6 +874,7 @@ async def test_coordinator_speedtest_single_result(
     """Single speedtest result populates only WAN1 fields."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(
         return_value=[{"mac": "aa:bb:cc:dd:ee:ff", "model": "UDMPRO", "state": 1}]
     )
@@ -865,6 +882,7 @@ async def test_coordinator_speedtest_single_result(
     api.get_sysinfo = AsyncMock(return_value=[])
     api.get_networkconf = AsyncMock(return_value=[])
     api.get_settings = AsyncMock(return_value=[])
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
     api.get_daily_gateway = AsyncMock(return_value=[])
     api.get_monthly_gateway = AsyncMock(return_value=[])
     api.get_rogueaps = AsyncMock(return_value=[])
@@ -897,6 +915,7 @@ async def test_coordinator_speedtest_single_no_time(
     """Single speedtest result without time does not crash."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(
         return_value=[{"mac": "aa:bb:cc:dd:ee:ff", "model": "UDMPRO", "state": 1}]
     )
@@ -904,6 +923,7 @@ async def test_coordinator_speedtest_single_no_time(
     api.get_sysinfo = AsyncMock(return_value=[])
     api.get_networkconf = AsyncMock(return_value=[])
     api.get_settings = AsyncMock(return_value=[])
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
     api.get_daily_gateway = AsyncMock(return_value=[])
     api.get_monthly_gateway = AsyncMock(return_value=[])
     api.get_rogueaps = AsyncMock(return_value=[])
@@ -924,6 +944,7 @@ async def test_coordinator_device_parse_switch(
     """Device without GATEWAY_MODELS and not AP is parsed as switch."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(
         return_value=[
             {"mac": "cc:dd:ee:ff:00:11", "model": "US8P60", "state": 1, "num_sta": 3}
@@ -933,6 +954,7 @@ async def test_coordinator_device_parse_switch(
     api.get_sysinfo = AsyncMock(return_value=[])
     api.get_networkconf = AsyncMock(return_value=[])
     api.get_settings = AsyncMock(return_value=[])
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
     api.get_daily_gateway = AsyncMock(return_value=[])
     api.get_monthly_gateway = AsyncMock(return_value=[])
     api.get_rogueaps = AsyncMock(return_value=[])
@@ -952,6 +974,7 @@ async def test_coordinator_device_parse_error_skipped(
     """Device that raises during parsing is skipped with a warning."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(
         return_value=[
             {"mac": "aa:bb:cc:dd:ee:ff", "model": "UDMPRO", "state": 1},
@@ -970,6 +993,7 @@ async def test_coordinator_device_parse_error_skipped(
     api.get_sysinfo = AsyncMock(return_value=[])
     api.get_networkconf = AsyncMock(return_value=[])
     api.get_settings = AsyncMock(return_value=[])
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
     api.get_daily_gateway = AsyncMock(return_value=[])
     api.get_monthly_gateway = AsyncMock(return_value=[])
     api.get_rogueaps = AsyncMock(return_value=[])
@@ -1153,11 +1177,13 @@ async def test_coordinator_site_uuid_not_found(
     """Site UUID resolution: no matching site sets 'failed' (lines 486-489)."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(return_value=[])
     api.get_health = AsyncMock(return_value=[])
     api.get_sysinfo = AsyncMock(return_value=[])
     api.get_networkconf = AsyncMock(return_value=[])
     api.get_settings = AsyncMock(return_value=[])
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
     api.get_daily_gateway = AsyncMock(return_value=[])
     api.get_monthly_gateway = AsyncMock(return_value=[])
     api.get_rogueaps = AsyncMock(return_value=[])
@@ -1179,11 +1205,13 @@ async def test_coordinator_site_uuid_exception(
     """Site UUID resolution: exception sets 'failed' (lines 497-505)."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(return_value=[])
     api.get_health = AsyncMock(return_value=[])
     api.get_sysinfo = AsyncMock(return_value=[])
     api.get_networkconf = AsyncMock(return_value=[])
     api.get_settings = AsyncMock(return_value=[])
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
     api.get_daily_gateway = AsyncMock(return_value=[])
     api.get_monthly_gateway = AsyncMock(return_value=[])
     api.get_rogueaps = AsyncMock(return_value=[])
@@ -1205,6 +1233,7 @@ async def test_coordinator_parse_error_daily_gateway(
     """Daily gateway parse error is handled gracefully (lines 666-673)."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(
         return_value=[{"mac": "aa:bb:cc:dd:ee:ff", "model": "UDMPRO", "state": 1}]
     )
@@ -1212,6 +1241,7 @@ async def test_coordinator_parse_error_daily_gateway(
     api.get_sysinfo = AsyncMock(return_value=[])
     api.get_networkconf = AsyncMock(return_value=[])
     api.get_settings = AsyncMock(return_value=[])
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
     api.get_daily_gateway = AsyncMock(return_value=[None])
     api.get_monthly_gateway = AsyncMock(return_value=[])
     api.get_rogueaps = AsyncMock(return_value=[])
@@ -1230,6 +1260,7 @@ async def test_coordinator_parse_error_monthly_gateway(
     """Monthly gateway parse error is handled gracefully (lines 696-703)."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(
         return_value=[{"mac": "aa:bb:cc:dd:ee:ff", "model": "UDMPRO", "state": 1}]
     )
@@ -1237,6 +1268,7 @@ async def test_coordinator_parse_error_monthly_gateway(
     api.get_sysinfo = AsyncMock(return_value=[])
     api.get_networkconf = AsyncMock(return_value=[])
     api.get_settings = AsyncMock(return_value=[])
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
     api.get_daily_gateway = AsyncMock(return_value=[])
     api.get_monthly_gateway = AsyncMock(return_value=[None])
     api.get_rogueaps = AsyncMock(return_value=[])
@@ -1255,6 +1287,7 @@ async def test_coordinator_parse_error_rogue_aps(
     """Rogue AP parse error is handled gracefully (lines 726-733)."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(
         return_value=[{"mac": "aa:bb:cc:dd:ee:ff", "model": "UDMPRO", "state": 1}]
     )
@@ -1262,6 +1295,7 @@ async def test_coordinator_parse_error_rogue_aps(
     api.get_sysinfo = AsyncMock(return_value=[])
     api.get_networkconf = AsyncMock(return_value=[])
     api.get_settings = AsyncMock(return_value=[])
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
     api.get_daily_gateway = AsyncMock(return_value=[])
     api.get_monthly_gateway = AsyncMock(return_value=[])
     api.get_rogueaps = AsyncMock(return_value=[None])
@@ -1278,6 +1312,7 @@ async def test_coordinator_parse_error_rogue_aps(
 def _rogue_api(rogueaps: list[dict[str, Any]]) -> MagicMock:
     """Build a minimal API mock with a gateway and the given rogue AP list."""
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(
         return_value=[{"mac": "aa:bb:cc:dd:ee:ff", "model": "UDMPRO", "state": 1}]
     )
@@ -1285,6 +1320,7 @@ def _rogue_api(rogueaps: list[dict[str, Any]]) -> MagicMock:
     api.get_sysinfo = AsyncMock(return_value=[])
     api.get_networkconf = AsyncMock(return_value=[])
     api.get_settings = AsyncMock(return_value=[])
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
     api.get_daily_gateway = AsyncMock(return_value=[])
     api.get_monthly_gateway = AsyncMock(return_value=[])
     api.get_rogueaps = AsyncMock(return_value=rogueaps)
@@ -1334,6 +1370,7 @@ async def test_coordinator_parse_error_guests(
     """Guest user parse error is handled gracefully (lines 741-748)."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(
         return_value=[{"mac": "aa:bb:cc:dd:ee:ff", "model": "UDMPRO", "state": 1}]
     )
@@ -1341,6 +1378,7 @@ async def test_coordinator_parse_error_guests(
     api.get_sysinfo = AsyncMock(return_value=[])
     api.get_networkconf = AsyncMock(return_value=[])
     api.get_settings = AsyncMock(return_value=[])
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
     api.get_daily_gateway = AsyncMock(return_value=[])
     api.get_monthly_gateway = AsyncMock(return_value=[])
     api.get_rogueaps = AsyncMock(return_value=[])
@@ -1359,6 +1397,7 @@ async def test_coordinator_parse_error_backups(
     """Backup parse error is handled gracefully (lines 767-774)."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(
         return_value=[{"mac": "aa:bb:cc:dd:ee:ff", "model": "UDMPRO", "state": 1}]
     )
@@ -1366,6 +1405,7 @@ async def test_coordinator_parse_error_backups(
     api.get_sysinfo = AsyncMock(return_value=[])
     api.get_networkconf = AsyncMock(return_value=[])
     api.get_settings = AsyncMock(return_value=[])
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
     api.get_daily_gateway = AsyncMock(return_value=[])
     api.get_monthly_gateway = AsyncMock(return_value=[])
     api.get_rogueaps = AsyncMock(return_value=[])
@@ -1384,6 +1424,7 @@ async def test_coordinator_speedtest_with_interface_mapping(
     """Speedtest results with interface_name are mapped to WAN1/WAN2 (lines 839-851)."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(
         return_value=[
             {
@@ -1399,6 +1440,7 @@ async def test_coordinator_speedtest_with_interface_mapping(
     api.get_sysinfo = AsyncMock(return_value=[])
     api.get_networkconf = AsyncMock(return_value=[])
     api.get_settings = AsyncMock(return_value=[])
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
     api.get_daily_gateway = AsyncMock(return_value=[])
     api.get_monthly_gateway = AsyncMock(return_value=[])
     api.get_rogueaps = AsyncMock(return_value=[])
@@ -1434,6 +1476,7 @@ async def test_coordinator_speedtest_far_gap(hass: Any, mock_config_entry: Any) 
     """Speedtest results with gap >600s set only WAN1 (lines 860-861)."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(
         return_value=[{"mac": "aa:bb:cc:dd:ee:ff", "model": "UDMPRO", "state": 1}]
     )
@@ -1441,6 +1484,7 @@ async def test_coordinator_speedtest_far_gap(hass: Any, mock_config_entry: Any) 
     api.get_sysinfo = AsyncMock(return_value=[])
     api.get_networkconf = AsyncMock(return_value=[])
     api.get_settings = AsyncMock(return_value=[])
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
     api.get_daily_gateway = AsyncMock(return_value=[])
     api.get_monthly_gateway = AsyncMock(return_value=[])
     api.get_rogueaps = AsyncMock(return_value=[])
@@ -1476,6 +1520,7 @@ async def test_coordinator_parse_error_speedtest(
     """Speedtest parse error is handled gracefully (lines 896-903)."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(
         return_value=[{"mac": "aa:bb:cc:dd:ee:ff", "model": "UDMPRO", "state": 1}]
     )
@@ -1483,6 +1528,7 @@ async def test_coordinator_parse_error_speedtest(
     api.get_sysinfo = AsyncMock(return_value=[])
     api.get_networkconf = AsyncMock(return_value=[])
     api.get_settings = AsyncMock(return_value=[])
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
     api.get_daily_gateway = AsyncMock(return_value=[])
     api.get_monthly_gateway = AsyncMock(return_value=[])
     api.get_rogueaps = AsyncMock(return_value=[])
@@ -1501,6 +1547,7 @@ async def test_coordinator_wan_interface_fallback(
     """WAN interface names fall back when name matching fails (lines 981, 983)."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(
         return_value=[{"mac": "aa:bb:cc:dd:ee:ff", "model": "UDMPRO", "state": 1}]
     )
@@ -1508,6 +1555,7 @@ async def test_coordinator_wan_interface_fallback(
     api.get_sysinfo = AsyncMock(return_value=[])
     api.get_networkconf = AsyncMock(return_value=[])
     api.get_settings = AsyncMock(return_value=[])
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
     api.get_daily_gateway = AsyncMock(return_value=[])
     api.get_monthly_gateway = AsyncMock(return_value=[])
     api.get_rogueaps = AsyncMock(return_value=[])
@@ -1542,6 +1590,7 @@ async def test_coordinator_auth_error_raises_no_data(
 
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(side_effect=UnifiAuthError("auth failed"))
     api.get_health = AsyncMock(return_value=[])
     api.get_sysinfo = AsyncMock(return_value=[])
@@ -1563,6 +1612,7 @@ async def test_coordinator_connection_error_raises_no_data(
 
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(side_effect=UnifiConnectionError("timeout"))
     api.get_health = AsyncMock(return_value=[])
     api.get_sysinfo = AsyncMock(return_value=[])
@@ -1584,6 +1634,7 @@ async def test_coordinator_unexpected_error_raises_update_failed(
 
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(side_effect=RuntimeError("unexpected"))
     api.get_health = AsyncMock(return_value=[])
     api.get_sysinfo = AsyncMock(return_value=[])
@@ -1603,6 +1654,7 @@ async def test_coordinator_parses_ap_device_through_flow(
     """AP device is parsed through the update flow (line 602)."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(
         return_value=[
             {
@@ -1624,6 +1676,7 @@ async def test_coordinator_parses_ap_device_through_flow(
     api.get_sysinfo = AsyncMock(return_value=[])
     api.get_networkconf = AsyncMock(return_value=[])
     api.get_settings = AsyncMock(return_value=[])
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
     api.get_daily_gateway = AsyncMock(return_value=[])
     api.get_monthly_gateway = AsyncMock(return_value=[])
     api.get_rogueaps = AsyncMock(return_value=[])
@@ -1644,6 +1697,7 @@ async def test_coordinator_wan2_sets_wan_mode_fallback(
     """WAN2 sets wan_mode when WAN1 hasn't set it yet (line 636)."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(
         return_value=[
             {
@@ -1669,6 +1723,7 @@ async def test_coordinator_wan2_sets_wan_mode_fallback(
         ]
     )
     api.get_settings = AsyncMock(return_value=[])
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
     api.get_daily_gateway = AsyncMock(return_value=[])
     api.get_monthly_gateway = AsyncMock(return_value=[])
     api.get_rogueaps = AsyncMock(return_value=[])
@@ -1694,6 +1749,7 @@ async def test_coordinator_guest_count_parse_error(
     """
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(
         return_value=[
             {
@@ -1939,6 +1995,7 @@ async def test_rogue_ap_age_calculation(hass: Any, mock_config_entry: Any) -> No
     api.get_sysinfo = AsyncMock(return_value=[])
     api.get_networkconf = AsyncMock(return_value=[])
     api.get_settings = AsyncMock(return_value=[])
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
     api.get_daily_gateway = AsyncMock(return_value=[])
     api.get_monthly_gateway = AsyncMock(return_value=[])
     api.get_rogueaps = AsyncMock(return_value=rogueaps_raw)
@@ -2037,6 +2094,7 @@ async def test_rogue_ap_5ghz_skipped_when_disabled(
         options={**mock_config_entry.options, "rogue_show_5ghz": False},
     )
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(
         return_value=[{"mac": "aa:bb:cc:dd:ee:ff", "model": "UDMPRO", "state": 1}]
     )
@@ -2044,6 +2102,7 @@ async def test_rogue_ap_5ghz_skipped_when_disabled(
     api.get_sysinfo = AsyncMock(return_value=[])
     api.get_networkconf = AsyncMock(return_value=[])
     api.get_settings = AsyncMock(return_value=[])
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
     api.get_daily_gateway = AsyncMock(return_value=[])
     api.get_monthly_gateway = AsyncMock(return_value=[])
     api.get_rogueaps = AsyncMock(
@@ -2073,6 +2132,7 @@ async def test_rogue_ap_essid_ignored(hass: Any, mock_config_entry: Any) -> None
         options={**mock_config_entry.options, "rogue_ignore_ssids": "TestNet,*Guest*"},
     )
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(
         return_value=[{"mac": "aa:bb:cc:dd:ee:ff", "model": "UDMPRO", "state": 1}]
     )
@@ -2080,6 +2140,7 @@ async def test_rogue_ap_essid_ignored(hass: Any, mock_config_entry: Any) -> None
     api.get_sysinfo = AsyncMock(return_value=[])
     api.get_networkconf = AsyncMock(return_value=[])
     api.get_settings = AsyncMock(return_value=[])
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
     api.get_daily_gateway = AsyncMock(return_value=[])
     api.get_monthly_gateway = AsyncMock(return_value=[])
     api.get_rogueaps = AsyncMock(
@@ -2107,6 +2168,7 @@ async def test_rogue_ap_bssid_clustering(hass: Any, mock_config_entry: Any) -> N
     """Two rogues with same BSSID get clustered, signal/last_seen maxed."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(
         return_value=[
             {
@@ -2135,6 +2197,7 @@ async def test_rogue_ap_bssid_clustering(hass: Any, mock_config_entry: Any) -> N
     api.get_sysinfo = AsyncMock(return_value=[])
     api.get_networkconf = AsyncMock(return_value=[])
     api.get_settings = AsyncMock(return_value=[])
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
     api.get_daily_gateway = AsyncMock(return_value=[])
     api.get_monthly_gateway = AsyncMock(return_value=[])
     api.get_rogueaps = AsyncMock(
@@ -2189,6 +2252,7 @@ async def test_system_log_alert_counts_and_attrs(
     """System log data is parsed into severity counts and alert attributes."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(
         return_value=[
             {
@@ -2204,6 +2268,7 @@ async def test_system_log_alert_counts_and_attrs(
     api.get_sysinfo = AsyncMock(return_value=[])
     api.get_networkconf = AsyncMock(return_value=[])
     api.get_settings = AsyncMock(return_value=[])
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
     api.get_daily_gateway = AsyncMock(return_value=[])
     api.get_monthly_gateway = AsyncMock(return_value=[])
     api.get_rogueaps = AsyncMock(return_value=[])
@@ -2270,6 +2335,7 @@ async def test_rogue_ap_2ghz_skipped_when_disabled(
         options={**mock_config_entry.options, "rogue_show_24ghz": False},
     )
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(
         return_value=[{"mac": "aa:bb:cc:dd:ee:ff", "model": "UDMPRO", "state": 1}]
     )
@@ -2277,6 +2343,7 @@ async def test_rogue_ap_2ghz_skipped_when_disabled(
     api.get_sysinfo = AsyncMock(return_value=[])
     api.get_networkconf = AsyncMock(return_value=[])
     api.get_settings = AsyncMock(return_value=[])
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
     api.get_daily_gateway = AsyncMock(return_value=[])
     api.get_monthly_gateway = AsyncMock(return_value=[])
     api.get_rogueaps = AsyncMock(
@@ -2309,6 +2376,7 @@ async def test_rogue_ap_cluster_all_reporters_match_ignore(
         },
     )
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(
         return_value=[
             {
@@ -2337,6 +2405,7 @@ async def test_rogue_ap_cluster_all_reporters_match_ignore(
     api.get_sysinfo = AsyncMock(return_value=[])
     api.get_networkconf = AsyncMock(return_value=[])
     api.get_settings = AsyncMock(return_value=[])
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
     api.get_daily_gateway = AsyncMock(return_value=[])
     api.get_monthly_gateway = AsyncMock(return_value=[])
     api.get_rogueaps = AsyncMock(
@@ -2376,6 +2445,7 @@ async def test_system_log_parse_error_handled(
     """System-log parse exception is caught gracefully (lines 1336-1343)."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(
         return_value=[
             {
@@ -2391,6 +2461,7 @@ async def test_system_log_parse_error_handled(
     api.get_sysinfo = AsyncMock(return_value=[])
     api.get_networkconf = AsyncMock(return_value=[])
     api.get_settings = AsyncMock(return_value=[])
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
     api.get_daily_gateway = AsyncMock(return_value=[])
     api.get_monthly_gateway = AsyncMock(return_value=[])
     api.get_rogueaps = AsyncMock(return_value=[])
@@ -3386,6 +3457,7 @@ async def test_integration_health_computation_error_caught(
     """Exception in integration-health computation is caught (lines 1996-1997)."""
     mock_config_entry.add_to_hass(hass)
     api = MagicMock()
+    api.site = "default"
     api.get_devices = AsyncMock(
         return_value=[
             {
@@ -3401,6 +3473,7 @@ async def test_integration_health_computation_error_caught(
     api.get_sysinfo = AsyncMock(return_value=[])
     api.get_networkconf = AsyncMock(return_value=[])
     api.get_settings = AsyncMock(return_value=[])
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
     api.get_daily_gateway = AsyncMock(return_value=[])
     api.get_monthly_gateway = AsyncMock(return_value=[])
     api.get_rogueaps = AsyncMock(return_value=[])
@@ -3420,3 +3493,574 @@ async def test_integration_health_computation_error_caught(
 
     assert result is not None
     assert "gateway" in result
+
+
+async def test_gateway_sw_version_change_updates_device_registry(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """A new stat/sysinfo version updates the device registry without a reload."""
+    from custom_components.unifi_network_monitor.const import DOMAIN
+    from homeassistant.helpers import device_registry as dr
+
+    mock_config_entry.add_to_hass(hass)
+    dev_reg = dr.async_get(hass)
+    gw_device = dev_reg.async_get_or_create(
+        config_entry_id=mock_config_entry.entry_id,
+        identifiers={(DOMAIN, mock_config_entry.data["mac"])},
+        name="Gateway",
+        sw_version="10.4.57",
+    )
+
+    api = MagicMock()
+    api.site = "default"
+    api.get_devices = AsyncMock(return_value=[])
+    api.get_health = AsyncMock(return_value=[])
+    api.get_sysinfo = AsyncMock(return_value=[{"version": "11.0.99"}])
+    api.get_networkconf = AsyncMock(return_value=[])
+    api.get_settings = AsyncMock(return_value=[])
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
+    api.get_daily_gateway = AsyncMock(return_value=[])
+    api.get_monthly_gateway = AsyncMock(return_value=[])
+    api.get_rogueaps = AsyncMock(return_value=[])
+    api.get_guests = AsyncMock(return_value=[])
+    api.get_backups = AsyncMock(return_value=[])
+    api.get_speedtest_results = AsyncMock(return_value=[])
+    api.get_system_logs = AsyncMock(return_value=[])
+
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+    assert coordinator.sw_version == "10.4.57"
+
+    with patch.object(
+        dev_reg, "async_update_device", wraps=dev_reg.async_update_device
+    ) as update_spy:
+        await coordinator._async_update_data()
+        assert coordinator.sw_version == "11.0.99"
+        updated = dev_reg.async_get(gw_device.id)
+        assert updated is not None and updated.sw_version == "11.0.99"
+        assert update_spy.call_count == 1
+
+        # Unchanged version makes no registry write.
+        await coordinator._async_update_data()
+        assert update_spy.call_count == 1
+
+    # Missing registry entry / empty gateway_mac does not raise.
+    coordinator.gateway_mac = ""
+    api.get_sysinfo = AsyncMock(return_value=[{"version": "11.0.100"}])
+    await coordinator._async_update_data()
+    assert coordinator.sw_version == "11.0.100"
+
+
+async def test_unadopted_device_skipped_while_later_adopted_processed(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """An adopted: false device first in devices_raw is skipped without stopping the loop."""
+    mock_config_entry.add_to_hass(hass)
+    unadopted_ap = {
+        "mac": "11:22:33:44:55:66",
+        "name": "Pending AP",
+        "model": "U6-Pro",
+        "state": 1,
+        "adopted": False,
+        "is_access_point": True,
+    }
+    adopted_ap = {
+        "mac": "77:88:99:aa:bb:cc",
+        "name": "Adopted AP",
+        "model": "U6-Pro",
+        "state": 1,
+        "adopted": True,
+        "is_access_point": True,
+    }
+
+    api = MagicMock()
+    api.site = "default"
+    api.get_devices = AsyncMock(return_value=[unadopted_ap, adopted_ap])
+    api.get_health = AsyncMock(return_value=[])
+    api.get_sysinfo = AsyncMock(return_value=[])
+    api.get_networkconf = AsyncMock(return_value=[])
+    api.get_settings = AsyncMock(return_value=[])
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
+    api.get_daily_gateway = AsyncMock(return_value=[])
+    api.get_monthly_gateway = AsyncMock(return_value=[])
+    api.get_rogueaps = AsyncMock(return_value=[])
+    api.get_guests = AsyncMock(return_value=[])
+    api.get_backups = AsyncMock(return_value=[])
+    api.get_speedtest_results = AsyncMock(return_value=[])
+    api.get_system_logs = AsyncMock(return_value=[])
+
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+    result = await coordinator._async_update_data()
+    assert "11:22:33:44:55:66" not in result["devices"]
+    assert "77:88:99:aa:bb:cc" in result["devices"]
+
+
+async def test_modern_stats_engine_wan1_wan2_single_wan_and_legacy_404(
+    hass: Any, mock_config_entry: Any, aioclient_mock: Any
+) -> None:
+    """HTTP-seam: LEGACY 404 keeps last_rejection clean; MODERN sums wanBySite cleanly."""
+    from .transport import ControllerFake, real_api
+
+    mock_config_entry.add_to_hass(hass)
+    fake = ControllerFake(aioclient_mock)
+    fake.serve(
+        stats_source="LEGACY",
+        sysinfo=[{"version": "11.0.99", "udm_version": "6.0.17"}],
+    )
+    api = real_api(hass)
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+    coordinator.sw_version = "11.0.99"
+    coordinator.udm_version = "6.0.17"
+    await coordinator._async_update_data()
+    assert coordinator._stats_source == "LEGACY"
+    assert api.last_rejection is None
+
+    # Switch to MODERN >= 11.0.89 with WAN1 + WAN2 buckets
+    fake.serve(
+        stats_source='"MODERN"',
+        sysinfo=[{"version": "11.0.99", "udm_version": "6.0.17"}],
+        stats_series=[
+            {
+                "byNetworkGroup": [
+                    {"networkGroup": "WAN", "rxBytes": 100, "txBytes": 50},
+                    {"networkGroup": "WAN2", "rxBytes": 20, "txBytes": 10},
+                ]
+            },
+            {
+                "byNetworkGroup": [
+                    {"networkGroup": "WAN", "rxBytes": 200, "txBytes": 25},
+                ]
+            },
+        ],
+    )
+    coordinator._stats_source = None
+    data = await coordinator._async_update_data()
+    assert coordinator._stats_source == "MODERN"
+    assert coordinator._stats_site_id == "stats-site-1"
+    assert data["gateway"]["wan1_today_rx"] == 300
+    assert data["gateway"]["wan1_today_tx"] == 75
+    assert data["gateway"]["wan2_today_rx"] == 20
+    assert data["gateway"]["wan2_today_tx"] == 10
+    assert coordinator._stats_diagnostics["engine"] == "MODERN"
+    assert coordinator._stats_diagnostics["daily_buckets"] == 2
+    assert all("stats-site-1" not in route for route in api.routes)
+
+    # Single-WAN: WAN2 omitted -> wan2_today_rx stays None
+    fake.serve(
+        stats_source="MODERN",
+        sysinfo=[{"version": "11.0.99", "udm_version": "6.0.17"}],
+        stats_series=[
+            {"byNetworkGroup": [{"networkGroup": "WAN", "rxBytes": 400, "txBytes": 90}]}
+        ],
+    )
+    data_single = await coordinator._async_update_data()
+    assert data_single["gateway"]["wan1_today_rx"] == 400
+    assert data_single["gateway"]["wan2_today_rx"] is None
+
+    # Empty MODERN list [] -> stays None and records 0 buckets
+    fake.serve(
+        stats_source="MODERN",
+        sysinfo=[{"version": "11.0.99", "udm_version": "6.0.17"}],
+        stats_series=[],
+    )
+    data_empty = await coordinator._async_update_data()
+    assert data_empty["gateway"]["wan1_today_rx"] is None
+    assert coordinator._stats_diagnostics["daily_buckets"] == 0
+
+
+async def test_modern_stats_version_gate_error_isolation_and_reprobe(
+    hass: Any, mock_config_entry: Any, aioclient_mock: Any
+) -> None:
+    """HTTP-seam: <11.0.89 stays unknown; 500 stats/source degrades usage only; version change re-probes."""
+    from .transport import ControllerFake, real_api
+
+    mock_config_entry.add_to_hass(hass)
+    fake = ControllerFake(aioclient_mock)
+
+    # Below 11.0.89 -> stays unknown
+    fake.serve(
+        stats_source="MODERN",
+        sysinfo=[{"version": "11.0.88", "udm_version": "6.0.16"}],
+        stats_series=[
+            {
+                "byNetworkGroup": [
+                    {"networkGroup": "WAN", "rxBytes": 999, "txBytes": 999}
+                ]
+            }
+        ],
+    )
+    api = real_api(hass)
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+    data_old = await coordinator._async_update_data()
+    assert data_old["gateway"]["wan1_today_rx"] is None
+
+    # Firmware upgrade 11.0.88 -> 11.0.99 triggers capability re-probe on next poll
+    fake.serve(
+        stats_source="MODERN",
+        sysinfo=[{"version": "11.0.99", "udm_version": "6.0.17"}],
+        stats_series=[
+            {
+                "byNetworkGroup": [
+                    {"networkGroup": "WAN", "rxBytes": 999, "txBytes": 999}
+                ]
+            }
+        ],
+    )
+    await coordinator._async_update_data()
+    assert coordinator._stats_source is None
+    assert coordinator._stats_site_id is None
+    data_upgraded = await coordinator._async_update_data()
+    assert data_upgraded["gateway"]["wan1_today_rx"] == 999
+
+    # Non-404 stats/source failure (500) degrades only EP_DAILY / EP_MONTHLY
+    from custom_components.unifi_network_monitor.const import EP_DAILY, EP_MONTHLY
+
+    fake.serve(
+        stats_source=500, sysinfo=[{"version": "11.0.99", "udm_version": "6.0.17"}]
+    )
+    coordinator._stats_source = None
+    data_err = await coordinator._async_update_data()
+    assert data_err["gateway"]
+    for _ in range(3):
+        await coordinator._async_update_data()
+    assert coordinator.endpoint_available(EP_DAILY) is False
+    assert coordinator.endpoint_available(EP_MONTHLY) is False
+
+
+async def test_legacy_to_modern_usage_watermark_upgrade_sequence(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """Multi-pass §6.1: LEGACY watermark persists and resets forward under MODERN start ms."""
+    from datetime import UTC, datetime
+    from zoneinfo import ZoneInfo
+
+    mock_config_entry.add_to_hass(hass)
+    api = MagicMock()
+    api.site = "default"
+    api.get_devices = AsyncMock(
+        return_value=[
+            {
+                "mac": "aa:bb:cc:dd:ee:ff",
+                "model": "UDMPRO",
+                "state": 1,
+                "wan1": {"is_uplink": True, "up": True},
+            }
+        ]
+    )
+    api.get_health = AsyncMock(return_value=[])
+    api.get_sysinfo = AsyncMock(
+        return_value=[{"version": "11.0.99", "udm_version": "6.0.17"}]
+    )
+    api.get_networkconf = AsyncMock(return_value=[])
+    api.get_settings = AsyncMock(return_value=[])
+    api.get_wlanconf = AsyncMock(return_value=[])
+    api.get_rogueaps = AsyncMock(return_value=[])
+    api.get_guests = AsyncMock(return_value=[])
+    api.get_backups = AsyncMock(return_value=[])
+    api.get_speedtest_results = AsyncMock(return_value=[])
+    api.get_system_logs = AsyncMock(return_value=[])
+
+    # Pass 1: LEGACY bucket at 2026-11-18 00:00 UTC
+    legacy_day_ms = int(datetime(2026, 11, 18, 0, 0, tzinfo=UTC).timestamp() * 1000)
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
+    api.get_daily_gateway = AsyncMock(
+        return_value=[
+            {"time": legacy_day_ms, "wan-rx_bytes": 5000.0, "wan-tx_bytes": 1000.0}
+        ]
+    )
+    api.get_monthly_gateway = AsyncMock(
+        return_value=[
+            {"time": legacy_day_ms, "wan-rx_bytes": 20000.0, "wan-tx_bytes": 4000.0}
+        ]
+    )
+    coordinator = UnifiNetworkDataUpdateCoordinator(hass, mock_config_entry, api)
+    await coordinator._async_update_data()
+    assert coordinator.usage_watermark["wan1_today_rx"]["value"] == 5000
+
+    # Pass 2: MODERN on 2026-11-19 in Europe/Berlin (local midnight > legacy_day_ms)
+    api.get_stats_source = AsyncMock(return_value="MODERN")
+    api.get_self_sites = AsyncMock(return_value=[{"name": "default", "_id": "s1"}])
+    api.get_stats_series = AsyncMock(
+        return_value=[
+            {
+                "byNetworkGroup": [
+                    {"networkGroup": "WAN", "rxBytes": 1200, "txBytes": 300}
+                ]
+            }
+        ]
+    )
+    coordinator._stats_source = None
+    berlin_now = datetime(2026, 11, 19, 10, 30, tzinfo=ZoneInfo("Europe/Berlin"))
+    with patch(
+        "custom_components.unifi_network_monitor.coordinator.dt_util.now",
+        return_value=berlin_now,
+    ):
+        data_modern = await coordinator._async_update_data()
+    assert data_modern["gateway"]["wan1_today_rx"] == 1200
+    assert coordinator.usage_watermark["wan1_today_rx"]["value"] == 1200
+
+
+async def test_missing_fields_return_none_and_hold_uptime_latch(
+    hass: Any, mock_config_entry: Any, aioclient_mock: Any
+) -> None:
+    """HTTP-seam I2: omitted AP/Switch/Health fields read None and hold uptime latches."""
+    from .transport import ControllerFake, real_api
+
+    mock_config_entry.add_to_hass(hass)
+    fake = ControllerFake(aioclient_mock)
+    # Poll 1: valid uptime on wan1/wan2/www to establish boot-time latches
+    fake.serve(
+        devices=[
+            {
+                "mac": "aa:bb:cc:dd:ee:01",
+                "name": "AP1",
+                "model": "U6",
+                "type": "uap",
+                "is_access_point": True,
+                "state": 1,
+            },
+            {
+                "mac": "aa:bb:cc:dd:ee:02",
+                "name": "SW1",
+                "model": "USW",
+                "type": "usw",
+                "state": 1,
+            },
+        ],
+        health=[
+            {
+                "subsystem": "wan",
+                "status": "ok",
+                "uptime_stats": {
+                    "WAN": {
+                        "uptime": 5000,
+                        "availability": 99.5,
+                        "latency_average": 12,
+                    },
+                    "WAN2": {
+                        "uptime": 4000,
+                        "availability": 100.0,
+                        "latency_average": 18,
+                    },
+                },
+            },
+            {"subsystem": "www", "status": "ok", "uptime": 5000, "latency": 10},
+            {"subsystem": "wlan", "status": "ok"},
+            {"subsystem": "lan", "status": "ok"},
+        ],
+    )
+    coordinator = UnifiNetworkDataUpdateCoordinator(
+        hass, mock_config_entry, real_api(hass)
+    )
+    first = await coordinator._async_update_data()
+    wan1_boot_first = first["health"]["wan1_boot_time"]
+    assert wan1_boot_first is not None
+
+    # Poll 2: omit all optional counts/availability/latency/uptime fields
+    fake.serve(
+        devices=[
+            {
+                "mac": "aa:bb:cc:dd:ee:01",
+                "name": "AP1",
+                "model": "U6",
+                "type": "uap",
+                "is_access_point": True,
+                "state": 1,
+            },
+            {
+                "mac": "aa:bb:cc:dd:ee:02",
+                "name": "SW1",
+                "model": "USW",
+                "type": "usw",
+                "state": 1,
+            },
+        ],
+        health=[
+            {
+                "subsystem": "wan",
+                "status": "ok",
+                "uptime_stats": {"WAN": {"x": 1}, "WAN2": {"x": 1}},
+            },
+            {"subsystem": "www", "status": "ok"},
+            {"subsystem": "wlan", "status": "ok"},
+            {"subsystem": "lan", "status": "ok"},
+        ],
+    )
+    second = await coordinator._async_update_data()
+    ap = second["devices"]["aa:bb:cc:dd:ee:01"]
+    sw = second["devices"]["aa:bb:cc:dd:ee:02"]
+    hl = second["health"]
+
+    for k in ("clients", "guests", "clients_wifi0", "clients_wifi1"):
+        assert ap[k] is None
+    for k in ("ports_used", "ports_user", "ports_guest"):
+        assert sw[k] is None
+    for k in (
+        "wan_num_sta",
+        "wan_uptime",
+        "wan1_availability",
+        "wan1_latency_avg",
+        "wan1_time_period",
+        "wan1_uptime",
+        "wan2_availability",
+        "wan2_latency_avg",
+        "wan2_time_period",
+        "wan2_uptime",
+        "www_latency",
+        "www_uptime",
+        "www_drops",
+        "wlan_num_user",
+        "wlan_num_guest",
+        "wlan_num_iot",
+        "wlan_num_ap",
+        "lan_num_user",
+        "lan_num_iot",
+        "lan_num_sw",
+        "lan_num_adopted",
+    ):
+        assert hl[k] is None, f"expected None for {k}, got {hl[k]!r}"
+    # Missing uptime holds the existing latch (not None, no reboot)
+    assert hl["wan1_boot_time"] == wan1_boot_first
+
+
+def test_ap_negative_satisfaction_normalized_to_none() -> None:
+    """I4 D6: Uncomputed AP satisfaction -1 normalizes to None at parse time."""
+    device = {
+        "mac": "bb:cc:dd:ee:ff:00",
+        "name": "AP Hall",
+        "model": "U6-Pro",
+        "state": 1,
+        "satisfaction": -1,
+        "radio_table_stats": [{"satisfaction": -1}, {"satisfaction": 98}],
+        "is_access_point": True,
+    }
+    result = _parse_ap(device, _now())
+    assert result["score"] is None
+    assert result["score_wifi0"] is None
+    assert result["score_wifi1"] == 98
+
+
+async def test_modern_stats_missing_site_and_empty_series_and_guard_band_branches(
+    hass: Any, mock_config_entry: Any, aioclient_mock: Any, caplog: Any
+) -> None:
+    """Cover missing siteId in MODERN /self/sites, empty series log, and report_guard_band edge paths."""
+    from .transport import ControllerFake, real_api
+
+    mock_config_entry.add_to_hass(hass)
+    fake = ControllerFake(aioclient_mock)
+    fake.serve(
+        stats_source="MODERN",
+        self_sites=[{"name": "other", "_id": "x"}],
+        sysinfo=[{"version": "11.0.99", "udm_version": "6.0.17"}],
+    )
+    coordinator = UnifiNetworkDataUpdateCoordinator(
+        hass, mock_config_entry, real_api(hass)
+    )
+
+    # report_guard_band before _last_health_inputs
+    coordinator.report_guard_band("u1", "cpu", True)
+    coordinator.report_guard_band("u1", "cpu", True)  # idempotent repeat
+    coordinator.report_guard_band("u1", "cpu", False)
+
+    # Site not found -> EP_DAILY/EP_MONTHLY fail with UnifiConnectionError
+    data_no_site = await coordinator._async_update_data()
+    assert data_no_site["gateway"]["wan1_today_rx"] is None
+
+    # Empty stats_series on >= 11.0.89 logs info once and returns None
+    fake.serve(
+        stats_source="MODERN",
+        self_sites=[{"name": "default", "_id": "s1"}],
+        stats_series=[],
+        sysinfo=[{"version": "11.0.99", "udm_version": "6.0.17"}],
+    )
+    coordinator._stats_source = None
+    with caplog.at_level("INFO"):
+        data_empty = await coordinator._async_update_data()
+    assert data_empty["gateway"]["wan1_today_rx"] is None
+    assert "Empty MODERN daily WAN usage response" in caplog.text
+
+    # report_guard_band when coordinator.data is None
+    coordinator.data = None
+    coordinator.report_guard_band("u1", "cpu", True)
+    assert coordinator.health_snapshot["severity"] == "warning"
+
+
+def _wan(group: str, kind: str, priority: int, weight: int) -> dict[str, Any]:
+    """One WAN networkconf object as `rest/networkconf` returns it."""
+    return {
+        "purpose": "wan",
+        "wan_networkgroup": group,
+        "wan_load_balance_type": kind,
+        "wan_failover_priority": priority,
+        "wan_load_balance_weight": weight,
+    }
+
+
+@pytest.mark.parametrize(
+    ("wans", "expected"),
+    [
+        # The three configurations measured on the UDM Pro, 2026-11-18.
+        (
+            [_wan("WAN", "weighted", 1, 50), _wan("WAN2", "failover-only", 2, 50)],
+            "failover",
+        ),
+        (
+            [_wan("WAN", "failover-only", 2, 50), _wan("WAN2", "weighted", 1, 50)],
+            "failover",
+        ),
+        (
+            [_wan("WAN", "weighted", 1, 75), _wan("WAN2", "weighted", 2, 25)],
+            "load_balancing",
+        ),
+        # A third WAN on standby makes the site failover.
+        (
+            [
+                _wan("WAN", "weighted", 1, 50),
+                _wan("WAN2", "weighted", 2, 50),
+                _wan("WAN3", "failover-only", 3, 0),
+            ],
+            "failover",
+        ),
+        # A single WAN keeps the controller's raw value.
+        ([_wan("WAN", "weighted", 1, 100)], "weighted"),
+    ],
+)
+async def test_wan_mode_reads_every_wans_setting(
+    hass: Any,
+    mock_config_entry: Any,
+    aioclient_mock: Any,
+    wans: list[dict[str, Any]],
+    expected: str,
+) -> None:
+    """HTTP-seam: WAN Mode is derived from every WAN, with each WAN's role."""
+    from .transport import ControllerFake, real_api
+
+    mock_config_entry.add_to_hass(hass)
+    fake = ControllerFake(aioclient_mock)
+    fake.serve(networkconf=[*wans, {"purpose": "corporate", "vlan": 10}])
+    coordinator = UnifiNetworkDataUpdateCoordinator(
+        hass, mock_config_entry, real_api(hass)
+    )
+    gateway = (await coordinator._async_update_data())["gateway"]
+    assert gateway["wan_mode"] == expected
+    assert gateway["wan_mode_wans"] == {
+        w["wan_networkgroup"]: {
+            "wan_load_balance_type": w["wan_load_balance_type"],
+            "wan_failover_priority": w["wan_failover_priority"],
+            "wan_load_balance_weight": w["wan_load_balance_weight"],
+        }
+        for w in wans
+    }
+
+
+def test_wan_mode_with_two_wans_of_unknown_type_keeps_a_raw_value() -> None:
+    """Two WANs that are neither all weighted nor failover report the first raw value."""
+    from custom_components.unifi_network_monitor.coordinator import (
+        _wan_mode_from_networkconf,
+    )
+
+    mode, detail = _wan_mode_from_networkconf(
+        [_wan("WAN", "", 1, 50), _wan("WAN2", "custom", 2, 50)]
+    )
+    assert mode == "custom"
+    assert set(detail) == {"WAN", "WAN2"}
+    assert _wan_mode_from_networkconf(None) == (None, {})

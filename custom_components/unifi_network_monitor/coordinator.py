@@ -6,13 +6,14 @@ import asyncio
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime, timedelta
 from fnmatch import fnmatchcase
+import ipaddress
 import logging
 from typing import Any, Literal
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
-from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers import device_registry as dr, issue_registry as ir
 from homeassistant.helpers.device_registry import format_mac
 from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.storage import Store
@@ -20,6 +21,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from homeassistant.util import dt as dt_util
 
 from . import identity
+from ._compat import device_by_identifier
 from .alerts import alert_title, build_alert_attrs, build_event_payload
 from .api import UnifiAuthError, UnifiConnectionError, UnifiNetworkAPI
 from .const import (
@@ -88,7 +90,7 @@ from .const import (
     rogue_history_storage_key,
     usage_watermark_storage_key,
 )
-from .gateway import GatewaySelection, select_gateway
+from .gateway import GatewaySelection, is_adopted, select_gateway
 from .helpers import calendar_cycle_bounds, project_cycle_usage
 from .uptime import UptimeLatchMixin
 
@@ -133,6 +135,11 @@ def disabled_endpoints(options: Mapping[str, Any]) -> frozenset[str]:
 # Self-diagnosis maps. A stale endpoint (not user-disabled) is reported on the
 # Integration Health sensor under a friendly capability name.
 _ENDPOINT_CAPABILITY: dict[str, str] = {
+    "devices": "Devices",
+    "health": "Health",
+    EP_SYSINFO: "System info",
+    EP_NETWORKCONF: "Network configuration",
+    EP_WLAN: "Wireless networks",
     EP_ROGUE: "Security / Rogue APs",
     EP_ROGUE_RAW: "Security / Rogue APs",
     EP_SYSLOG: "Alerts",
@@ -145,6 +152,19 @@ _ENDPOINT_CAPABILITY: dict[str, str] = {
     EP_SETTINGS: "Security (Threat Management)",
     EP_WAN_IF: "WAN interface names",
 }
+
+# Runtime/event lists that legitimately return [] when nothing is active.
+_EPHEMERAL_EMPTY_ENDPOINTS: frozenset[str] = frozenset(
+    {
+        EP_GUESTS,
+        EP_ROGUE,
+        EP_ROGUE_RAW,
+        EP_SYSLOG,
+        EP_VPN_TUNNELS,
+        EP_FIREWALL,
+        EP_BACKUPS,
+    }
+)
 
 # v3-only endpoints — unreachable under username/password auth (expected, not a
 # fault), so they are excluded from health when no API key is configured.
@@ -431,6 +451,81 @@ def _safe_int(val: Any, default: int | None = None) -> int | None:
         return default
 
 
+def _parse_network_version(sw_version: str | None) -> tuple[int, int, int] | None:
+    """Parse ``major.minor.patch`` from a UniFi Network version string."""
+    if not sw_version:
+        return None
+    base = sw_version.split("-", 1)[0].split("+", 1)[0]
+    parts = base.split(".")
+    if len(parts) < 3:
+        return None
+    try:
+        return (int(parts[0]), int(parts[1]), int(parts[2]))
+    except ValueError:
+        return None
+
+
+def _is_modern_stats_supported(sw_version: str | None) -> bool:
+    """Return True when Network >= 11.0.89 honors ``start`` on ``stats/recent/series``."""
+    parsed = _parse_network_version(sw_version)
+    return parsed is not None and parsed >= (11, 0, 89)
+
+
+def _usage_period_bounds_ms(now: datetime) -> tuple[int, int, int]:
+    """Return ``(today_start_ms, month_start_ms, end_ms)`` in local midnight ms."""
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    month_start = today_start.replace(day=1)
+    return (
+        int(today_start.timestamp() * 1000),
+        int(month_start.timestamp() * 1000),
+        int(now.timestamp() * 1000),
+    )
+
+
+def _iter_wan_buckets(raw: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Flatten ``{siteId, series: [...]}`` envelopes or return flat buckets."""
+    flat: list[dict[str, Any]] = []
+    for item in raw:
+        series = item.get("series") if isinstance(item, dict) else None
+        if isinstance(series, list):
+            flat.extend(series)
+        else:
+            flat.append(item)
+    return flat
+
+
+def _sum_wan_by_site_buckets(
+    buckets: list[dict[str, Any]],
+) -> tuple[float | None, float | None, float | None, float | None]:
+    """Sum ``rxBytes`` and ``txBytes`` per ``byNetworkGroup`` (WAN / WAN2)."""
+    sums = {"WAN": [0.0, 0.0, False, False], "WAN2": [0.0, 0.0, False, False]}
+    for bucket in _iter_wan_buckets(buckets):
+        groups = bucket.get("byNetworkGroup") if isinstance(bucket, dict) else None
+        if not isinstance(groups, list):
+            continue
+        for entry in groups:
+            if not isinstance(entry, dict):
+                continue
+            acc = sums.get(entry.get("networkGroup") or "")
+            if acc is None:
+                continue
+            rx = _safe_float(entry.get("rxBytes"))
+            tx = _safe_float(entry.get("txBytes"))
+            if rx is not None:
+                acc[0] += rx
+                acc[2] = True
+            if tx is not None:
+                acc[1] += tx
+                acc[3] = True
+    w1, w2 = sums["WAN"], sums["WAN2"]
+    return (
+        w1[0] if w1[2] else None,
+        w1[1] if w1[3] else None,
+        w2[0] if w2[2] else None,
+        w2[1] if w2[3] else None,
+    )
+
+
 def _extract_wan_networkconf(
     raw: list[dict[str, Any]] | None,
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
@@ -451,6 +546,134 @@ def _extract_wan_networkconf(
         elif group == "WAN2":
             wan2 = net
     return wan1, wan2
+
+
+# The gateway's per-WAN ISP lookups, merged in this order with an earlier
+# block's value never overwritten (the order holdestmade/Unifi-WAN uses).
+_GEO_INFO_BLOCKS = ("geo_info", "active_geo_info", "last_geo_info")
+# Only these fields are read. Location fields (address, coordinates, city,
+# accuracy) identify the subscriber and are never published.
+_ISP_FIELDS = ("isp_name", "isp_organization", "asn")
+
+
+def _isp_by_wan(device: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Each WAN group's ISP name, organization and ASN from the geo blocks.
+
+    Blank strings count as absent, so a WAN the gateway has not looked up reads
+    unknown rather than an empty state.
+    """
+    merged: dict[str, dict[str, Any]] = {}
+    for block_key in _GEO_INFO_BLOCKS:
+        block = device.get(block_key)
+        if not isinstance(block, dict):
+            continue
+        for group, info in block.items():
+            if not isinstance(info, dict):
+                continue
+            target = merged.setdefault(str(group), dict.fromkeys(_ISP_FIELDS))
+            for field_name in _ISP_FIELDS:
+                if target[field_name] is not None:
+                    continue
+                value = info.get(field_name)
+                if isinstance(value, str):
+                    value = value.strip() or None
+                target[field_name] = value
+    return merged
+
+
+def _geo_field(device: dict[str, Any], group: str, field_name: str) -> Any:
+    """One field of a WAN's geo record, from geo_info then active_geo_info.
+
+    A block or WAN entry that is not a mapping counts as absent, so a changed
+    payload shape leaves the field unknown instead of failing the gateway parse.
+    """
+    for block_key in ("geo_info", "active_geo_info"):
+        block = device.get(block_key)
+        info = block.get(group) if isinstance(block, dict) else None
+        value = info.get(field_name) if isinstance(info, dict) else None
+        if value:
+            return value
+    return None
+
+
+# Unique-local IPv6 addresses (RFC 4193) are not public.
+_UNIQUE_LOCAL = ipaddress.IPv6Network("fc00::/7")
+
+
+def _global_ipv6(wan: dict[str, Any]) -> str | None:
+    """The first global IPv6 address in a WAN's ``ipv6`` list, or None.
+
+    Link-local (fe80::/10) and unique-local (fc00::/7) entries are skipped, as
+    are entries that do not parse, so a WAN without a global address reads
+    unknown. A zone or prefix length on an entry is ignored for the test.
+    """
+    entries = wan.get("ipv6")
+    if not isinstance(entries, list):
+        return None
+    for entry in entries:
+        if not isinstance(entry, str):
+            continue
+        text = entry.strip().split("%", 1)[0].split("/", 1)[0]
+        try:
+            address = ipaddress.IPv6Address(text)
+        except ValueError:
+            continue
+        if not address.is_link_local and address not in _UNIQUE_LOCAL:
+            return text
+    return None
+
+
+def _isp_values(info: dict[str, Any] | None) -> tuple[Any, dict[str, Any]]:
+    """Split one WAN's ISP record into the state and its attributes."""
+    info = info or {}
+    return info.get("isp_name"), {
+        "isp_organization": info.get("isp_organization"),
+        "asn": info.get("asn"),
+    }
+
+
+def _uplink_group(
+    wan1: dict[str, Any], wan2: dict[str, Any], uplink: dict[str, Any]
+) -> str | None:
+    """The WAN group the gateway uses as its uplink, from each WAN's flag."""
+    if wan1.get("is_uplink"):
+        return "WAN"
+    if wan2.get("is_uplink"):
+        return "WAN2"
+    comment = uplink.get("comment")
+    return comment if comment in ("WAN", "WAN2") else None
+
+
+def _wan_mode_from_networkconf(
+    raw: list[dict[str, Any]] | None,
+) -> tuple[str | None, dict[str, dict[str, Any]]]:
+    """Derive WAN Mode from every WAN's setting, with each WAN's role.
+
+    UniFi stores the mode per WAN, so no single WAN's value is the mode. With
+    two or more WANs, any ``failover-only`` WAN means failover and every WAN
+    ``weighted`` means load balancing; a single WAN reports its own raw value.
+    The second element maps each WAN group to its type, priority and weight.
+    """
+    wans = [
+        net
+        for net in raw or []
+        if net.get("purpose") == "wan" and net.get("wan_networkgroup")
+    ]
+    detail: dict[str, dict[str, Any]] = {
+        str(net["wan_networkgroup"]): {
+            "wan_load_balance_type": net.get("wan_load_balance_type"),
+            "wan_failover_priority": _safe_int(net.get("wan_failover_priority")),
+            "wan_load_balance_weight": _safe_int(net.get("wan_load_balance_weight")),
+        }
+        for net in wans
+    }
+    types = [net.get("wan_load_balance_type") for net in wans]
+    if len(wans) >= 2:
+        if "failover-only" in types:
+            return "failover", detail
+        if all(t == "weighted" for t in types):
+            return "load_balancing", detail
+    return next((t for t in types if t), None), detail
 
 
 def _sum_optional(rx: float | None, tx: float | None) -> float | None:
@@ -582,18 +805,24 @@ def _parse_gateway(
     wan1_data = device.get("wan1") or {}
     wan2_data = device.get("wan2") or {}
 
-    geo_info = device.get("geo_info") or {}
-    active_geo_info = device.get("active_geo_info") or {}
+    wan1_public_ip = _geo_field(device, "WAN", "address")
+    wan2_public_ip = _geo_field(device, "WAN2", "address")
 
-    wan1_geo = geo_info.get("WAN") or {}
-    wan1_active_geo = active_geo_info.get("WAN") or {}
-    wan1_public_ip = wan1_geo.get("address") or wan1_active_geo.get("address")
-
-    wan2_geo = geo_info.get("WAN2") or {}
-    wan2_active_geo = active_geo_info.get("WAN2") or {}
-    wan2_public_ip = wan2_geo.get("address") or wan2_active_geo.get("address")
+    isp = _isp_by_wan(device)
+    wan1_isp, wan1_isp_attrs = _isp_values(isp.get("WAN"))
+    wan2_isp, wan2_isp_attrs = _isp_values(isp.get("WAN2"))
+    group = _uplink_group(wan1_data, wan2_data, uplink)
+    uplink_isp, uplink_isp_attrs = _isp_values(isp.get(group) if group else None)
 
     return {
+        "wan1_public_ipv6": _global_ipv6(wan1_data),
+        "wan2_public_ipv6": _global_ipv6(wan2_data),
+        "wan1_isp": wan1_isp,
+        "wan1_isp_attrs": wan1_isp_attrs,
+        "wan2_isp": wan2_isp,
+        "wan2_isp_attrs": wan2_isp_attrs,
+        "uplink_isp": uplink_isp,
+        "uplink_isp_attrs": uplink_isp_attrs,
         "mac": device.get("mac", "").lower(),
         "name": device.get("name", "UDM Pro"),
         "model": device.get("model", "UDM Pro"),
@@ -640,6 +869,12 @@ def _parse_gateway(
     }
 
 
+def _valid_score(raw: Any) -> int | None:
+    """Return a non-negative Wi-Fi satisfaction score, treating controller -1 as unknown."""
+    val = _safe_int(raw)
+    return None if val is None or val < 0 else val
+
+
 def _parse_ap(
     device: dict[str, Any],
     update_time: datetime,
@@ -664,13 +899,13 @@ def _parse_ap(
         "uptime_secs": uptime_secs,
         "boot_time": (_device_boot_time(device, uptime_secs, update_time)),
         "update_available": bool(device.get("upgradable")),
-        "clients": _safe_int(device.get("user-wlan-num_sta"), 0),
-        "guests": _safe_int(device.get("guest-wlan-num_sta"), 0),
-        "clients_wifi0": _safe_int(wifi0.get("user-num_sta"), 0),
-        "clients_wifi1": _safe_int(wifi1.get("user-num_sta"), 0),
-        "score": _safe_int(device.get("satisfaction")),
-        "score_wifi0": _safe_int(wifi0.get("satisfaction")),
-        "score_wifi1": _safe_int(wifi1.get("satisfaction")),
+        "clients": _safe_int(device.get("user-wlan-num_sta")),
+        "guests": _safe_int(device.get("guest-wlan-num_sta")),
+        "clients_wifi0": _safe_int(wifi0.get("user-num_sta")),
+        "clients_wifi1": _safe_int(wifi1.get("user-num_sta")),
+        "score": _valid_score(device.get("satisfaction")),
+        "score_wifi0": _valid_score(wifi0.get("satisfaction")),
+        "score_wifi1": _valid_score(wifi1.get("satisfaction")),
     }
 
 
@@ -695,9 +930,9 @@ def _parse_switch(
         "uptime_secs": uptime_secs,
         "boot_time": (_device_boot_time(device, uptime_secs, update_time)),
         "update_available": bool(device.get("upgradable")),
-        "ports_used": _safe_int(device.get("num_sta"), 0),
-        "ports_user": _safe_int(device.get("user-num_sta"), 0),
-        "ports_guest": _safe_int(device.get("guest-num_sta"), 0),
+        "ports_used": _safe_int(device.get("num_sta")),
+        "ports_user": _safe_int(device.get("user-num_sta")),
+        "ports_guest": _safe_int(device.get("guest-num_sta")),
     }
 
 
@@ -715,25 +950,21 @@ def _parse_health(
         if subsystem == "wan":
             health["wan_status"] = h.get("status", "unknown")
             # None (→ HA "unknown") when absent, rather than a blank "" state.
-            health["wan_isp_name"] = h.get("isp_name") or None
-            health["wan_isp_org"] = h.get("isp_organization") or None
             health["wan_gw_version"] = h.get("gw_version", "")
-            health["wan_num_sta"] = _safe_int(h.get("num_sta"), 0)
+            health["wan_num_sta"] = _safe_int(h.get("num_sta"))
             gw_stats = h.get("gw_system-stats") or {}
             health["wan_cpu"] = _safe_float(gw_stats.get("cpu"))
             health["wan_mem"] = _safe_float(gw_stats.get("mem"))
-            health["wan_uptime"] = _safe_int(gw_stats.get("uptime"), 0)
+            health["wan_uptime"] = _safe_int(gw_stats.get("uptime"))
 
             uptime_stats = h.get("uptime_stats") or {}
 
             wan1 = uptime_stats.get("WAN") or {}
             if wan1:
-                wan1_uptime = _safe_int(wan1.get("uptime"), 0)
-                health["wan1_availability"] = _safe_float(
-                    wan1.get("availability"), 100.0
-                )
-                health["wan1_latency_avg"] = _safe_int(wan1.get("latency_average"), 0)
-                health["wan1_time_period"] = _safe_int(wan1.get("time_period"), 0)
+                wan1_uptime = _safe_int(wan1.get("uptime"))
+                health["wan1_availability"] = _safe_float(wan1.get("availability"))
+                health["wan1_latency_avg"] = _safe_int(wan1.get("latency_average"))
+                health["wan1_time_period"] = _safe_int(wan1.get("time_period"))
                 health["wan1_uptime"] = wan1_uptime
                 health["wan1_boot_time"] = (
                     coordinator.link_boot_time("wan1", wan1_uptime)
@@ -743,12 +974,10 @@ def _parse_health(
 
             wan2 = uptime_stats.get("WAN2") or {}
             if wan2:
-                wan2_uptime = _safe_int(wan2.get("uptime"), 0)
-                health["wan2_availability"] = _safe_float(
-                    wan2.get("availability"), 100.0
-                )
-                health["wan2_latency_avg"] = _safe_int(wan2.get("latency_average"), 0)
-                health["wan2_time_period"] = _safe_int(wan2.get("time_period"), 0)
+                wan2_uptime = _safe_int(wan2.get("uptime"))
+                health["wan2_availability"] = _safe_float(wan2.get("availability"))
+                health["wan2_latency_avg"] = _safe_int(wan2.get("latency_average"))
+                health["wan2_time_period"] = _safe_int(wan2.get("time_period"))
                 health["wan2_uptime"] = wan2_uptime
                 health["wan2_boot_time"] = (
                     coordinator.link_boot_time("wan2", wan2_uptime)
@@ -758,30 +987,30 @@ def _parse_health(
 
         elif subsystem == "www":
             health["www_status"] = h.get("status", "unknown")
-            health["www_latency"] = _safe_int(h.get("latency"), 0)
-            www_uptime = _safe_int(h.get("uptime"), 0)
+            health["www_latency"] = _safe_int(h.get("latency"))
+            www_uptime = _safe_int(h.get("uptime"))
             health["www_uptime"] = www_uptime
             health["www_boot_time"] = (
                 coordinator.link_boot_time("www", www_uptime)
                 if coordinator
                 else _derive_boot_time(www_uptime, update_time)
             )
-            health["www_drops"] = _safe_int(h.get("drops"), 0)
+            health["www_drops"] = _safe_int(h.get("drops"))
             health["www_speedtest_status"] = h.get("speedtest_status") or None
 
         elif subsystem == "wlan":
             health["wlan_status"] = h.get("status", "unknown")
-            health["wlan_num_user"] = _safe_int(h.get("num_user"), 0)
-            health["wlan_num_guest"] = _safe_int(h.get("num_guest"), 0)
-            health["wlan_num_iot"] = _safe_int(h.get("num_iot"), 0)
-            health["wlan_num_ap"] = _safe_int(h.get("num_ap"), 0)
+            health["wlan_num_user"] = _safe_int(h.get("num_user"))
+            health["wlan_num_guest"] = _safe_int(h.get("num_guest"))
+            health["wlan_num_iot"] = _safe_int(h.get("num_iot"))
+            health["wlan_num_ap"] = _safe_int(h.get("num_ap"))
 
         elif subsystem == "lan":
             health["lan_status"] = h.get("status", "unknown")
-            health["lan_num_user"] = _safe_int(h.get("num_user"), 0)
-            health["lan_num_iot"] = _safe_int(h.get("num_iot"), 0)
-            health["lan_num_sw"] = _safe_int(h.get("num_sw"), 0)
-            health["lan_num_adopted"] = _safe_int(h.get("num_adopted"), 0)
+            health["lan_num_user"] = _safe_int(h.get("num_user"))
+            health["lan_num_iot"] = _safe_int(h.get("num_iot"))
+            health["lan_num_sw"] = _safe_int(h.get("num_sw"))
+            health["lan_num_adopted"] = _safe_int(h.get("num_adopted"))
 
         elif subsystem == "vpn":
             health["vpn_status"] = h.get("status", "unknown")
@@ -843,6 +1072,12 @@ class UnifiNetworkDataUpdateCoordinator(
         # Self-diagnosis: per-source consecutive schema-drift counters. A drift
         # signal must persist HEALTH_DRIFT_STRIKE_LIMIT cycles before it flags.
         self._drift_strikes: dict[str, int] = {}
+        self._populated_sources: set[str] = set()
+        self._empty_strikes: dict[str, int] = {}
+        self._guard_band_suppressed: dict[str, str] = {}
+        self._last_health_inputs: tuple[Mapping[str, Any], dict[str, bool]] | None = (
+            None
+        )
         # Consecutive polls on which no single gateway could be selected; the
         # gateway_not_recognized repair is raised at HEALTH_DRIFT_STRIKE_LIMIT.
         self._gateway_miss_strikes = 0
@@ -890,8 +1125,27 @@ class UnifiNetworkDataUpdateCoordinator(
         # device-card merge (dev_standards §3).
         self.gateway_mac: str = format_mac(entry.data.get("mac", ""))
         self.gateway_model: str = entry.data.get("model", "UDM Pro")
-        self.sw_version: str | None = entry.data.get("sw_version")
+        existing_sw: str | None = None
+        if self.gateway_mac:
+            dev_reg = dr.async_get(hass)
+            existing_device = device_by_identifier(
+                dev_reg, DOMAIN, self.gateway_mac, entry.entry_id
+            )
+            if existing_device is not None:
+                existing_sw = existing_device.sw_version
+        self.sw_version: str | None = existing_sw or entry.data.get("sw_version")
+        self.udm_version: str | None = None
         self.site_uuid: str | None = None
+        self._stats_source: str | None = None
+        self._stats_site_id: str | None = None
+        self._stats_lock = asyncio.Lock()
+        self._stats_diagnostics: dict[str, Any] = {
+            "engine": None,
+            "daily_buckets": None,
+            "monthly_buckets": None,
+        }
+        self._logged_empty_usage = False
+        self._logged_old_modern_stats = False
         # The latest gateway selection, kept for the repair, the identity
         # correction and the diagnostics download.
         self.gateway_selection: GatewaySelection | None = None
@@ -1184,6 +1438,136 @@ class UnifiNetworkDataUpdateCoordinator(
         # period < prev["period"]: a stale/out-of-order bucket — hold last good.
         return prev["value"]
 
+    async def _ensure_stats_source(self) -> tuple[str, str | None]:
+        """Probe ``stats/source`` and ``/self/sites`` once per load or version change."""
+        async with self._stats_lock:
+            if self._stats_source is None:
+                self._stats_source = await self.api.get_stats_source()
+            if self._stats_source == "MODERN" and self._stats_site_id is None:
+                sites = await self.api.get_self_sites()
+                for site in sites:
+                    if site.get("name") == self.api.site:
+                        self._stats_site_id = site.get("_id")
+                        break
+        return self._stats_source, self._stats_site_id
+
+    async def _fetch_wan_usage(
+        self, kind: str, start_ms: int, end_ms: int
+    ) -> list[dict[str, Any]]:
+        """Fetch daily or monthly WAN usage from ``LEGACY`` or ``MODERN`` engine."""
+        source, site_id = await self._ensure_stats_source()
+        if source != "MODERN":
+            if kind == "daily":
+                return await self.api.get_daily_gateway()
+            return await self.api.get_monthly_gateway()
+        if not site_id:
+            raise UnifiConnectionError("Stats site ID not resolved for MODERN engine")
+        return await self.api.get_stats_series(site_id, start_ms, end_ms)
+
+    def _parse_wan_usage_period(
+        self,
+        kind: str,
+        raw: list[dict[str, Any]] | None,
+        engine: str | None,
+        start_ms: int,
+        sw_version: str | None,
+    ) -> tuple[int | None, int | None, int | None, int | None]:
+        """Parse and clamp daily or monthly WAN usage from either engine."""
+        prefix = "wan1_today" if kind == "daily" else "wan1_month"
+        prefix2 = "wan2_today" if kind == "daily" else "wan2_month"
+        bucket_key = "daily_buckets" if kind == "daily" else "monthly_buckets"
+        if engine == "MODERN":
+            self._stats_diagnostics[bucket_key] = (
+                len(_iter_wan_buckets(raw)) if raw is not None else None
+            )
+            if not _is_modern_stats_supported(sw_version):
+                if not self._logged_old_modern_stats:
+                    self._logged_old_modern_stats = True
+                    _LOGGER.warning(
+                        "%s: Network version %s is below 11.0.89; leaving WAN usage unknown",
+                        self.entry.title,
+                        sw_version,
+                    )
+                return None, None, None, None
+            if not raw:
+                if raw is not None and not self._logged_empty_usage:
+                    self._logged_empty_usage = True
+                    _LOGGER.info(
+                        "%s: Empty MODERN %s WAN usage response",
+                        self.entry.title,
+                        kind,
+                    )
+                return None, None, None, None
+            rx1, tx1, rx2, tx2 = _sum_wan_by_site_buckets(raw)
+            return (
+                self._clamp_usage(f"{prefix}_rx", start_ms, rx1),
+                self._clamp_usage(f"{prefix}_tx", start_ms, tx1),
+                self._clamp_usage(f"{prefix2}_rx", start_ms, rx2),
+                self._clamp_usage(f"{prefix2}_tx", start_ms, tx2),
+            )
+        if not raw:
+            self._stats_diagnostics[bucket_key] = 0 if raw is not None else None
+            if raw is not None and not self._logged_empty_usage:
+                self._logged_empty_usage = True
+                _LOGGER.info(
+                    "%s: Empty LEGACY %s WAN usage response",
+                    self.entry.title,
+                    kind,
+                )
+            return None, None, None, None
+        self._stats_diagnostics[bucket_key] = len(raw)
+        try:
+            sorted_rows = sorted(
+                raw,
+                key=lambda x: x.get("time") or 0,
+                reverse=True,
+            )
+            latest = sorted_rows[0]
+            period_val = latest.get("time")
+            period_ms = (
+                int(period_val) if isinstance(period_val, (int, float)) else None
+            )
+            return (
+                self._clamp_usage(
+                    f"{prefix}_rx", period_ms, _safe_float(latest.get("wan-rx_bytes"))
+                ),
+                self._clamp_usage(
+                    f"{prefix}_tx", period_ms, _safe_float(latest.get("wan-tx_bytes"))
+                ),
+                self._clamp_usage(
+                    f"{prefix2}_rx", period_ms, _safe_float(latest.get("wan2-rx_bytes"))
+                ),
+                self._clamp_usage(
+                    f"{prefix2}_tx", period_ms, _safe_float(latest.get("wan2-tx_bytes"))
+                ),
+            )
+        except (AttributeError, KeyError, TypeError, ValueError, IndexError) as err:
+            _LOGGER.debug(
+                "%s: Failed to parse %s gateway data: %s",
+                self.entry.title,
+                kind,
+                err,
+            )
+            return None, None, None, None
+
+    def _reset_stats_on_version_change(
+        self, sw_version: str | None, udm_version: str | None
+    ) -> None:
+        """Reset cached stats engine and v1 site UUID when firmware changes."""
+        sw_changed = bool(
+            self.sw_version and sw_version and sw_version != self.sw_version
+        )
+        udm_changed = bool(
+            udm_version and self.udm_version and udm_version != self.udm_version
+        )
+        if udm_version:
+            self.udm_version = udm_version
+        if not (sw_changed or udm_changed):
+            return
+        self._stats_source = None
+        self._stats_site_id = None
+        self.site_uuid = None
+
     def _update_rogue_history(
         self, rogue_aps: list[dict[str, Any]], now: datetime
     ) -> set[str]:
@@ -1346,6 +1730,23 @@ class UnifiNetworkDataUpdateCoordinator(
             "auth_mode": "api_key" if self.api.api_key else "password",
         }
 
+    def report_guard_band(self, unique_id: str, key: str, suppressed: bool) -> None:
+        """Record or clear a sensor guard-band trip and refresh health_snapshot."""
+        if suppressed:
+            if self._guard_band_suppressed.get(unique_id) == key:
+                return
+            self._guard_band_suppressed[unique_id] = key
+        elif unique_id in self._guard_band_suppressed:
+            del self._guard_band_suppressed[unique_id]
+        else:
+            return
+        if self._last_health_inputs is not None:
+            opts, raw_drift = self._last_health_inputs
+            snapshot = self._compute_integration_health(opts, raw_drift)
+            self.health_snapshot = snapshot
+            if isinstance(self.data, dict):
+                self.data["integration_health"] = snapshot
+
     def _compute_integration_health(
         self, opts: Mapping[str, Any], raw_drift: dict[str, bool]
     ) -> dict[str, Any]:
@@ -1371,10 +1772,38 @@ class UnifiNetworkDataUpdateCoordinator(
 
         # Degraded = failed endpoints the user did NOT disable; v3 endpoints are
         # expected to be down under password auth, so exclude them there.
-        degraded = set(self._stale_endpoints) - disabled_endpoints(opts)
+        disabled = disabled_endpoints(opts)
+        degraded = set(self._stale_endpoints) - disabled
         if not self.api.api_key:
             degraded -= _V3_ENDPOINTS
         degraded_caps = sorted({_ENDPOINT_CAPABILITY.get(ep, ep) for ep in degraded})
+
+        # Empty-data detection: non-ephemeral sources that previously returned
+        # populated records and now succeed with 0 populated records for
+        # HEALTH_DRIFT_STRIKE_LIMIT consecutive polls.
+        empty_sources: set[str] = set()
+        for ep, info in self.endpoint_outcomes.items():
+            if ep in _EPHEMERAL_EMPTY_ENDPOINTS or ep in disabled:
+                self._empty_strikes.pop(ep, None)
+                continue
+            if not self.api.api_key and ep in _V3_ENDPOINTS:
+                self._empty_strikes.pop(ep, None)
+                continue
+            if info.get("outcome") != "answered":
+                if info.get("outcome") == "not_asked":
+                    self._empty_strikes.pop(ep, None)
+                continue
+            if int(info.get("populated", 0)) > 0:
+                self._populated_sources.add(ep)
+                self._empty_strikes.pop(ep, None)
+            elif ep in self._populated_sources:
+                self._empty_strikes[ep] = self._empty_strikes.get(ep, 0) + 1
+                if self._empty_strikes[ep] >= HEALTH_DRIFT_STRIKE_LIMIT:
+                    empty_sources.add(ep)
+        empty_caps = sorted({_ENDPOINT_CAPABILITY.get(ep, ep) for ep in empty_sources})
+
+        self._last_health_inputs = (opts, dict(raw_drift))
+        guard_keys = sorted(set(self._guard_band_suppressed.values()))
 
         site_failed = self.site_uuid == "failed" and bool(self.api.api_key)
         drift_caps = [_DRIFT_CAPABILITY[k] for k in persistent]
@@ -1384,6 +1813,8 @@ class UnifiNetworkDataUpdateCoordinator(
             for cap in drift_caps
         ]
         issues.extend(f"{cap} data unavailable" for cap in degraded_caps)
+        issues.extend(f"{cap} returned no data" for cap in empty_caps)
+        issues.extend(f"Guard band suppressed {key}" for key in guard_keys)
         if site_failed:
             issues.append(
                 "UniFi v3 site could not be resolved "
@@ -1392,13 +1823,22 @@ class UnifiNetworkDataUpdateCoordinator(
 
         # dev_standards §19 values: ok, degraded, warning, error, unknown.
         serious = bool(drift_caps) or site_failed
-        severity = "error" if serious else ("degraded" if degraded_caps else "ok")
+        if serious:
+            severity = "error"
+        elif guard_keys:
+            severity = "warning"
+        elif degraded_caps or empty_caps:
+            severity = "degraded"
+        else:
+            severity = "ok"
 
         return {
             "problem": severity != "ok",
             "severity": severity,
             "issues": issues,
             "degraded_capabilities": degraded_caps,
+            "empty_capabilities": empty_caps,
+            "guard_band_suppressed": guard_keys,
             "drift": drift_caps,
             "auth_mode": "api_key" if self.api.api_key else "password",
             "v3_available": self.site_uuid not in (None, "failed"),
@@ -1573,7 +2013,7 @@ class UnifiNetworkDataUpdateCoordinator(
         endpoint record from showing the previous poll's answer.
         """
         try:
-            return await method()
+            result = await method()
         except Exception as err:
             self.endpoint_outcomes[label] = {
                 "outcome": "failed",
@@ -1581,6 +2021,8 @@ class UnifiNetworkDataUpdateCoordinator(
                 "strikes": self.consecutive_failures + 1,
             }
             raise
+        self._record_fetch_answered(label, result if isinstance(result, list) else [])
+        return result
 
     def _record_fetch_answered(self, label: str, data: list[Any]) -> None:
         """Record an endpoint that answered, with its record counts."""
@@ -1658,6 +2100,9 @@ class UnifiNetworkDataUpdateCoordinator(
 
             async with asyncio.timeout(30):
                 update_time = dt_util.now()
+                today_start_ms, month_start_ms, end_ms = _usage_period_bounds_ms(
+                    update_time
+                )
 
                 # Feature toggles — a disabled category skips its network call(s)
                 # while keeping the gather list's positional layout intact.
@@ -1685,10 +2130,16 @@ class UnifiNetworkDataUpdateCoordinator(
                     self._fetch_optional(self.api.get_networkconf, EP_NETWORKCONF),
                     self._optional(want_security, self.api.get_settings, EP_SETTINGS),
                     self._optional(
-                        want_wan_usage, self.api.get_daily_gateway, EP_DAILY
+                        want_wan_usage,
+                        lambda: self._fetch_wan_usage("daily", today_start_ms, end_ms),
+                        EP_DAILY,
                     ),
                     self._optional(
-                        want_wan_usage, self.api.get_monthly_gateway, EP_MONTHLY
+                        want_wan_usage,
+                        lambda: self._fetch_wan_usage(
+                            "monthly", month_start_ms, end_ms
+                        ),
+                        EP_MONTHLY,
                     ),
                     self._optional(
                         want_security,
@@ -1823,6 +2274,8 @@ class UnifiNetworkDataUpdateCoordinator(
                 for device in devices_raw:
                     if device.get("state", 0) == 0:
                         continue  # Offline — skip
+                    if not is_adopted(device):
+                        continue  # Pending adoption — skip
                     try:
                         if selected_gateway is not None and device is selected_gateway:
                             gateway_device = device
@@ -1850,18 +2303,15 @@ class UnifiNetworkDataUpdateCoordinator(
                 health = _parse_health(health_raw, update_time, self)
 
                 # Parse load-balancing configs from networkconf
-                wan_mode: str | None = None
                 wan1_weight: int | None = None
                 wan2_weight: int | None = None
+                wan_mode, wan_mode_wans = _wan_mode_from_networkconf(networkconf_raw)
                 wan1_net, wan2_net = _extract_wan_networkconf(networkconf_raw)
                 if wan1_net is not None:
                     wan1_weight = _safe_int(wan1_net.get("wan_load_balance_weight"))
-                    wan_mode = wan1_net.get("wan_load_balance_type")
                     self._networkconf_wan = wan1_net
                 if wan2_net is not None:
                     wan2_weight = _safe_int(wan2_net.get("wan_load_balance_weight"))
-                    if not wan_mode:
-                        wan_mode = wan2_net.get("wan_load_balance_type")
                     self._networkconf_wan2 = wan2_net
 
                 # Parse threat management settings
@@ -1874,101 +2324,35 @@ class UnifiNetworkDataUpdateCoordinator(
                         ad_blocking = bool(setting.get("ad_blocking_enabled"))
                         honeypot = bool(setting.get("honeypot_enabled"))
 
-                # Today's Internet Usage
-                wan1_today_rx = None
-                wan1_today_tx = None
-                wan2_today_rx = None
-                wan2_today_tx = None
-                try:
-                    if daily_gateway_raw:
-                        sorted_daily = sorted(
-                            daily_gateway_raw,
-                            key=lambda x: x.get("time") or 0,
-                            reverse=True,
-                        )
-                        latest_daily = sorted_daily[0]
-                        day = latest_daily.get("time")
-                        day = int(day) if isinstance(day, (int, float)) else None
-                        wan1_today_rx = self._clamp_usage(
-                            "wan1_today_rx",
-                            day,
-                            _safe_float(latest_daily.get("wan-rx_bytes")),
-                        )
-                        wan1_today_tx = self._clamp_usage(
-                            "wan1_today_tx",
-                            day,
-                            _safe_float(latest_daily.get("wan-tx_bytes")),
-                        )
-                        wan2_today_rx = self._clamp_usage(
-                            "wan2_today_rx",
-                            day,
-                            _safe_float(latest_daily.get("wan2-rx_bytes")),
-                        )
-                        wan2_today_tx = self._clamp_usage(
-                            "wan2_today_tx",
-                            day,
-                            _safe_float(latest_daily.get("wan2-tx_bytes")),
-                        )
-                except (
-                    AttributeError,
-                    KeyError,
-                    TypeError,
-                    ValueError,
-                    IndexError,
-                ) as err:
-                    _LOGGER.debug(
-                        "%s: Failed to parse daily gateway data: %s",
-                        self.entry.title,
-                        err,
-                    )
-
-                # Monthly Internet Usage
-                wan1_month_rx = None
-                wan1_month_tx = None
-                wan2_month_rx = None
-                wan2_month_tx = None
-                try:
-                    if monthly_gateway_raw:
-                        sorted_monthly = sorted(
-                            monthly_gateway_raw,
-                            key=lambda x: x.get("time") or 0,
-                            reverse=True,
-                        )
-                        latest_monthly = sorted_monthly[0]
-                        month = latest_monthly.get("time")
-                        month = int(month) if isinstance(month, (int, float)) else None
-                        wan1_month_rx = self._clamp_usage(
-                            "wan1_month_rx",
-                            month,
-                            _safe_float(latest_monthly.get("wan-rx_bytes")),
-                        )
-                        wan1_month_tx = self._clamp_usage(
-                            "wan1_month_tx",
-                            month,
-                            _safe_float(latest_monthly.get("wan-tx_bytes")),
-                        )
-                        wan2_month_rx = self._clamp_usage(
-                            "wan2_month_rx",
-                            month,
-                            _safe_float(latest_monthly.get("wan2-rx_bytes")),
-                        )
-                        wan2_month_tx = self._clamp_usage(
-                            "wan2_month_tx",
-                            month,
-                            _safe_float(latest_monthly.get("wan2-tx_bytes")),
-                        )
-                except (
-                    AttributeError,
-                    KeyError,
-                    TypeError,
-                    ValueError,
-                    IndexError,
-                ) as err:
-                    _LOGGER.debug(
-                        "%s: Failed to parse monthly gateway data: %s",
-                        self.entry.title,
-                        err,
-                    )
+                # Today's & Monthly Internet Usage
+                self._stats_diagnostics["engine"] = (
+                    self._stats_source if want_wan_usage else None
+                )
+                effective_sw = sw_version or self.sw_version
+                (
+                    wan1_today_rx,
+                    wan1_today_tx,
+                    wan2_today_rx,
+                    wan2_today_tx,
+                ) = self._parse_wan_usage_period(
+                    "daily",
+                    daily_gateway_raw,
+                    self._stats_source,
+                    today_start_ms,
+                    effective_sw,
+                )
+                (
+                    wan1_month_rx,
+                    wan1_month_tx,
+                    wan2_month_rx,
+                    wan2_month_tx,
+                ) = self._parse_wan_usage_period(
+                    "monthly",
+                    monthly_gateway_raw,
+                    self._stats_source,
+                    month_start_ms,
+                    effective_sw,
+                )
 
                 # End-of-month usage projections. Derived from the monthly
                 # counters above rather than fetched, so they cost nothing and
@@ -2371,6 +2755,7 @@ class UnifiNetworkDataUpdateCoordinator(
                     gateway_data.update(
                         {
                             "wan_mode": wan_mode,
+                            "wan_mode_wans": wan_mode_wans,
                             "last_high": last_high,
                             "last_high_attrs": last_high_attrs,
                             "last_very_high": last_very_high,
@@ -2431,9 +2816,19 @@ class UnifiNetworkDataUpdateCoordinator(
                         }
                     )
 
-                # Update sw_version on coordinator if changed
+                # Reset cached stats capability on firmware change and update registry
+                self._reset_stats_on_version_change(sw_version, udm_version)
                 if sw_version and sw_version != self.sw_version:
                     self.sw_version = sw_version
+                    if self.gateway_mac:
+                        dev_reg = dr.async_get(self.hass)
+                        device = device_by_identifier(
+                            dev_reg, DOMAIN, self.gateway_mac, self.entry.entry_id
+                        )
+                        if device is not None:
+                            dev_reg.async_update_device(
+                                device.id, sw_version=sw_version
+                            )
 
                 self.consecutive_failures = 0
                 self.last_update_success_time = update_time

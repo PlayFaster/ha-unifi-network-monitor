@@ -1,8 +1,13 @@
 # SYNCED FILE — DO NOT EDIT IN A PROJECT.
 # Edit dev-workbench/workbench/python/pyproject_common.toml and re-sync.
 
+required-version = ">=0.17.4"
 target-version = "py313"
 line-length = 88
+extend-exclude = [
+    # Recorded HTTP response bodies, served verbatim by the Marketplace test harness (aligned with HA Core)
+    "tests/components/marketplace/fixtures/proxy",
+]
 
 [lint]
 select = [
@@ -85,8 +90,6 @@ ignore = [
     "D407",
     "D417",
     
-    # Imports outside top-level (essential for fixtures and patching)
-    "PLC0415",
     # Empty string simplification
     "PLC1901",
     # Redundant lambda
@@ -148,6 +151,7 @@ ignore = [
 [lint.isort]
 force-sort-within-sections = true
 known-first-party = ["homeassistant"]
+known-third-party = ["hassfest"]
 combine-as-imports = true
 split-on-trailing-comma = false
 

@@ -20,7 +20,7 @@ def _iso_timestamp(ts: Any) -> str | None:
     return datetime.fromtimestamp(ts / 1000.0, tz=UTC).isoformat()
 
 
-def format_message(raw: str, parameters: dict[str, Any]) -> str:
+def format_message(raw: str | None, parameters: dict[str, Any] | None) -> str:
     """Substitute ``{PARAM}`` placeholders in a raw UniFi alert string.
 
     UniFi ``parameters`` values are dicts carrying a ``name`` (occasionally only

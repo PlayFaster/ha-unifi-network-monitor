@@ -15,7 +15,6 @@ from unittest.mock import MagicMock
 
 import aiohttp
 
-from custom_components.unifi_network_monitor import diagnostics
 from custom_components.unifi_network_monitor.api import UnifiNetworkAPI
 from custom_components.unifi_network_monitor.diagnostics import (
     DISCOVERY_METADATA_GATED,
@@ -254,18 +253,14 @@ async def test_site_name_is_redacted_unless_default(hass: Any) -> None:
 
 async def test_a_failing_section_is_recorded_not_raised(hass: Any) -> None:
     """A section that raises is recorded as a field; the download is still made."""
+
+    class _ExplodingOutcomes(dict[str, Any]):
+        def items(self) -> Any:
+            raise RuntimeError("boom")
+
     coord = _coordinator()
-    coord.endpoint_outcomes = {"x": {"outcome": "answered"}}
-    original = diagnostics._endpoints_block
-
-    def broken(scrub: Any, coordinator: Any) -> Any:
-        raise RuntimeError("boom")
-
-    diagnostics._endpoints_block = broken  # type: ignore[assignment]
-    try:
-        result = await async_get_config_entry_diagnostics(hass, _entry(coord))
-    finally:
-        diagnostics._endpoints_block = original  # type: ignore[assignment]
+    coord.endpoint_outcomes = _ExplodingOutcomes({"x": {"outcome": "answered"}})
+    result = await async_get_config_entry_diagnostics(hass, _entry(coord))
     assert result["endpoints"] == {"section_error": "RuntimeError"}
     assert "data" in result
 
@@ -302,6 +297,7 @@ async def test_every_section_and_rewrite_survives_the_decomposition(
         "gateway_mac",
         "gateway_model",
         "sw_version",
+        "stats",
         "integration_health",
     }
     # Pass 1 and the entry rewrite: MAC keys tokenised, labels kept.

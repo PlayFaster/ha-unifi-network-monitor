@@ -230,3 +230,135 @@ def test_the_severity_sweep_still_sweeps_something() -> None:
     assert len(SEVERITIES) == 5
     source = _COORDINATOR_SOURCE.read_text(encoding="utf-8")
     assert source.count('"severity":') == 4
+
+
+async def test_previously_populated_source_empty_raises_degraded_and_recovers(
+    hass: Any, mock_config_entry: Any, aioclient_mock: Any
+) -> None:
+    """I3 HTTP-seam: previously populated non-ephemeral source returning [] flags degraded, recovers on data."""
+    from custom_components.unifi_network_monitor.const import HEALTH_DRIFT_STRIKE_LIMIT
+
+    from .transport import ControllerFake
+
+    fake = ControllerFake(aioclient_mock)
+    # Poll 1: health and MODERN WAN usage are populated; sysinfo/guests remain empty
+    fake.serve(
+        stats_source="MODERN",
+        self_sites=[{"name": "default", "_id": "s1"}],
+        stats_series=[
+            {"byNetworkGroup": [{"networkGroup": "WAN", "rxBytes": 100, "txBytes": 50}]}
+        ],
+        health=[{"subsystem": "wan", "status": "ok"}],
+    )
+    coordinator = await _seam(hass, mock_config_entry)
+    await _polls(coordinator, 1)
+    assert coordinator.health_snapshot["severity"] == "ok"
+
+    # Polls 2..N: health and stats_series return [] (HTTP 200), sysinfo still [] (never populated)
+    fake.serve(
+        stats_source="MODERN",
+        self_sites=[{"name": "default", "_id": "s1"}],
+        stats_series=[],
+        health=[],
+    )
+    await _polls(coordinator, HEALTH_DRIFT_STRIKE_LIMIT - 1)
+    assert coordinator.health_snapshot["severity"] == "ok"
+
+    await _polls(coordinator, 1)
+    snap = coordinator.health_snapshot
+    assert snap["severity"] == "degraded"
+    assert snap["problem"] is True
+    assert "Health returned no data" in snap["issues"]
+    assert "WAN Usage returned no data" in snap["issues"]
+    assert "System info returned no data" not in snap["issues"]
+    assert "Guests" not in " ".join(snap["issues"])
+
+    # Recovery: populated data returns -> clears to ok
+    fake.serve(
+        stats_source="MODERN",
+        self_sites=[{"name": "default", "_id": "s1"}],
+        stats_series=[
+            {"byNetworkGroup": [{"networkGroup": "WAN", "rxBytes": 200, "txBytes": 80}]}
+        ],
+        health=[{"subsystem": "wan", "status": "ok"}],
+    )
+    await _polls(coordinator, 1)
+    assert coordinator.health_snapshot["severity"] == "ok"
+    assert coordinator.health_snapshot["issues"] == []
+
+
+async def test_guard_band_suppression_precedence_and_recovery(
+    hass: Any, mock_config_entry: Any, aioclient_mock: Any
+) -> None:
+    """I4: Guard-band trip sets warning (error > warning > degraded > ok), exposes attrs, and clears."""
+    from custom_components.unifi_network_monitor.binary_sensor import (
+        UnifiIntegrationHealthBinarySensor,
+    )
+    from custom_components.unifi_network_monitor.const import EP_SPEEDTEST
+    from custom_components.unifi_network_monitor.sensor import (
+        GATEWAY_SENSORS,
+        UnifiGatewaySensor,
+    )
+
+    from .transport import ControllerFake
+
+    fake = ControllerFake(aioclient_mock)
+    fake.serve()
+    coordinator = await _seam(hass, mock_config_entry)
+    await _polls(coordinator, 1)
+
+    cpu_desc = next(d for d in GATEWAY_SENSORS if d.key == "cpu")
+    sensor = UnifiGatewaySensor(coordinator, mock_config_entry, cpu_desc, "gateway")
+    bsensor = UnifiIntegrationHealthBinarySensor(coordinator, mock_config_entry)
+    assert "guard_band_suppressed" in bsensor._unrecorded_attributes
+    assert "empty_capabilities" in bsensor._unrecorded_attributes
+
+    # Out-of-range value (>100.0) trips guard band -> warning
+    coordinator.data["gateway"]["cpu"] = 150.0
+    assert sensor.native_value is None
+    assert coordinator.health_snapshot["severity"] == "warning"
+    assert coordinator.health_snapshot["guard_band_suppressed"] == ["cpu"]
+    assert "Guard band suppressed cpu" in coordinator.health_snapshot["issues"]
+    assert bsensor.is_on is True
+    assert bsensor.extra_state_attributes["guard_band_suppressed"] == ["cpu"]
+
+    # Precedence: warning > degraded
+    coordinator._stale_endpoints.add(EP_SPEEDTEST)
+    coordinator.report_guard_band("uid_extra", "ram", True)
+    assert coordinator.health_snapshot["severity"] == "warning"
+    assert coordinator.health_snapshot["guard_band_suppressed"] == ["cpu", "ram"]
+
+    # Precedence: error > warning
+    coordinator.site_uuid = "failed"
+    coordinator.api.api_key = "k"
+    coordinator.report_guard_band("uid_extra", "ram", False)
+    assert coordinator.health_snapshot["severity"] == "error"
+
+    # Clear error & stale, then clear cpu guard band -> returns to ok
+    coordinator.site_uuid = "s1"
+    coordinator._stale_endpoints.clear()
+    coordinator.data["gateway"]["cpu"] = 42.0
+    assert sensor.native_value == 42.0
+    assert coordinator.health_snapshot["severity"] == "ok"
+    assert coordinator.health_snapshot["guard_band_suppressed"] == []
+    assert coordinator.health_snapshot["issues"] == []
+
+    # Re-trip and verify async_will_remove_from_hass clears it
+    coordinator.data["gateway"]["cpu"] = -5.0
+    assert sensor.native_value is None
+    assert coordinator.health_snapshot["severity"] == "warning"
+    sensor.hass = hass
+    await sensor.async_will_remove_from_hass()
+    assert coordinator.health_snapshot["severity"] == "ok"
+
+    # Password auth (no api_key) ignores V3 endpoints in empty-source sweep
+    from custom_components.unifi_network_monitor.const import EP_VPN_SERVERS
+
+    coordinator.api.api_key = ""
+    coordinator.endpoint_outcomes[EP_VPN_SERVERS] = {
+        "outcome": "answered",
+        "records": 0,
+        "populated": 0,
+    }
+    snap = coordinator._compute_integration_health(mock_config_entry.options, {})
+    assert EP_VPN_SERVERS not in snap["empty_capabilities"]

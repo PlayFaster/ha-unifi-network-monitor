@@ -38,6 +38,8 @@ These endpoints are called during regular polling cycles or user actions.
   - **WAN2 Local IP**: Extracted from `wan2.ip`.
   - **WAN1 Public IP**: Extracted from `geo_info.WAN.address` or `active_geo_info.WAN.address`.
   - **WAN2 Public IP**: Extracted from `geo_info.WAN2.address` or `active_geo_info.WAN2.address`.
+  - **WAN1 / WAN2 Public IPv6 Address**: the first global entry of `wan1.ipv6` / `wan2.ipv6`, a list; link-local (`fe80::/10`) and unique-local (`fc00::/7`) entries are skipped. No other endpoint carries a WAN IPv6 address (`stat/health`, `rest/networkconf` and the Integration API `wans` were checked on 2026-11-18).
+  - **WAN1 ISP, WAN2 ISP, Uplink ISP**: `isp_name`, `isp_organization` and `asn` per WAN group, merged from `geo_info`, `active_geo_info` and `last_geo_info` in that order, an earlier block's value never overwritten. The uplink WAN is the one whose `wan1`/`wan2` `is_uplink` is set, else `uplink.comment`. The blocks also carry `address`, `latitude`, `longitude`, `city`, `country_name`, `country_code`, `continent_code`, `timezone` and `accuracy`; the location fields are never read.
 
 ### `GET /proxy/network/api/s/{site}/stat/health`
 
@@ -80,6 +82,24 @@ These endpoints are called during regular polling cycles or user actions.
 - **Used**: Yes
 - **Purpose**: Requests historical monthly gateway usage statistics over a given date range.
 - **Use Case**: Provides aggregated volume stats for monthly billing-cycle tracking.
+
+### `GET /proxy/network/v2/api/stats/source`
+
+- **Used**: Yes (v2 API path, probed once per load and on controller/gateway version change)
+- **Purpose**: Detects the active statistics engine (`LEGACY` or `MODERN`); HTTP 404 maps to `LEGACY`.
+- **Use Case**: Routes daily and monthly WAN usage queries to the Network 11 statistics engine when `MODERN` is active.
+
+### `GET /proxy/network/api/self/sites`
+
+- **Used**: Yes (when `stats/source` returns `MODERN`)
+- **Purpose**: Resolves the internal `_id` (`siteId`) for the configured site name.
+- **Use Case**: Supplies the `siteId.eq(...)` filter parameter for `stats/recent/series`.
+
+### `GET /proxy/network/v2/api/stats/recent/series`
+
+- **Used**: Yes (v2 API path, when `MODERN` engine is active)
+- **Purpose**: Fetches `wanBySite` WAN usage buckets (`schema=wanBySite`, `projection=values(rxBytes,txBytes),nested(byNetworkGroup)`) bounded by local midnight `start`/`end` millisecond timestamps.
+- **Use Case**: Populates daily and monthly WAN1/WAN2 usage totals on UniFi Network 11.0.89+ controllers (older 11.0.x builds leave WAN usage `unknown`).
 
 ### `POST /proxy/network/api/s/{site}/stat/rogueap`
 

@@ -56,7 +56,7 @@ Data flows in one direction: **`api.py` → `coordinator.py` → platform entiti
 - **`identity.py`**: detects and applies the automatic gateway identity correction; called from `async_setup_entry` before the coordinator is constructed, and once from the first selecting poll.
 
 - **`coordinator.py` (`UnifiNetworkDataUpdateCoordinator`)** — polling + parsing + resilience layer.
-  - **Flat Identity**: gateway MAC, model, and sw_version are loaded from `entry.data` at init time — no network call needed to identify the gateway device on boot.
+  - **Flat Identity**: gateway MAC and model are loaded from `entry.data` at init time — no network call needed to identify the gateway device on boot; `sw_version` seeds from the existing gateway device registry entry when present (falling back to `entry.data`) and updates the device registry in-place on `stat/sysinfo` changes without a reload.
   - **Global 3-Strike Rule**: applies to the two mandatory fetches (`get_devices`, `get_health`) and the whole update. On error, return cached `self.data` for failures 1–3; raise `UpdateFailed`/`ConfigEntryAuthFailed` on the 4th. `self.consecutive_failures` tracks the count.
   - **Per-endpoint resilience** (optional fetches): `_fetch_optional` holds each endpoint's last-good payload for `FETCH_STRIKE_LIMIT` (3) failures, then flags it stale (`self._stale_endpoints`). It distinguishes _failure_ from _empty_ and has a broadened `except` so an API-shape change degrades one endpoint, not the whole update. Entities tag their source endpoint (`_ENDPOINT_BY_KEY` / `_BINARY_ENDPOINT_BY_KEY`) and go **`unavailable`** via an `available` override when `coordinator.endpoint_available(source)` is False — while other endpoints keep serving data.
   - **Fetch skip when a feature is off**: `disabled_endpoints(options)` returns the endpoints whose feature toggle is disabled; `_optional(enabled, method, label)` substitutes a no-op `_skip_fetch` for those, preserving the positional `gather` unpack. Endpoint labels are shared `EP_*` constants in `const.py` (used by both the fetch calls and the entity tags — never inline them separately).
@@ -89,7 +89,7 @@ Data flows in one direction: **`api.py` → `coordinator.py` → platform entiti
 
 ### Device Identity Model ("Flat Identity")
 
-Hardware metadata (`mac`, `model`, `sw_version`) is discovered once at config flow time via `validate_connection()`, stored in `entry.data`, and loaded into the coordinator without any network call at boot. This keeps device info stable before the first poll completes.
+Hardware metadata (`mac`, `model`, `sw_version`) is discovered once at config flow time via `validate_connection()` and stored in `entry.data`; on startup `sw_version` seeds from the device registry when present so firmware updates persist across restarts without mutating `entry.data` on every poll.
 
 ### Config Entry Data vs. Options
 
@@ -121,6 +121,19 @@ Full design: `.notes/design_monitor_setup_options.md`. Cross-project porting gui
 
 ## Key Patterns & Conventions
 
+### Adding entities
+
+Every new, changed, moved or removed entity follows `.shared/dev_std/adding_entities.md`, which lists each step and the standard that holds its rule. This project's specifics:
+
+| Item | This project |
+| :-- | :-- |
+| Description classes | `UnifiSensorEntityDescription`, `UnifiBinarySensorEntityDescription`; other platforms use entity classes |
+| Data access | `value_fn` receives a device's data, selected by the description's `device_key` in `sensor.py` |
+| Device link | `device_info` built from device MAC/model via `coordinator` in `entity.py` |
+| Reference implementations | Sensor `ram` in `sensor.py`; binary sensor `internet` in `binary_sensor.py`; switch `pause_polling` in `switch.py`; select `UnifiRoguePeriodSelect` in `select.py`; number `UnifiScanIntervalNumber` in `number.py`; button `wan1_speedtest` in `button.py` |
+| Generated documents | "Check Sensor Manifest" regenerates `docs/all_sensors.md` |
+| Mutation scope | `.validate/mutmut_modules.txt` |
+
 Shared conventions (ruff/mypy strictness, `_LOGGER` prefixing, `PARALLEL_UPDATES`, `translation_key`, icons, exception tuple syntax, markdown emoji rules) are in shared conventions §4–5 (`.shared/dev_std/agent_conventions.md`). Nothing in this project deviates.
 
 Note: this project's README was cleaned of all ten VS16-emoji occurrences on 2026-07-22.
@@ -129,7 +142,7 @@ Note: this project's README was cleaned of all ten VS16-emoji occurrences on 202
 
 Several tests here are **sweeps**: they assert that every member of a _set_ is covered, so they fail when the set **grows**, not when a known member breaks. The failure therefore looks unrelated to whatever you just changed, and the reflex is to suppress it.
 
-**If one of these fails, it has found something. An allow-list entry is the last resort, not the first move** — every allow-list below is deliberately empty, except `ALLOWED_SUPPRESSIONS`, whose eleven entries each carry a written reason, so adding to one is a visible, reviewable act.
+**If one of these fails, it has found something. An allow-list entry is the last resort, not the first move** — every allow-list below is deliberately empty, except `ALLOWED_SUPPRESSIONS`, whose eight entries each carry a written reason, so adding to one is a visible, reviewable act.
 
 **Add a row when you add a sweep.** The equivalent table on ZTE went stale within one session of being written, which is the same drift the sweeps themselves exist to catch.
 
@@ -156,6 +169,7 @@ Several tests here are **sweeps**: they assert that every member of a _set_ is c
 | A test with no assertion | the assertion audit (`python .workbench/check_test_assertions.py`) | Assert the observable outcome — nothing cancelled, nothing written, the error logged. |
 | **Any new partial branch** | branch coverage (`pytest --cov --cov-branch`) | Treat it as a missing test; the bar is zero partial branches. |
 | Any branch in a `for` loop guard | branch coverage (`pytest --cov --cov-branch`) | Use **at least two** items with the unwanted one **first**, and assert the later item was still processed. |
+| A refused API write, or a new write method | `test_a_refused_write_raises`, `test_every_write_is_in_the_refusal_sweep`, `test_every_write_is_annotated_to_return_none`, `test_no_write_contains_a_bare_return_of_a_value` | Capture `_post`/`_put` return value and call `_check_write_rc(path, body)`, annotate `-> None`, and add the method to `_CALLS` in `tests/test_write_refusal.py`. |
 
 When you add a guard test, add its row here and its rationale to [`docs/test_guards.md`](docs/test_guards.md).
 
@@ -168,6 +182,9 @@ When you add a guard test, add its row here and its rationale to [`docs/test_gua
 | `GET /proxy/network/api/s/{site}/stat/sysinfo`          | System info including firmware version                                                                       |
 | `POST /proxy/network/api/s/{site}/stat/rogueap`         | Rogue APs within `{within}` hours (Security; queried at the live period + a fixed 24h for the raw sensor)    |
 | `POST /proxy/network/v2/api/site/{site}/system-log/all` | System-log alerts (Alerts group; `EP_SYSLOG` polls HIGH/VERY_HIGH; `get_alerts` queries all four severities) |
+| `GET /proxy/network/v2/api/stats/source`                | Active statistics engine (`LEGACY` on 404, `MODERN` on Network 11+)                                          |
+| `GET /proxy/network/api/self/sites`                     | Resolve internal site `_id` (`siteId`) for `MODERN` statistics queries                                       |
+| `GET /proxy/network/v2/api/stats/recent/series`         | Network 11.0.89+ `wanBySite` daily and monthly WAN usage buckets                                             |
 | `POST /api/auth/login`                                  | Obtain TOKEN cookie + X-CSRF-Token (username/password auth only)                                             |
 | `POST /api/auth/logout`                                 | Invalidate session                                                                                           |
 
@@ -181,7 +198,7 @@ Still outstanding and not yet written up as a roadmap entry:
 
 - **Rogue-AP action/event fast-follow refinements** and any further alerts polish.
 
-Note: the test suite is at **100% line and 100% branch coverage** — 1103 tests, 3703 statements, 0 missing, **0 partial branches** across all 20 modules (re-verified 2026-10-15). The assertion audit reports **0 of 1018** tests asserting nothing. Coverage is necessary and not sufficient: mutation testing at `[1.0.1-dev19]` found the diagnostics scrubber fully covered and asserted only for the **absence** of secrets, which a skipped scrub satisfies — see `docs/changelog_local.md`. Coverage includes the 2026-07 work — options gating, per-endpoint resilience, `cleanup.py`, service/hook, config-flow sections, the Security/Alerts sub-devices, the `get_alerts`/`get_rogue_aps` actions + `new_alert`/`new_rogue_ap` events, `select.py`, the `about`/unrecorded-attribute layer, and the later rogue expansion — hidden-SSID naming + `ssid_anomaly` + new rogue fields, action `keyword`/`exclude`/`total_matched`/`count_total`, the persistent rogue history + `rogue_new_24h` sensor + `clear_rogue_history`, the ignore-list management actions, and the **Integration Health** self-diagnosis (`_compute_integration_health`/`_sync_health_issues` + the `schema_drift_detected` repair). Source is ruff/mypy-clean.
+Note: the test suite is at **100% line and 100% branch coverage** — 1170 tests, 3993 statements, 1276 branches, 0 missed, **0 partial branches** (re-verified 2026-11-20). The assertion audit reports **0 of 1045** tests asserting nothing. Coverage is necessary and not sufficient: mutation testing at `[1.0.1-dev19]` found the diagnostics scrubber fully covered and asserted only for the **absence** of secrets, which a skipped scrub satisfies — see `docs/changelog_local.md`. Coverage includes the 2026-07 work — options gating, per-endpoint resilience, `cleanup.py`, service/hook, config-flow sections, the Security/Alerts sub-devices, the `get_alerts`/`get_rogue_aps` actions + `new_alert`/`new_rogue_ap` events, `select.py`, the `about`/unrecorded-attribute layer, and the later rogue expansion — hidden-SSID naming + `ssid_anomaly` + new rogue fields, action `keyword`/`exclude`/`total_matched`/`count_total`, the persistent rogue history + `rogue_new_24h` sensor + `clear_rogue_history`, the ignore-list management actions, and the **Integration Health** self-diagnosis (`_compute_integration_health`/`_sync_health_issues` + the `schema_drift_detected` repair). Source is ruff/mypy-clean.
 
 ## Development Environment
 
@@ -192,7 +209,7 @@ Standard for all integration projects — see shared conventions §3 (`.shared/d
 **Nothing is recorded here, and nothing should be.** This project's open work lives in `.notes/todo.md`, `.notes/tasks/`, the cross-project chore register, the cross-project queue and [`docs/ROADMAP.md`](docs/ROADMAP.md). One command reads all of them, from `dev-workbench/`:
 
 ```bash
-uv run python scripts/check_queue_format.py --open ha-unifi-network-monitor
+uv run python workbench/check_queue_format.py --open ha-unifi-network-monitor
 ```
 
 **Which one a new item belongs in, and how to add, check and close it, is `issue_tracking_workflow.md` (`.shared/issues/issue_tracking_workflow.md`)** — authoritative, with the summary at shared conventions §8 (`.shared/dev_std/agent_conventions.md`).

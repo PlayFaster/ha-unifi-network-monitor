@@ -52,16 +52,15 @@ from pathlib import Path
 import sys
 from typing import Any
 
+import aiohttp
+
 # Installs probatio as `voluptuous` before the package imports it (C-036).
 import homeassistant  # noqa: F401
 
 _PROJECT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_PROJECT))
 
-from custom_components.unifi_network_monitor.api import (  # noqa: E402
-    UnifiError,
-    UnifiNetworkAPI,
-)
+from custom_components.unifi_network_monitor.api import UnifiError, UnifiNetworkAPI  # noqa: E402
 from custom_components.unifi_network_monitor.const import DOMAIN  # noqa: E402
 from custom_components.unifi_network_monitor.gateway import select_gateway  # noqa: E402
 
@@ -194,8 +193,6 @@ async def _check_speedtest(
 
 
 async def _main(interface: str, timeout: int) -> int:
-    import aiohttp
-
     options = _load_options()
     async with aiohttp.ClientSession() as session:
         api = UnifiNetworkAPI(

@@ -40,7 +40,7 @@ def test_format_message_empty_raw() -> None:
 
 def test_format_message_none_raw() -> None:
     """None raw string returns empty string."""
-    assert format_message(None, {"k": "v"}) == ""  # type: ignore[arg-type]
+    assert format_message(None, {"k": "v"}) == ""
 
 
 def test_format_message_empty_params() -> None:
@@ -51,7 +51,7 @@ def test_format_message_empty_params() -> None:
 
 def test_format_message_none_params() -> None:
     """None parameters are treated as empty."""
-    result = format_message("Hello {name}", None)  # type: ignore[arg-type]
+    result = format_message("Hello {name}", None)
     assert result == "Hello {name}"
 
 

@@ -316,6 +316,18 @@ WAN2_KEYS: frozenset[str] = frozenset(
         "wan2_active",
         "wan2_up",
         "wan2_speedtest",
+        "wan2_isp",
+        "wan2_public_ipv6",
+    }
+)
+
+# Unique-id suffixes of retired entities. The cleanup button and service remove
+# any still registered; nothing creates them. ISP Name and ISP Organization
+# always described WAN1 (1.1.2-dev4), which WAN1 ISP now covers.
+RETIRED_KEYS: frozenset[str] = frozenset(
+    {
+        "health_wan_isp_name",
+        "health_wan_isp_org",
     }
 )
 

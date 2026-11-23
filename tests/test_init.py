@@ -391,7 +391,7 @@ async def test_async_remove_config_entry_device_other_entry(
         identifiers={("unifi_network_monitor", "mac:test:device:3")},
     )
 
-    from pytest_homeassistant_custom_component.common import MockConfigEntry
+    from pytest_homeassistant.common import MockConfigEntry
 
     other_entry = MockConfigEntry(
         domain="other_domain",
@@ -615,3 +615,28 @@ async def test_coordinator_stores_use_the_shared_key_helpers(
     entry_id = mock_config_entry.entry_id
     assert coordinator._rogue_history_store.key == rogue_history_storage_key(entry_id)
     assert coordinator._usage_store.key == usage_watermark_storage_key(entry_id)
+
+
+async def test_setup_seeds_sw_version_from_device_registry_across_restart(
+    hass: Any, mock_config_entry: Any
+) -> None:
+    """Multi-pass restart check: registry sw_version outranks stale entry.data."""
+    from custom_components.unifi_network_monitor.const import DOMAIN
+    from custom_components.unifi_network_monitor.coordinator import (
+        UnifiNetworkDataUpdateCoordinator,
+    )
+    from homeassistant.helpers import device_registry as dr
+
+    mock_config_entry.add_to_hass(hass)
+    dev_reg = dr.async_get(hass)
+    dev_reg.async_get_or_create(
+        config_entry_id=mock_config_entry.entry_id,
+        identifiers={(DOMAIN, mock_config_entry.data["mac"])},
+        name="Gateway",
+        sw_version="11.0.99",
+    )
+
+    coordinator = UnifiNetworkDataUpdateCoordinator(
+        hass, mock_config_entry, MagicMock()
+    )
+    assert coordinator.sw_version == "11.0.99"

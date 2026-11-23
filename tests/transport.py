@@ -4,9 +4,9 @@ Every other suite in this project builds the coordinator over a `MagicMock`
 standing in for `UnifiNetworkAPI`. That proves the coordinator handles what the
 API object returns, and proves nothing about `api.py`, because none of it runs.
 
-The seam is `aioclient_mock`, which `pytest-homeassistant-custom-component`
-ships and which intercepts `async_get_clientsession`, the session
-`async_setup_entry` hands the API. No dependency is added, and it is the seam
+The seam is `aioclient_mock`, which `pytest-homeassistant` ships and which
+intercepts `async_get_clientsession`, the session `async_setup_entry` hands
+the API. No dependency is added, and it is the seam
 `zte_router_5g` and `wifi_ssid_monitor` use (`fault_injection_options.md` §3).
 
 Pattern, from the `zte_router_5g` reference:
@@ -111,6 +111,13 @@ class ControllerFake:
         *,
         sites: list[dict[str, Any]] | None = None,
         failing: tuple[str, ...] = (),
+        stats_source: str | int = "LEGACY",
+        self_sites: list[dict[str, Any]] | None = None,
+        stats_series: list[dict[str, Any]] | None = None,
+        sysinfo: list[dict[str, Any]] | None = None,
+        devices: list[dict[str, Any]] | None = None,
+        health: list[dict[str, Any]] | None = None,
+        networkconf: list[dict[str, Any]] | None = None,
     ) -> None:
         """Arm the controller for one or more cycles.
 
@@ -121,9 +128,18 @@ class ControllerFake:
         self._mock.clear_requests()
         self._failing = failing
         device = deepcopy(GATEWAY if gateway is None else gateway)
-        self._answer("get", f"{CLASSIC}/stat/device", _envelope([device]))
+        stat_devices = [device] if devices is None else [device, *deepcopy(devices)]
+        self._answer("get", f"{CLASSIC}/stat/device", _envelope(stat_devices))
         for path in _CLASSIC_GET:
-            self._answer("get", f"{CLASSIC}/{path}", _envelope([]))
+            if path == "stat/sysinfo" and sysinfo is not None:
+                body = _envelope(sysinfo)
+            elif path == "stat/health" and health is not None:
+                body = _envelope(health)
+            elif path == "rest/networkconf" and networkconf is not None:
+                body = _envelope(networkconf)
+            else:
+                body = _envelope([])
+            self._answer("get", f"{CLASSIC}/{path}", body)
         for path in _CLASSIC_POST:
             self._answer("post", f"{CLASSIC}/{path}", _envelope([]))
         self._answer("get", SPEEDTEST, [])
@@ -131,6 +147,29 @@ class ControllerFake:
         self._answer("get", V1, _envelope(SITES if sites is None else sites))
         for path in _V1_PER_SITE:
             self._answer("get", f"{V1}/{SITE_UUID}/{path}", _envelope([]))
+        source_url = f"{BASE}/proxy/network/v2/api/stats/source"
+        if stats_source == "LEGACY":
+            self._mock.get(source_url, status=404, text="Not Found")
+        elif isinstance(stats_source, int):
+            self._mock.get(
+                source_url,
+                status=stats_source,
+                json={"meta": {"rc": "error"}},
+            )
+        else:
+            self._mock.get(source_url, text=stats_source)
+        self._mock.get(
+            f"{BASE}/proxy/network/api/self/sites",
+            json=_envelope(
+                [{"name": "default", "_id": "stats-site-1"}]
+                if self_sites is None
+                else self_sites
+            ),
+        )
+        self._mock.get(
+            f"{BASE}/proxy/network/v2/api/stats/recent/series",
+            json=[] if stats_series is None else stats_series,
+        )
 
     def _answer(self, method: str, url: str, body: Any) -> None:
         if url in self._failing:

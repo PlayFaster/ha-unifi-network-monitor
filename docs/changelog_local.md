@@ -17,6 +17,14 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: UniFi Network Monitor](#internal-detailed-changelog-unifi-network-monitor)
+  - [\[1.1.2\] - 2026-11-22 - Release: UniFi Network 11 Support, Per-WAN ISP \& IPv6, and Data Integrity](#112---2026-11-22---release-unifi-network-11-support-per-wan-isp--ipv6-and-data-integrity)
+  - [\[1.1.2-dev7\] - 2026-11-22 - Documentation Sync: Release Changelog, Capabilities, Sensor Review, and README Fixes](#112-dev7---2026-11-22---documentation-sync-release-changelog-capabilities-sensor-review-and-readme-fixes)
+  - [\[1.1.2-dev6\] - 2026-11-22 - About Notes Review, Shared Workflow Sync, and Complexity Scorecard](#112-dev6---2026-11-22---about-notes-review-shared-workflow-sync-and-complexity-scorecard)
+  - [\[1.1.2-dev5\] - 2026-11-22 - CI Bump ruff hypothesis](#112-dev5---2026-11-22---ci-bump-ruff-hypothesis)
+  - [\[1.1.2-dev4\] - 2026-11-20 - WAN Mode From Every WAN, ISP and IPv6 per WAN, Raw Key Inventory, and Network 11 Compatibility](#112-dev4---2026-11-20---wan-mode-from-every-wan-isp-and-ipv6-per-wan-raw-key-inventory-and-network-11-compatibility)
+  - [\[1.1.2-dev3\] - 2026-11-19 - Network 11 Statistics Engine, Missing Values as Unknown, Empty-Source Health, and Guard-Band Suppression](#112-dev3---2026-11-19---network-11-statistics-engine-missing-values-as-unknown-empty-source-health-and-guard-band-suppression)
+  - [\[1.1.2-dev2\] - 2026-11-19 - Foundation, Validation, and Quick Fixes: PyHA Verification, Ruff PLC0415, Suppression Cleanup, Write Refusal, HA 2026.11 DeviceInfo, Firmware Sync, Adoption/Mesh Guards](#112-dev2---2026-11-19---foundation-validation-and-quick-fixes-pyha-verification-ruff-plc0415-suppression-cleanup-write-refusal-ha-202611-deviceinfo-firmware-sync-adoptionmesh-guards)
+  - [\[1.1.2-dev1\] - 2026-11-17 - Toolchain \& Standards: Test Harness Migration, Shared Tooling Sync, and Documentation Alignment](#112-dev1---2026-11-17---toolchain--standards-test-harness-migration-shared-tooling-sync-and-documentation-alignment)
   - [\[1.1.1\] - 2026-10-16 - Release: Gateway Uptime, Diagnostics Privacy Hardening, and Single-WAN Fixes](#111---2026-10-16---release-gateway-uptime-diagnostics-privacy-hardening-and-single-wan-fixes)
   - [\[1.1.1-dev3\] - 2026-10-15 - Tests: Real Polls Over the HTTP Seam, Contract Sweeps, Entity Hygiene Sweeps; Action Icons Nested; Masked-Errors Audit](#111-dev3---2026-10-15---tests-real-polls-over-the-http-seam-contract-sweeps-entity-hygiene-sweeps-action-icons-nested-masked-errors-audit)
   - [\[1.1.1-dev2\] - 2026-10-15 - Uptime: Device Boot Times From the Controller, Link Latch Reconciles; WAN Totals and Weight Fixed; Health Severity Values](#111-dev2---2026-10-15---uptime-device-boot-times-from-the-controller-link-latch-reconciles-wan-totals-and-weight-fixed-health-severity-values)
@@ -57,6 +65,260 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.1-dev1\] - 2026-07-26 - Documentation and Tooling: Health Automation Example, AGENTS Structure, and CI Bumps](#101-dev1---2026-07-26---documentation-and-tooling-health-automation-example-agents-structure-and-ci-bumps)
   - [\[1.0.0\] - 2026-07-22 - Initial Public Release](#100---2026-07-22---initial-public-release)
   - [Document Audit Status](#document-audit-status)
+
+---
+
+## [1.1.2] - 2026-11-22 - Release: UniFi Network 11 Support, Per-WAN ISP & IPv6, and Data Integrity
+
+### Highlights
+
+- **Network 11 WAN Usage Fixed**: Restores today, month, and projected WAN usage sensors on UniFi Network 11.0.89+.
+- **Per-WAN ISP & IPv6**: Dedicated ISP, Uplink ISP, and public IPv6 sensors per WAN.
+- **Accurate Multi-WAN Mode**: Reports true failover vs. load-balancing status across all WANs.
+- **Health & Integrity Signals**: Flags silent empty responses and out-of-range suppressions in Integration Health.
+
+### Summary
+
+- **UniFi Network 11 Support**: Fixes missing (`unknown`) WAN data usage on UniFi Network 11.0.89+ by switching to the new Network 11 statistics engine while keeping legacy reports on Network 10 and earlier.
+- **Per-WAN ISP & IPv6**: Each WAN gets its own ISP and public IPv6 address sensor, plus an Uplink ISP sensor showing the active uplink provider.
+- **Multi-WAN & Device Fixes**: Multi-WAN Mode checks every WAN instead of only WAN1, firmware updates sync without reloading, and unadopted or mesh APs are excluded.
+- **Data Integrity**: Missing controller fields read as `unknown` instead of zero, and Integration Health flags silent empty responses and suppressed out-of-range values.
+
+### ⚠️ Action Required
+
+- **Multi-WAN Mode automations**: Dual-WAN setups now report `failover` or `load_balancing` instead of raw controller values (`weighted` or `failover-only`). Update any automation checking `sensor.unifi_network_system_multi_wan_mode` (single-WAN setups are unchanged).
+- **Retired site-level ISP sensors**: `ISP Name` (`wan_isp_name`) and `ISP Organization` (`wan_isp_org`) are removed. On upgrade they become `unavailable` until you press **Clean Up Unused Entities** (or run `unifi_network_monitor.cleanup_unused_entities`); switch any dashboards or automations to `WAN1 ISP` (`wan1_isp`), `WAN2 ISP` (`wan2_isp`), or `Uplink ISP` (`uplink_isp`), which expose `isp_organization` and `asn` as attributes.
+
+### Added
+
+- **Per-WAN ISP and Uplink ISP sensors**: Dedicated provider sensors for each WAN and the active uplink, showing the registered owner and ASN (`wan1_isp`, `wan2_isp`, `uplink_isp` with `isp_organization` and `asn` attributes).
+- **Per-WAN Public IPv6 Address sensors**: Publishes each WAN's global IPv6 address, or `unknown` when IPv6 is disabled or only link-local or unique-local addresses exist (`wan1_public_ipv6`, `wan2_public_ipv6`).
+
+### Fixed
+
+- **WAN usage unknown on UniFi Network 11** *(refines Internet Data Usage, introduced in 1.0.0)*: On Network 11+, legacy usage endpoints return empty responses, leaving today, month, and projected WAN usage sensors `unknown`. The integration now reads the Network 11 statistics engine on Network 11.0.89+ while keeping legacy reports on Network 10 and earlier; Network 11 builds below 11.0.89 ignore the start-time filter on the new endpoint, so they leave usage `unknown` with a one-time warning.
+- **Multi-WAN Mode misreporting failover setups** *(refines Load Balancing, introduced in 1.0.0)*: Dual-WAN failover setups with WAN1 as primary previously reported `weighted` because only WAN1's setting was read. Multi-WAN Mode now checks every configured WAN, reporting `failover` when any WAN is failover-only and `load_balancing` when all are weighted, with per-WAN roles, priorities, and weights in attributes (`wans`).
+- **Missing controller fields reporting misleading zeros** *(refines Gateway & Link Sensors, introduced in 1.0.0)*: Omitted AP, switch, and health fields previously fell back to `0` or `100.0` defaults (making unresponsive latency/availability probes look healthy). Missing fields now report `unknown`, and uncomputed AP satisfaction scores (`-1`) normalize to `unknown`.
+- **Gateway firmware version sync**: Gateway firmware updates from the controller now update the Home Assistant device registry immediately without requiring a reload or restart.
+- **Unadopted and mesh AP gateway exclusion**: Devices pending adoption (`adopted: false`) and devices in `mesh` or `ap` mode are excluded from gateway selection and per-device entity creation.
+- **Controller write-refusal detection**: Speedtest and load-balance weight writes verify the controller's response status and raise an error instead of reporting success when a write is refused.
+
+### Changed
+
+- **Integration Health silent-failure and guard-band reporting** *(refines Integration Health, introduced in 1.0.0, refined in 1.1.1)*: Flags previously populated sources returning empty data as `degraded` and out-of-range guard-band suppressions as `warning` (`empty_capabilities`, `guard_band_suppressed`).
+- **Entity `about` note clarity and spelling**: Moved the `/persistent` storage note to `Storage Utilization`, added `about` notes to `WAN1 Active Uplink` and `WAN2 Active Uplink`, standardized US spelling on `Rogue APs New 24h`, and aligned speedtest note references to displayed entity names.
+
+### Removed
+
+- **Site-level ISP Name and ISP Organization sensors**: Replaced `wan_isp_name` and `wan_isp_org` (which always reflected WAN1) with the per-WAN and `Uplink ISP` sensors; run **Clean Up Unused Entities** (`unifi_network_monitor.cleanup_unused_entities`) after upgrading to remove the retired entities.
+
+### Under the hood
+
+- **Home Assistant 2026.11 compatibility & Marketplace metadata**: Updated sub-device linking to the Home Assistant 2026.11 `DeviceInfo` format (preserving compatibility back to `2025.2.0`) and added `categories` (`computers_network.routers_network`, `computers_network.monitoring`) to `manifest.json`.
+- **Diagnostics field-name inventory for multi-model support**: Diagnostics downloads now list the field names returned by each controller endpoint (with sensitive identifiers masked and no values included) so support for additional UniFi gateway models can be verified from user-submitted diagnostics.
+- **Diagnostics & Leak Verification**: Added location keys (`address`, `latitude`, `longitude`, `city`, `accuracy`) and the new ISP/IPv6 keys to diagnostics redaction (`TO_REDACT`), confirming `0` leaks across `1,169` controller values in `21` categories (`diag_check.py`).
+- **Test Suite & 100% Coverage Baseline**: Migrated to `pytest-homeassistant` and expanded to `1,170` passing tests (`0` warnings) with `100.00%` line and branch coverage (`3,993` statements, `1,276` branches, `0` missed), `Assertion Audit: PASSED` (`0` of `1,070`), `Test Depth Check: PASSED`, and `19` verified mutation proofs.
+- **Strict Typing & Validation Parity**: Clean `mypy --strict` across all `20` source files, `Ruff` `PLC0415` top-level import compliance, suppression audit cleanup (`22` approved directives), and synced `docs/about_attribute_list.md` (`57/131` `about` notes across `131` entities).
+
+## [1.1.2-dev7] - 2026-11-22 - Documentation Sync: Release Changelog, Capabilities, Sensor Review, and README Fixes
+
+### Summary
+
+Reconciles user-facing and manifest documentation for `v1.1.2`: updates `CHANGELOG.md` and `docs/CAPABILITIES.md`, runs `sensor_review.md` (`Via_HAB`, 133 live entities), validates all 17 `README.md` example automations, and applies `readme_review.md` fixes.
+
+### Documentation
+
+- **Release Changelog (`CHANGELOG.md`)**: Added the `[1.1.2]` release summary (`Added`, `Changed`, `Fixed`, `Removed`, `Under the Hood`) via `changelog_summary.md`.
+- **Capabilities Dossier (`docs/CAPABILITIES.md`)**: Updated capabilities for `v1.1.2` (Network 11 statistics engine, per-WAN ISP and IPv6, WAN Mode multi-WAN derivation, guard-band `Integration Health` warning, and retired site-level ISP sensors).
+- **Entity Manifest (`docs/all_sensors.md`)**: Added `Clean Up Unused Entities` (`cleanup_unused_entities`) to `System Sub-Device` (18 → 19; total 131 → 132), added `## Services (7 Actions)` for all 7 `unifi_network_monitor.*` actions, appended data-availability notes to 8 `unknown`-state entities, and added the `About` (`✔` / `—`) column to Part I tables.
+- **About Attribute List (`docs/about_attribute_list.md`)**: Added `Clean Up Unused Entities` to `## Entities without an about note` (74 → 75) and updated `Last Updated:` to `2026-11-22`.
+- **README (`README.md`)**: Reconciled `## 🔍 What You Get` sub-device and base-install totals (`110 / 132` standalone, `104 / 132` with Core UniFi), corrected unsupported v3 endpoint fallback wording (`unavailable` → `unknown`), added the Network `11.0.89+` WAN usage note in `Known Limitations`, and removed inline `1.1.2` migration notes from `Use Cases`.
+- **Agent Guidance (`AGENTS.md`)**: Updated the stale test and branch-coverage counts (`1135` → `1170` tests, `3993` statements, `1276` branches, `0` partial branches).
+- **Sensor Review Report (`.notes/sensors_states/ha_sensor_review_20261122_2233.md`)**: Recorded full live `Via_HAB` reconciliation across all 133 entities and 7 actions, then restored all 25 temporarily enabled entities.
+
+### Verified
+
+- **README Automations (`readme_automation_validate.md`)**: `VALIDATE_MODE=Full` passed via `Via_HAB` (`17` README + `2` theme automations loaded cleanly with `0` log/repair errors, `0` read-back diffs, and `37/37` Jinja templates rendered cleanly).
+
+## [1.1.2-dev6] - 2026-11-22 - About Notes Review, Shared Workflow Sync, and Complexity Scorecard
+
+### Summary
+
+Audits all 57 entity `about` notes under `about_notes_review.md` (`sensor.py` and `docs/about_attribute_list.md`), syncs shared `.github` workflows to `v2.0.21` and `.validate/pyproject_common.toml`, and regenerates the `1.1.2-dev6` complexity scorecard.
+
+### Fixed
+
+- **Rogue APs New 24h (`sensor.py:700-706`)**: Replaced UK spellings `neighbours` and `BSSID-randomising` with `neighbors` and `BSSID-randomizing` in `rogue_new_24h` `about` text.
+- **Speedtest Entity Cross-References (`sensor.py:797-801`, `:813-816`)**: Updated `wan1_speedtest_download` and `wan1_speedtest_upload` `about` notes to reference the displayed entity names `WAN1 Last Run` and `WAN1 Download` (`strings.json:262-272`) instead of `WAN1 Speedtest Last Run` and `WAN1 Speedtest Download`.
+
+### Bumps
+
+- **CI Bump**: Update shared `.github` reusable workflows (`.github/workflows/codeql.yml`, `.github/workflows/release.yaml`, `.github/workflows/validate.yaml`) from `v2.0.19` (`0c410f3b`) to `v2.0.21` (`377ce919`).
+- **Validate Bump**: Align `.validate/pyproject_common.toml` `required-version` from `>=0.17.5` to `>=0.17.4`.
+
+### Documentation
+
+- **About Attribute List (`docs/about_attribute_list.md`)**: Synchronized generated `about` notes and `sensor_manifest_latest.json` via `check_sensor_manifest.py --sync-docs`, and updated the intro count (`57 of the 131 static base entities carry a note.`).
+- **Complexity Scorecard (`docs/project_complexity.md`)**: Regenerated complexity and health scorecard for `1.1.2-dev6` (`Pytest Duration` `332.96s`).
+- **Audit Report (`.notes/sensors_states/about_notes_review_20261122_1931.md`)**: Recorded findings across all 57 entity notes (`54` clean, `3` updated).
+
+### Verified
+
+- **Validation (`unifi-netw-monitor-dev`)**: `Fix All Fast` passed (`19 step(s), 0 failed`), including `Sensor Manifest: PASSED` (`131` entities, `57/131` about notes), `Ruff Format Fix`, `Ruff Lint Fix`, `Markdown Lint Fix`, `Codespell Fix`, and `Queue Format: PASSED`.
+
+## [1.1.2-dev5] - 2026-11-22 - CI Bump ruff hypothesis
+
+### Bumps
+
+- **Validate Bump**: Update `ruff` from 0.17.4 to 0.17.5
+- **Validate Bump**: Update `hypothesis` from 6.170.15 to 6.170.17
+
+## [1.1.2-dev4] - 2026-11-20 - WAN Mode From Every WAN, ISP and IPv6 per WAN, Raw Key Inventory, and Network 11 Compatibility
+
+### Summary
+
+Derives WAN Mode from every WAN's `wan_load_balance_type` (`failover` / `load_balancing`), adds WAN1 ISP, WAN2 ISP and Uplink ISP from the gateway's per-WAN geo blocks and retires the site-level ISP Name and ISP Organization, adds WAN1 and WAN2 Public IPv6 Address, records a per-route raw key inventory in the diagnostics download, and states the Network 11 tested setup in the README.
+
+### Added
+
+- `coordinator.py`: `_wan_mode_from_networkconf` (mode and per-WAN `wan_load_balance_type`, `wan_failover_priority`, `wan_load_balance_weight`, published as `wan_mode_wans`); `_isp_by_wan`, `_isp_values` and `_uplink_group` (`wan1_isp`, `wan2_isp`, `uplink_isp` with `isp_organization` and `asn` attributes); `_global_ipv6` (`wan1_public_ipv6`, `wan2_public_ipv6`); `_geo_field`.
+- `sensor.py`: five sensors (`wan1_isp`, `wan2_isp`, `uplink_isp`, `wan1_public_ipv6`, `wan2_public_ipv6`) with `about` notes; `wans`, `isp_organization` and `asn` added to the gateway sensor's unrecorded attributes.
+- `binary_sensor.py`: `about` field on `UnifiBinarySensorEntityDescription`; `UnifiGatewayBinarySensor` takes the `UnifiAboutEntity` mixin; `about` notes on `wan1_active` and `wan2_active`.
+- `api.py`: `_key_inventory`, recorded as `keys` on each answered route (record keys, `parent.child` and `parent[].child`, names only).
+- `const.py`: `RETIRED_KEYS` (`health_wan_isp_name`, `health_wan_isp_org`); `wan2_isp` and `wan2_public_ipv6` in `WAN2_KEYS`.
+- `cleanup.py`: retired-key pass in `plan_device_cleanup`.
+
+### Changed
+
+- **WAN Mode (breaking for dual-WAN automations)**: reports `failover` or `load_balancing` instead of WAN1's raw value, which read `weighted` in failover with WAN1 as primary.
+- `sensor.py`: the `/persistent` storage `about` note moved from `wan_mode` to `storage_used_pct`.
+- `diagnostics.py`: the new ISP and IPv6 keys added to `TO_REDACT`; the ISP keys added to `_LITERAL_KEYS`.
+- `scripts/diag_check.py`: requires the `stat/device` route's key inventory (with `system-stats`), and scans key inventories case-sensitively.
+
+### Removed
+
+- `sensor.py`: ISP Name (`wan_isp_name`) and ISP Organization (`wan_isp_org`); `coordinator.py` no longer parses the site-level `stat/health` ISP fields, which always described WAN1. `cleanup_unused_entities` removes the registered entities.
+
+### Fixed
+
+- **Gateway parse failed on a non-mapping geo block**: a `geo_info` or `active_geo_info` block, or a WAN entry in one, that was not a mapping raised in the public IP read and skipped the gateway; `_geo_field` treats it as absent. Found by `tests/test_isp_per_wan.py` during this build.
+- **Location fields not redacted in diagnostics**: `address`, `latitude`, `longitude`, `city` and `accuracy` added to `TO_REDACT`, as the ISP task required; no live path published them. Found by plan verification.
+- **IPv6 filter stricter than specified**: `_global_ipv6` now skips link-local and unique-local addresses, as the IPv6 task specified, instead of keeping only `is_global` addresses; test values use the documentation placeholders. Found by plan verification and the local leak check.
+- **Diagnostics leak scan false positive**: the first `Hardware: Check Diagnostics Download` run reported a `network_name` hit in the new `stat/device` key inventory, where a network named like a lower-case controller field matched it case-insensitively; `scripts/diag_check.py` now scans the inventory case-sensitively.
+
+### Tests
+
+- Full test suite: `1170 passed, 0 failed, 0 warnings`, `100.00%` line and branch coverage (`3993` statements, `1276` branches, `0` missed); new `tests/test_isp_per_wan.py`, `tests/test_wan_ipv6.py` and `tests/test_key_inventory.py`.
+- `Assertion Audit`: `PASSED`; `Test Depth Check`: `PASSED`; 19 mutation proofs across WAN Mode, ISP per WAN, IPv6 and the key inventory, each failing its tests.
+
+### Verified
+
+- Live, on the development UDM Pro (Network `11.0.99`, UniFi OS `6.0.17`): WAN Mode `load_balancing` with per-WAN attributes; WAN1 ISP and WAN2 ISP name different providers and Uplink ISP names WAN1's under load balancing; the two retired entities removed by the cleanup service; both IPv6 entities `unknown` with IPv6 off on both WANs; `Hardware: Check Diagnostics Download` PASSED; `Sensor Manifest: PASSED` with 131 entities.
+
+### Known
+
+- The failover configurations (WAN Mode, Uplink ISP during failover) and a global IPv6 address were not shown live: each needs a write to the live gateway's WAN configuration. HTTP-seam tests serve the measured payloads.
+
+### Deferred
+
+- Integration Health `issues` wording and its move to `strings.json` (plan I5 and I6) are parked: both cross-project items are marked not viable as written.
+
+---
+
+## [1.1.2-dev3] - 2026-11-19 - Network 11 Statistics Engine, Missing Values as Unknown, Empty-Source Health, and Guard-Band Suppression
+
+### Summary
+
+Implements the UniFi Network 11 statistics engine (`stats/source`, `/self/sites`, `stats/recent/series`) for WAN usage with `<11.0.89` version gating, removes 28 substitute `0`/`100.0` defaults so omitted controller fields report `unknown` (`None`), adds silent empty-source `degraded` detection to Integration Health, and surfaces guard-band suppressions (`warning`) while normalizing AP `-1` scores at parse time.
+
+### Added
+
+- `api.py`: `get_stats_source()`, `get_self_sites()`, and `get_stats_series(site_id, start_ms, end_ms)` with bare `list` body, `params`, `ignore_404`, and `raw_text` support.
+- `coordinator.py`: `_parse_network_version`, `_is_modern_stats_supported`, `_usage_period_bounds_ms`, `_sum_wan_by_site_buckets`, `_ensure_stats_source`, `_fetch_wan_usage`, `_parse_wan_usage_period`, `_reset_stats_on_version_change`, `_valid_score`, and `report_guard_band`.
+- `diagnostics.py`: `_coordinator_block["stats"]` exposing `engine`, `daily_buckets`, and `monthly_buckets` without `_id`.
+- `binary_sensor.py`: `empty_capabilities` and `guard_band_suppressed` exposed in `UnifiIntegrationHealthBinarySensor` unrecorded attributes.
+
+### Changed
+
+- `coordinator.py`: Removed 28 substitute `0`/`100.0` defaults across `_parse_ap`, `_parse_switch`, and `_parse_health` so omitted fields return `None`; updated `_fetch_required` and `_compute_integration_health` for silent empty-source `degraded` detection (`empty_capabilities`) and `error > warning > degraded > ok` precedence (`guard_band_suppressed`).
+- `sensor.py`: `UnifiSensorBase.native_value` and `async_will_remove_from_hass` report/clear `min_limit`/`max_limit` guard-band trips via `coordinator.report_guard_band`.
+
+### Fixed
+
+- `coordinator.py`: AP `-1` uncomputed satisfaction scores (`score`, `score_wifi0`, `score_wifi1`) normalize to `None` at parse time so they do not trip the `min_limit=0.0` guard band; `_iter_wan_buckets` unpacks nested `{"siteId": ..., "series": [...]}` envelopes returned by Network 11 `stats/recent/series`; `_sum_wan_by_site_buckets` tracks `rxBytes` and `txBytes` presence independently (`E7` `F6`) so omitted fields return `None` instead of `0.0`.
+- `diagnostics.py`: Guarded `_coordinator_block["stats"]` with `isinstance(..., dict)` so mock coordinators in sanitization tests remain JSON-serializable.
+
+### Tests
+
+- Full test suite: `1135 passed, 0 failed, 0 warnings`, `100.00%` line and branch coverage (`3905` statements, `1220` branches, `0` missed).
+- `Assertion Audit`: `PASSED` (`0` of `1045` assert nothing); `Test Depth Check`: `PASSED` (`4` outcomes driven, `0` stubbed seams).
+
+---
+
+## [1.1.2-dev2] - 2026-11-19 - Foundation, Validation, and Quick Fixes: PyHA Verification, Ruff PLC0415, Suppression Cleanup, Write Refusal, HA 2026.11 DeviceInfo, Firmware Sync, Adoption/Mesh Guards
+
+### Summary
+
+Clears the validation and test-harness baseline on Home Assistant 2026.11.2, adds `manifest.json` categories (`C-041`), enforces HTTP 200 `meta.rc=error` write refusal, updates `DeviceInfo` construction for HA 2026.11 compatibility, syncs gateway `sw_version` to the device registry, and excludes unadopted and AP/mesh-mode devices from selection and entity creation.
+
+### Added
+
+- **Manifest Categories (`C-041`)**: Added `"categories": ["computers_network.routers_network", "computers_network.monitoring"]` to `custom_components/unifi_network_monitor/manifest.json`.
+- **Write-Refusal Guard (`C-026`)**: Added `_check_write_rc(path, body)` in `api.py` and `tests/test_write_refusal.py` covering `trigger_speedtest` and `update_networkconf` on HTTP errors and HTTP `200` `meta.rc == "error"`, `-> None` annotations, and `logout` teardown.
+
+### Changed
+
+- **Ruff `PLC0415` Imports**: Hoisted `select_gateway` (`api.py`) and `aiohttp` (`scripts/diag_check.py`, `scripts/hardware_check.py`) to module top level while preserving `C-036` `homeassistant` import ordering.
+- **HA 2026.11 `DeviceInfo` Links**: Replaced `cast(dict[str, Any], info).update(...)` in `helpers.py` (`build_network_device_info`, `build_sub_device_info`, `build_unifi_device_info`) with direct `DeviceInfo(..., **via_device_link(...))` construction.
+
+### Fixed
+
+- **Gateway Registry Firmware Sync**: Updated `coordinator.py` to push changed `stat/sysinfo` `sw_version` directly to the gateway device registry entry (guarded by `if device is not None:`) and seed `self.sw_version` from the device registry on startup without mutating `entry.data`.
+- **Pending-Adoption Devices**: Added `is_adopted(device)` in `gateway.py` and skipped `adopted: false` devices in `select_gateway` and `coordinator.py` while preserving devices omitting `adopted`.
+- **AP/Mesh UX Gateway Shadowing**: Excluded devices with `device_mode_override` in `{"mesh", "ap"}` (null-safe) ahead of every candidate list in `select_gateway`.
+
+### Removed
+
+- **Suppression Cleanup**: Removed 8 removable `# type: ignore` directives (`alerts.py`, `test_alerts.py`, `test_diagnostics_artefact.py`, `test_platform_branches.py` using real `MockConfigEntry`) and 1 false-positive `pragma: no cover` comment (`test_entity_hygiene.py:310`), reducing `check_suppressions.py` total from `31` to `22` (`21` approved, `1` unregistered `coordinator.py:1604`).
+
+### Tests
+
+- **Full Coverage**: `pytest` (`1124 passed`, `100.00%` line and branch coverage across `3723` statements and `1126` branches), `Tests: Assertion Audit` (`0` of `1034`), and `Tests: Depth Check` (`4` of `4` outcomes driven, `0` stubbed seams/publishes).
+
+### Documentation
+
+- **Compatibility & Docs**: Updated `docs/ha_compatibility.md` (`2026.11.2` / `pytest-homeassistant 2026.11.2`), `AGENTS.md`, `docs/DEVELOPMENT.md`, and `docs/test_guards.md`.
+- **README (`README.md`)**: Expanded **Contributors & Acknowledgements** and **Other Integrations** (`aiounifi`, `UniFi API Client`, `UniFi MCP`, `UniFi Insights`, `HA-Unifi-Speedtest`, `UniFi Network Map`, and `Huawei Router 5G` under personal prior work), and added a star/repository callout plus the **Other Home Assistant Projects by PlayFaster** section and table-of-contents link.
+
+---
+
+## [1.1.2-dev1] - 2026-11-17 - Toolchain & Standards: Test Harness Migration, Shared Tooling Sync, and Documentation Alignment
+
+### Summary
+
+- **Test Harness Migration**: Migrated test suites from `pytest-homeassistant-custom-component` imports to direct `pytest-homeassistant` fixture harness.
+- **Shared Tooling Sync**: Synchronized dev-workbench tooling, manifest schemas (categories, connectivity, LoRaWAN), Ruff rules (`PLC0415`), and tasks.
+- **Documentation Alignment**: Updated README for Home Assistant 2026.11+ Marketplace custom repositories, refreshed complexity scorecard, regenerated roadmap, and documented entity creation standards in AGENTS.md.
+
+### Changed
+
+- **Test harness imports** *(refines Test Suite, introduced in 1.0.0)*: Updated `MockConfigEntry` imports across 6 test modules and `transport.py` from `pytest_homeassistant_custom_component.common` to `pytest_homeassistant.common`.
+- **Pre-commit and workflow hooks**: Bumped Ruff to `v0.17.4` and Zizmor to `v1.32.0`; updated shared GitHub Actions workflows to `v2.0.19`.
+- **Validation tasks and profiles**: Updated `.vscode/tasks.json` with `Validate Fast (Docs & Style)` and summary statistics reporters.
+- **Ruff per-file rules**: Configured `PLC0415` ignore rule for test suites and aligned common codespell exclusions.
+
+### Documentation
+
+- **README Marketplace support**: Added Home Assistant 2026.11+ Marketplace custom repository installation, update, and uninstall instructions alongside HACS.
+- **AGENTS entity creation standard**: Added the `Adding entities` standard table referencing `.shared/dev_std/adding_entities.md` and project description classes.
+- **HA compatibility ledger**: Recorded audit rows `v1.4.0` through `v1.4.3` covering 2026.10/2026.11 compatibility entries (`HAC-002`, `HAC-004`, `HAC-005`, `HAC-011`, `HAC-019`).
+- **Roadmap regeneration**: Regenerated `docs/ROADMAP.md` via `.workbench/generate_roadmap.py` with structured decline rationales.
+- **Project complexity scorecard**: Updated `docs/project_complexity.md` to reflect test decision density (0.99 tests/branch), 100% assertion completeness, and sequence depth tracking.
+
+### Tests
+
+- **Script import formatting**: Cleaned top-level imports in `scripts/diag_check.py` and `scripts/hardware_check.py`.
+- **Test suite verification**: 1,103 tests passing with 100% line and branch coverage.
 
 ---
 
@@ -1243,6 +1505,6 @@ Entry structure — headers, titles, category headings and the split between thi
 
 ## Document Audit Status
 
-- **Headers Checked**: `1.1.1-dev3` to `1.0.0` (2026-10-16); 37 entries aligned to CF-101
-- **Bullets Checked**: `1.1.1-dev3` to `1.0.0` (2026-10-16); 261 bullets audited and verified per CF-202 (zero data loss)
+- **Headers Checked**: `1.1.2-dev1` to `1.0.0` (2026-11-17); 38 entries aligned to CF-101
+- **Bullets Checked**: `1.1.2-dev1` to `1.0.0` (2026-11-17); 275 bullets audited and verified per CF-202 (zero data loss)
 - **Specification**: Follows `changelog_format.md` (maintainer engineering voice; zero data loss)

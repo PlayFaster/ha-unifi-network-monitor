@@ -8,7 +8,7 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant.common import MockConfigEntry
 
 from custom_components.unifi_network_monitor import _compat
 from custom_components.unifi_network_monitor.const import (
@@ -31,7 +31,12 @@ from custom_components.unifi_network_monitor.const import (
 
 @pytest.fixture(autouse=True)
 def auto_enable_custom_integrations(enable_custom_integrations: Any) -> None:
-    """Enable loading of custom integrations for all tests."""
+    """Request `enable_custom_integrations`, which gives every test a live `hass`.
+
+    The `pytest-homeassistant` `hass` fixture already enables custom
+    integrations; the wrapper stays because the fixture it requests starts
+    `hass`, and tests rely on that instance being live.
+    """
     yield
 
 
@@ -169,8 +174,6 @@ MOCK_COORDINATOR_DATA: dict[str, Any] = {
     },
     "health": {
         "wan_status": "ok",
-        "wan_isp_name": "Test ISP",
-        "wan_isp_org": "Test ISP Ltd",
         "wan_gw_version": MOCK_SW_VERSION,
         "wan_num_sta": 162,
         "wan_cpu": 37.2,
@@ -275,6 +278,9 @@ def mock_api() -> MagicMock:
     api.get_settings = AsyncMock(return_value=[])
     api.get_daily_gateway = AsyncMock(return_value=[])
     api.get_monthly_gateway = AsyncMock(return_value=[])
+    api.get_stats_source = AsyncMock(return_value="LEGACY")
+    api.get_self_sites = AsyncMock(return_value=[])
+    api.get_stats_series = AsyncMock(return_value=[])
     api.get_rogueaps = AsyncMock(return_value=[])
     api.get_guests = AsyncMock(return_value=[])
     api.get_backups = AsyncMock(return_value=[])
@@ -351,7 +357,9 @@ def make_device_registry(device: MagicMock | None) -> MagicMock:
     return registry
 
 
-def assert_links_to_parent(info: Mapping[str, Any], parent_ident: str) -> None:
+def assert_links_to_parent(
+    info: DeviceInfo | Mapping[str, Any], parent_ident: str
+) -> None:
     """Assert a ``DeviceInfo`` links to its parent, whichever HA form is in use.
 
     <=2026.7 emits the ``via_device`` identifier tuple; 2026.8+ emits

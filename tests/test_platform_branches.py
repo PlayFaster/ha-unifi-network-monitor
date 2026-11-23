@@ -322,27 +322,34 @@ async def test_add_rogue_ignore_rejects_duplicates_and_blanks(
     outside, which is why each is asserted against the accepting case rather
     than only against "no exception".
     """
-    from custom_components.unifi_network_monitor import services
+    from pytest_homeassistant.common import MockConfigEntry
 
-    entry = _entry(rogue_ignore_ssids=existing)
+    from custom_components.unifi_network_monitor import services
+    from custom_components.unifi_network_monitor.const import (
+        CONF_ROGUE_IGNORE_SSIDS,
+        DOMAIN,
+    )
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={"host": "10.0.0.1"},
+        options={CONF_ROGUE_IGNORE_SSIDS: existing},
+    )
+    entry.runtime_data = MagicMock()
+    entry.add_to_hass(hass)
+
     call = MagicMock()
     call.data = {"target": "ssids", "value": value}
 
-    written: list[Any] = []
-    original_resolve = services._resolve_entry
-    services._resolve_entry = lambda _hass, _call: entry  # type: ignore[assignment]
-    original_write = services._write_ignore_list
-    services._write_ignore_list = (  # type: ignore[assignment]
-        lambda _hass, _entry, _key, items: written.append(list(items))
-    )
-    try:
-        result = await services._handle_add_rogue_ignore(hass, call)
-    finally:
-        services._resolve_entry = original_resolve  # type: ignore[assignment]
-        services._write_ignore_list = original_write  # type: ignore[assignment]
+    result = await services._handle_add_rogue_ignore(hass, call)
 
     assert result["entries"] == expected
-    assert written == [expected]
+    stored = [
+        item.strip()
+        for item in entry.options[CONF_ROGUE_IGNORE_SSIDS].split(",")
+        if item.strip()
+    ]
+    assert stored == expected
 
 
 async def test_dynamic_pass_creates_no_per_device_sensors_for_any_new_device(

@@ -50,87 +50,75 @@ Non-numeric values (strings, timestamps) pass through unchanged.
 
 <!-- GENERATED:start -->
 
-| Sub-device | Sensor key                |      Min |      Max | Unit   |
-| :--------- | :------------------------ | -------: | -------: | :----- |
-| Alerts     | `alerts_high_24h`         |    `0.0` |        — | —      |
-| Alerts     | `alerts_very_high_24h`    |    `0.0` |        — | —      |
-| Gateway    | `board_temp`              |    `0.0` |  `120.0` | °C     |
-| Gateway    | `clients`                 |    `0.0` |        — | —      |
-| Gateway    | `clients_wifi0`           |    `0.0` |        — | —      |
-| Gateway    | `clients_wifi1`           |    `0.0` |        — | —      |
-| Gateway    | `cpu`                     |    `0.0` |  `100.0` | %      |
-| Gateway    | `cpu`                     |    `0.0` |  `100.0` | %      |
-| Gateway    | `cpu`                     |    `0.0` |  `100.0` | %      |
-| Gateway    | `cpu_temp`                |    `0.0` |  `120.0` | °C     |
-| Gateway    | `guests`                  |    `0.0` |        — | —      |
-| Gateway    | `ports_used`              |    `0.0` |        — | —      |
-| Gateway    | `ram`                     |    `0.0` |  `100.0` | %      |
-| Gateway    | `ram`                     |    `0.0` |  `100.0` | %      |
-| Gateway    | `ram`                     |    `0.0` |  `100.0` | %      |
-| Gateway    | `score`                   |    `0.0` |  `100.0` | %      |
-| Gateway    | `score_wifi0`             |    `0.0` |  `100.0` | %      |
-| Gateway    | `score_wifi1`             |    `0.0` |  `100.0` | %      |
-| Gateway    | `storage_size`            |    `0.0` |        — | B      |
-| Gateway    | `storage_used`            |    `0.0` |        — | B      |
-| Gateway    | `storage_used_pct`        |    `0.0` |  `100.0` | %      |
-| Internet   | `month_total`             |    `0.0` |        — | B      |
-| Internet   | `wan1_availability`       |    `0.0` |  `100.0` | %      |
-| Internet   | `wan1_latency_avg`        |    `0.0` | `9999.0` | ms     |
-| Internet   | `wan1_month_projected`    |    `0.0` |        — | B      |
-| Internet   | `wan1_month_rx`           |    `0.0` |        — | B      |
-| Internet   | `wan1_month_total`        |    `0.0` |        — | B      |
-| Internet   | `wan1_month_tx`           |    `0.0` |        — | B      |
-| Internet   | `wan1_today_rx`           |    `0.0` |        — | B      |
-| Internet   | `wan1_today_total`        |    `0.0` |        — | B      |
-| Internet   | `wan1_today_tx`           |    `0.0` |        — | B      |
-| Internet   | `wan1_uptime`             |    `0.0` |        — | s      |
-| Internet   | `wan2_availability`       |    `0.0` |  `100.0` | %      |
-| Internet   | `wan2_latency_avg`        |    `0.0` | `9999.0` | ms     |
-| Internet   | `wan2_month_projected`    |    `0.0` |        — | B      |
-| Internet   | `wan2_month_rx`           |    `0.0` |        — | B      |
-| Internet   | `wan2_month_total`        |    `0.0` |        — | B      |
-| Internet   | `wan2_month_tx`           |    `0.0` |        — | B      |
-| Internet   | `wan2_today_rx`           |    `0.0` |        — | B      |
-| Internet   | `wan2_today_total`        |    `0.0` |        — | B      |
-| Internet   | `wan2_today_tx`           |    `0.0` |        — | B      |
-| Internet   | `wan2_uptime`             |    `0.0` |        — | s      |
-| Internet   | `www_drops`               |    `0.0` |        — | —      |
-| Internet   | `www_latency`             |    `0.0` | `9999.0` | ms     |
-| Internet   | `www_uptime`              |    `0.0` |        — | s      |
-| Security   | `rogue_ap_count`          |    `0.0` |        — | —      |
-| Security   | `rogue_new_24h`           |    `0.0` |        — | —      |
-| Security   | `rogue_raw_24h`           |    `0.0` |        — | —      |
-| Security   | `rules_active`            |    `0.0` |        — | —      |
-| Security   | `rules_configured`        |    `0.0` |        — | —      |
-| Security   | `rules_disabled`          |    `0.0` |        — | —      |
-| Security   | `strongest_rogue_rssi`    | `-100.0` |    `0.0` | dBm    |
-| Security   | `vpn_connections_active`  |    `0.0` |        — | —      |
-| Security   | `vpn_connections_total`   |    `0.0` |        — | —      |
-| Speedtest  | `wan1_speedtest_download` |    `0.0` |        — | Mbit/s |
-| Speedtest  | `wan1_speedtest_ping`     |    `0.0` | `9999.0` | ms     |
-| Speedtest  | `wan1_speedtest_upload`   |    `0.0` |        — | Mbit/s |
-| Speedtest  | `wan1_time_period`        |    `0.0` |        — | s      |
-| Speedtest  | `wan2_speedtest_download` |    `0.0` |        — | Mbit/s |
-| Speedtest  | `wan2_speedtest_ping`     |    `0.0` | `9999.0` | ms     |
-| Speedtest  | `wan2_speedtest_upload`   |    `0.0` |        — | Mbit/s |
-| Speedtest  | `wan2_time_period`        |    `0.0` |        — | s      |
-| Status     | `configured_vlans`        |    `0.0` |        — | —      |
-| Status     | `guest_user_count`        |    `0.0` |        — | —      |
-| Status     | `lan_num_adopted`         |    `0.0` |        — | —      |
-| Status     | `lan_num_iot`             |    `0.0` |        — | —      |
-| Status     | `lan_num_sw`              |    `0.0` |        — | —      |
-| Status     | `lan_num_user`            |    `0.0` |        — | —      |
-| Status     | `vlans_active`            |    `0.0` |        — | —      |
-| Status     | `vlans_total`             |    `0.0` |        — | —      |
-| Status     | `wan_num_sta`             |    `0.0` |        — | —      |
-| Status     | `wifi_networks_active`    |    `0.0` |        — | —      |
-| Status     | `wifi_networks_total`     |    `0.0` |        — | —      |
-| Status     | `wlan_num_ap`             |    `0.0` |        — | —      |
-| Status     | `wlan_num_guest`          |    `0.0` |        — | —      |
-| Status     | `wlan_num_iot`            |    `0.0` |        — | —      |
-| Status     | `wlan_num_user`           |    `0.0` |        — | —      |
-| System     | `wan1_weight`             |    `0.0` |  `100.0` | %      |
-| System     | `wan2_weight`             |    `0.0` |  `100.0` | %      |
+| Sub-device | Sensor key | Min | Max | Unit |
+| :-- | :-- | --: | --: | :-- |
+| Alerts | `alerts_high_24h` | `0.0` | — | — |
+| Alerts | `alerts_very_high_24h` | `0.0` | — | — |
+| Gateway | `board_temp` | `0.0` | `120.0` | °C |
+| Gateway | `cpu` | `0.0` | `100.0` | % |
+| Gateway | `cpu_temp` | `0.0` | `120.0` | °C |
+| Gateway | `ram` | `0.0` | `100.0` | % |
+| Gateway | `storage_size` | `0.0` | — | B |
+| Gateway | `storage_used` | `0.0` | — | B |
+| Gateway | `storage_used_pct` | `0.0` | `100.0` | % |
+| Internet | `month_total` | `0.0` | — | B |
+| Internet | `wan1_availability` | `0.0` | `100.0` | % |
+| Internet | `wan1_latency_avg` | `0.0` | `9999.0` | ms |
+| Internet | `wan1_month_projected` | `0.0` | — | B |
+| Internet | `wan1_month_rx` | `0.0` | — | B |
+| Internet | `wan1_month_total` | `0.0` | — | B |
+| Internet | `wan1_month_tx` | `0.0` | — | B |
+| Internet | `wan1_today_rx` | `0.0` | — | B |
+| Internet | `wan1_today_total` | `0.0` | — | B |
+| Internet | `wan1_today_tx` | `0.0` | — | B |
+| Internet | `wan1_uptime` | `0.0` | — | s |
+| Internet | `wan2_availability` | `0.0` | `100.0` | % |
+| Internet | `wan2_latency_avg` | `0.0` | `9999.0` | ms |
+| Internet | `wan2_month_projected` | `0.0` | — | B |
+| Internet | `wan2_month_rx` | `0.0` | — | B |
+| Internet | `wan2_month_total` | `0.0` | — | B |
+| Internet | `wan2_month_tx` | `0.0` | — | B |
+| Internet | `wan2_today_rx` | `0.0` | — | B |
+| Internet | `wan2_today_total` | `0.0` | — | B |
+| Internet | `wan2_today_tx` | `0.0` | — | B |
+| Internet | `wan2_uptime` | `0.0` | — | s |
+| Internet | `www_drops` | `0.0` | — | — |
+| Internet | `www_latency` | `0.0` | `9999.0` | ms |
+| Internet | `www_uptime` | `0.0` | — | s |
+| Security | `rogue_ap_count` | `0.0` | — | — |
+| Security | `rogue_new_24h` | `0.0` | — | — |
+| Security | `rogue_raw_24h` | `0.0` | — | — |
+| Security | `rules_active` | `0.0` | — | — |
+| Security | `rules_configured` | `0.0` | — | — |
+| Security | `rules_disabled` | `0.0` | — | — |
+| Security | `strongest_rogue_rssi` | `-100.0` | `0.0` | dBm |
+| Security | `vpn_connections_active` | `0.0` | — | — |
+| Security | `vpn_connections_total` | `0.0` | — | — |
+| Speedtest | `wan1_speedtest_download` | `0.0` | — | Mbit/s |
+| Speedtest | `wan1_speedtest_ping` | `0.0` | `9999.0` | ms |
+| Speedtest | `wan1_speedtest_upload` | `0.0` | — | Mbit/s |
+| Speedtest | `wan1_time_period` | `0.0` | — | s |
+| Speedtest | `wan2_speedtest_download` | `0.0` | — | Mbit/s |
+| Speedtest | `wan2_speedtest_ping` | `0.0` | `9999.0` | ms |
+| Speedtest | `wan2_speedtest_upload` | `0.0` | — | Mbit/s |
+| Speedtest | `wan2_time_period` | `0.0` | — | s |
+| Status | `configured_vlans` | `0.0` | — | — |
+| Status | `guest_user_count` | `0.0` | — | — |
+| Status | `lan_num_adopted` | `0.0` | — | — |
+| Status | `lan_num_iot` | `0.0` | — | — |
+| Status | `lan_num_sw` | `0.0` | — | — |
+| Status | `lan_num_user` | `0.0` | — | — |
+| Status | `vlans_active` | `0.0` | — | — |
+| Status | `vlans_total` | `0.0` | — | — |
+| Status | `wan_num_sta` | `0.0` | — | — |
+| Status | `wifi_networks_active` | `0.0` | — | — |
+| Status | `wifi_networks_total` | `0.0` | — | — |
+| Status | `wlan_num_ap` | `0.0` | — | — |
+| Status | `wlan_num_guest` | `0.0` | — | — |
+| Status | `wlan_num_iot` | `0.0` | — | — |
+| Status | `wlan_num_user` | `0.0` | — | — |
+| System | `wan1_weight` | `0.0` | `100.0` | % |
+| System | `wan2_weight` | `0.0` | `100.0` | % |
 
 <!-- GENERATED:end -->
 
@@ -176,9 +164,9 @@ Source: `/stat/device` — one set of entities per discovered switch.
 
 **No upper bound on throughput**: `www_xput_up` and `www_xput_down` have no upper bound. Capping at a fixed Mbps value would create a maintenance burden as broadband speeds increase. The `min=0` guard is sufficient to catch firmware glitches returning negative values.
 
-**Score min=0, and `-1` is deliberately excluded**: UniFi uses `-1` (not null) to mean "satisfaction score not yet computed" for a radio band. That is an **indicator, not a measurement** — admitting it would put a value on a percentage sensor that is not a percentage, and it would chart, average and enter long-term statistics as though the AP had scored below zero. The guard band is therefore `0`, which turns the sentinel into `unknown`, and `unknown` is the correct answer to "what is the score?" when there is not one yet (dev_standards §18 — a sentinel belongs in `unknown`).
+**Score min=0, and `-1` is normalized at parse time**: UniFi uses `-1` (not null) to mean "satisfaction score not yet computed" for a radio band. `_valid_score()` in `coordinator.py` normalizes negative satisfaction values (`-1`) to `None` (`unknown`) at parse time so newly provisioned APs report `unknown` cleanly without tripping the `min_limit=0.0` guard band.
 
-This document previously specified `-1` and argued that a min of `0` would wrongly suppress newly provisioned APs. **That reasoning is superseded.** Suppression is the intended outcome: a newly provisioned AP has no score, and reporting `unknown` says so, whereas reporting `-1` invents a number. The code has always shipped `0`; this document was the side that was wrong.
+**Guard-band suppression in Integration Health**: Any sensor value suppressed by `min_limit` or `max_limit` is reported per entity `unique_id` to the coordinator (`report_guard_band`), raising `Integration Health` to `severity: warning` with `guard_band_suppressed` listing the affected sensor keys until the sensor returns a valid or `None` value.
 
 **Projections carry no `state_class`**: `wan1_month_projected` and `wan2_month_projected` are forecasts, not measurements. They are bounded below at `0` like any byte counter, but they are deliberately kept out of statistics and long-term storage — a forecast that revises itself every poll would corrupt any long-term series it entered. The confidence in the figure is published as a `confidence` attribute alongside it rather than withheld as `unknown`, because a blank sensor on the 1st of the month reads as broken.
 
@@ -188,7 +176,11 @@ This document previously specified `-1` and argued that a min of `0` would wrong
 
 ## Version Control
 
-- **[2026-06-22]** — Initial document. Guard bands audited across all four sensor tuples.
-- **[2026-06-22]** — Added guard bands for new Multi-WAN modes/weights/latencies, storage partition used percentages, and Threat Management.
-- **[2026-07-08]** — Restructured into Part I and Part II split structure. Corrected translation and sensor keys to match those present in the manifest.
-- **[2026-07-14]** — Added the **Security & Alerts** guard-band table (rogue count / raw-24h / RSSI, alert counts) for the new sub-devices, and documented the `_safe_float` 3-dp rounding helper alongside guard bands.
+| Version | Date | Change |
+| :--- | :--- | :--- |
+| 1.0.0 | 2026-06-22 | Initial document. Guard bands audited across all four sensor tuples. |
+| 1.0.0 | 2026-06-22 | Added guard bands for Multi-WAN modes/weights/latencies, storage partition used percentages, and Threat Management. |
+| 1.0.0 | 2026-07-08 | Restructured into Part I and Part II split structure. Corrected translation and sensor keys to match those present in the manifest. |
+| 1.0.0 | 2026-07-14 | Added the **Security & Alerts** guard-band table (rogue count / raw-24h / RSSI, alert counts) and documented `_safe_float` 3-dp rounding. |
+| 1.1.2 | 2026-11-19 | Updated Design Notes: AP `-1` satisfaction scores normalize to `None` at parse time (`_valid_score()`), and active `min_limit`/`max_limit` guard-band suppressions raise `severity: warning` with `guard_band_suppressed` on `Integration Health`. |
+| 1.1.2 | 2026-11-20 | Regenerated by `check_sensor_manifest.py --sync-docs` for `1.1.2-dev4`: per-device section and the new WAN ISP and IPv6 sensors, which carry no guard band. |

@@ -128,6 +128,7 @@ async def test_get_raises_connection_error_on_network_failure() -> None:
 async def test_extract_returns_data_list() -> None:
     """_extract returns the data list from a UniFi envelope."""
     api = _make_api()
+    api.api_key = ""
     result = api._extract({"data": [{"mac": "aa:bb"}], "meta": {"rc": "ok"}})
     assert result == [{"mac": "aa:bb"}]
 
@@ -135,12 +136,14 @@ async def test_extract_returns_data_list() -> None:
 async def test_extract_returns_empty_on_missing_data() -> None:
     """_extract returns empty list when data key missing."""
     api = _make_api()
+    api.api_key = ""
     assert api._extract({"meta": {"rc": "ok"}}) == []
 
 
 async def test_extract_returns_empty_on_non_dict() -> None:
     """_extract returns empty list when response is not a dict."""
     api = _make_api()
+    api.api_key = ""
     assert api._extract([1, 2, 3]) == []
 
 
@@ -795,3 +798,47 @@ async def test_get_system_logs_with_page_params() -> None:
     payload = mock_post.call_args[0][1]
     assert payload["pageNumber"] == 2
     assert payload["pageSize"] == 50
+
+
+async def test_stats_source_and_series_edge_branches() -> None:
+    """Cover 401->login->404 retry, invalid stats/source body, list self/sites, dict stats_series."""
+    api = _make_api()
+    api.api_key = ""
+
+    # 401 -> login -> 404 with ignore_404=True returns "LEGACY"
+    resp_401 = MagicMock(status=401, reason="Unauthorized", headers={})
+    resp_401.text = AsyncMock(return_value="Unauthorized")
+    resp_404 = MagicMock(status=404)
+    cm_401 = MagicMock()
+    cm_401.__aenter__ = AsyncMock(return_value=resp_401)
+    cm_401.__aexit__ = AsyncMock(return_value=False)
+    cm_404 = MagicMock()
+    cm_404.__aenter__ = AsyncMock(return_value=resp_404)
+    cm_404.__aexit__ = AsyncMock(return_value=False)
+    session = MagicMock(closed=False)
+    session.get = MagicMock(side_effect=[cm_401, cm_404])
+    api.session = session
+    with patch.object(api, "login", AsyncMock()):
+        assert await api.get_stats_source() == "LEGACY"
+
+    # Empty/unexpected stats/source body raises UnifiConnectionError
+    with (
+        patch.object(api, "_request", AsyncMock(return_value="   ")),
+        pytest.raises(UnifiConnectionError, match="Unexpected stats/source response"),
+    ):
+        await api.get_stats_source()
+    with (
+        patch.object(api, "_request", AsyncMock(return_value=123)),
+        pytest.raises(UnifiConnectionError, match="Unexpected stats/source response"),
+    ):
+        await api.get_stats_source()
+
+    # get_self_sites bare list
+    with patch.object(
+        api, "_get", AsyncMock(return_value=[{"name": "default", "_id": "s1"}])
+    ):
+        assert await api.get_self_sites() == [{"name": "default", "_id": "s1"}]
+
+    # get_stats_series dict envelope
+    with patch.object(api, "_request", AsyncMock(return_value={"data": [{"a": 1}]})):
+        assert await api.get_stats_series("s1", 1, 2) == [{"a": 1}]
