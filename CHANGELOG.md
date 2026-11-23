@@ -4,6 +4,60 @@ All notable changes to the UniFi Network Monitor project will be documented in t
 
 ---
 
+## [1.1.2] - 2026-11-22 - Release: UniFi Network 11 Support, Per-WAN ISP & IPv6, and Data Integrity
+
+### Highlights
+
+- **Network 11 WAN Usage Fixed**: Restores today, month, and projected WAN usage sensors on UniFi Network 11.0.89+.
+- **Per-WAN ISP & IPv6**: Dedicated ISP, Uplink ISP, and public IPv6 sensors per WAN.
+- **Accurate Multi-WAN Mode**: Reports true failover vs. load-balancing status across all WANs.
+- **Health & Integrity Signals**: Flags silent empty responses and out-of-range suppressions in Integration Health.
+
+### Summary
+
+- **UniFi Network 11 Support**: Fixes missing (`unknown`) WAN data usage on UniFi Network 11.0.89+ by switching to the new Network 11 statistics engine while keeping legacy reports on Network 10 and earlier.
+- **Per-WAN ISP & IPv6**: Each WAN gets its own ISP and public IPv6 address sensor, plus an Uplink ISP sensor showing the active uplink provider.
+- **Multi-WAN & Device Fixes**: Multi-WAN Mode checks every WAN instead of only WAN1, firmware updates sync without reloading, and unadopted or mesh APs are excluded.
+- **Data Integrity**: Missing controller fields read as `unknown` instead of zero, and Integration Health flags silent empty responses and suppressed out-of-range values.
+
+### ⚠️ Action Required
+
+- **Multi-WAN Mode automations**: Dual-WAN setups now report `failover` or `load_balancing` instead of raw controller values (`weighted` or `failover-only`). Update any automation checking `sensor.unifi_network_system_multi_wan_mode` (single-WAN setups are unchanged).
+- **Retired site-level ISP sensors**: `ISP Name` (`wan_isp_name`) and `ISP Organization` (`wan_isp_org`) are removed. On upgrade they become `unavailable` until you press **Clean Up Unused Entities** (or run `unifi_network_monitor.cleanup_unused_entities`); switch any dashboards or automations to `WAN1 ISP` (`wan1_isp`), `WAN2 ISP` (`wan2_isp`), or `Uplink ISP` (`uplink_isp`), which expose `isp_organization` and `asn` as attributes.
+
+### Added
+
+- **Per-WAN ISP and Uplink ISP sensors**: Dedicated provider sensors for each WAN and the active uplink, showing the registered owner and ASN (`wan1_isp`, `wan2_isp`, `uplink_isp` with `isp_organization` and `asn` attributes).
+- **Per-WAN Public IPv6 Address sensors**: Publishes each WAN's global IPv6 address, or `unknown` when IPv6 is disabled or only link-local or unique-local addresses exist (`wan1_public_ipv6`, `wan2_public_ipv6`).
+
+### Fixed
+
+- **WAN usage unknown on UniFi Network 11** *(refines Internet Data Usage, introduced in 1.0.0)*: On Network 11+, legacy usage endpoints return empty responses, leaving today, month, and projected WAN usage sensors `unknown`. The integration now reads the Network 11 statistics engine on Network 11.0.89+ while keeping legacy reports on Network 10 and earlier; Network 11 builds below 11.0.89 ignore the start-time filter on the new endpoint, so they leave usage `unknown` with a one-time warning.
+- **Multi-WAN Mode misreporting failover setups** *(refines Load Balancing, introduced in 1.0.0)*: Dual-WAN failover setups with WAN1 as primary previously reported `weighted` because only WAN1's setting was read. Multi-WAN Mode now checks every configured WAN, reporting `failover` when any WAN is failover-only and `load_balancing` when all are weighted, with per-WAN roles, priorities, and weights in attributes (`wans`).
+- **Missing controller fields reporting misleading zeros** *(refines Gateway & Link Sensors, introduced in 1.0.0)*: Omitted AP, switch, and health fields previously fell back to `0` or `100.0` defaults (making unresponsive latency/availability probes look healthy). Missing fields now report `unknown`, and uncomputed AP satisfaction scores (`-1`) normalize to `unknown`.
+- **Gateway firmware version sync**: Gateway firmware updates from the controller now update the Home Assistant device registry immediately without requiring a reload or restart.
+- **Unadopted and mesh AP gateway exclusion**: Devices pending adoption (`adopted: false`) and devices in `mesh` or `ap` mode are excluded from gateway selection and per-device entity creation.
+- **Controller write-refusal detection**: Speedtest and load-balance weight writes verify the controller's response status and raise an error instead of reporting success when a write is refused.
+
+### Changed
+
+- **Integration Health silent-failure and guard-band reporting** *(refines Integration Health, introduced in 1.0.0, refined in 1.1.1)*: Flags previously populated sources returning empty data as `degraded` and out-of-range guard-band suppressions as `warning` (`empty_capabilities`, `guard_band_suppressed`).
+- **Entity `about` note clarity and spelling**: Moved the `/persistent` storage note to `Storage Utilization`, added `about` notes to `WAN1 Active Uplink` and `WAN2 Active Uplink`, standardized US spelling on `Rogue APs New 24h`, and aligned speedtest note references to displayed entity names.
+
+### Removed
+
+- **Site-level ISP Name and ISP Organization sensors**: Replaced `wan_isp_name` and `wan_isp_org` (which always reflected WAN1) with the per-WAN and `Uplink ISP` sensors; run **Clean Up Unused Entities** (`unifi_network_monitor.cleanup_unused_entities`) after upgrading to remove the retired entities.
+
+### Under the hood
+
+- **Home Assistant 2026.11 compatibility & Marketplace metadata**: Updated sub-device linking to the Home Assistant 2026.11 `DeviceInfo` format (preserving compatibility back to `2025.2.0`) and added `categories` (`computers_network.routers_network`, `computers_network.monitoring`) to `manifest.json`.
+- **Diagnostics field-name inventory for multi-model support**: Diagnostics downloads now list the field names returned by each controller endpoint (with sensitive identifiers masked and no values included) so support for additional UniFi gateway models can be verified from user-submitted diagnostics.
+- **Diagnostics & Leak Verification**: Added location keys (`address`, `latitude`, `longitude`, `city`, `accuracy`) and the new ISP/IPv6 keys to diagnostics redaction (`TO_REDACT`), confirming `0` leaks across `1,169` controller values in `21` categories (`diag_check.py`).
+- **Test Suite & 100% Coverage Baseline**: Migrated to `pytest-homeassistant` and expanded to `1,170` passing tests (`0` warnings) with `100.00%` line and branch coverage (`3,993` statements, `1,276` branches, `0` missed), `Assertion Audit: PASSED` (`0` of `1,070`), `Test Depth Check: PASSED`, and `19` verified mutation proofs.
+- **Strict Typing & Validation Parity**: Clean `mypy --strict` across all `20` source files, `Ruff` `PLC0415` top-level import compliance, suppression audit cleanup (`22` approved directives), and synced `docs/about_attribute_list.md` (`57/131` `about` notes across `131` entities).
+
+---
+
 ## [1.1.1] - 2026-10-16 - Release: Gateway Uptime, Diagnostics Privacy Hardening, and Single-WAN Fixes
 
 ### Summary
@@ -159,6 +213,7 @@ Entry structure — headers, titles, category headings and the split between thi
 ---
 
 - [Changelog](#changelog)
+  - [\[1.1.2\] - 2026-11-22 - Release: UniFi Network 11 Support, Per-WAN ISP \& IPv6, and Data Integrity](#112---2026-11-22---release-unifi-network-11-support-per-wan-isp--ipv6-and-data-integrity)
   - [\[1.1.1\] - 2026-10-16 - Release: Gateway Uptime, Diagnostics Privacy Hardening, and Single-WAN Fixes](#111---2026-10-16---release-gateway-uptime-diagnostics-privacy-hardening-and-single-wan-fixes)
   - [\[1.1.0\] - 2026-10-12 - Release: Gateway Detection, Projected Data Usage, Diagnostics Hardening, and WAN Weight Controls](#110---2026-10-12---release-gateway-detection-projected-data-usage-diagnostics-hardening-and-wan-weight-controls)
   - [\[1.0.0\] - 2026-07-22 - Initial Public Release](#100---2026-07-22---initial-public-release)
